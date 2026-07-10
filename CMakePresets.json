@@ -1,0 +1,64 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "demo",
+      "displayName": "Demo (Debug)",
+      "description": "Development/testing build",
+      "generator": "Visual Studio 17 2022",
+      "architecture": {
+        "value": "x64",
+        "strategy": "set"
+      },
+      "binaryDir": "${sourceDir}/build-demo",
+      "cacheVariables": {
+        "OME_ENV_TAG": "demo",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "OME_BUILD_TESTS": "ON",
+        "OME_BUILD_SAMPLES": "ON"
+      }
+    },
+    {
+      "name": "production",
+      "displayName": "Production (Release)",
+      "description": "Optimized production build",
+      "generator": "Visual Studio 17 2022",
+      "architecture": {
+        "value": "x64",
+        "strategy": "set"
+      },
+      "binaryDir": "${sourceDir}/build-production",
+      "cacheVariables": {
+        "OME_ENV_TAG": "production",
+        "CMAKE_BUILD_TYPE": "Release",
+        "OME_BUILD_TESTS": "OFF",
+        "OME_BUILD_SAMPLES": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "demo",
+      "displayName": "Build Demo",
+      "configurePreset": "demo",
+      "configuration": "Debug"
+    },
+    {
+      "name": "production",
+      "displayName": "Build Production",
+      "configurePreset": "production",
+      "configuration": "Release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "demo",
+      "displayName": "Test Demo",
+      "configurePreset": "demo",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

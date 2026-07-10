@@ -1,0 +1,44 @@
+#pragma once
+
+// ============================================================
+// OpenMedia SDK — Auto-generated Configuration
+// Environment: @OME_ENV_TAG@
+// Generated at build time by CMake
+// DO NOT EDIT — changes will be overwritten
+// ============================================================
+
+// --- Project Info ---
+#define OME_PROJECT_NAME     "@OME_PROJECT_NAME@"
+#define OME_COMPANY_NAME     "@OME_COMPANY_NAME@"
+#define OME_VERSION_MAJOR    @OME_VERSION_MAJOR@
+#define OME_VERSION_MINOR    @OME_VERSION_MINOR@
+#define OME_VERSION_PATCH    @OME_VERSION_PATCH@
+#define OME_VERSION_STRING   "@OME_VERSION_STRING@"
+#define OME_COPYRIGHT        "@OME_COPYRIGHT@"
+
+// --- Build Info ---
+#define OME_ENV_TAG          "@OME_ENV_TAG@"
+#define OME_GIT_VERSION      "@GIT_VERSION@"
+#define OME_GIT_COMMIT       "@GIT_COMMIT_HASH@"
+
+#if defined(OME_PRODUCTION)
+    #define OME_IS_PRODUCTION 1
+    #define OME_IS_DEMO       0
+#elif defined(OME_DEMO)
+    #define OME_IS_PRODUCTION 0
+    #define OME_IS_DEMO       1
+#else
+    #define OME_IS_PRODUCTION 0
+    #define OME_IS_DEMO       1
+#endif
+
+// --- Media Defaults ---
+#define OME_DEFAULT_VIDEO_WIDTH      @OME_DEFAULT_VIDEO_WIDTH@
+#define OME_DEFAULT_VIDEO_HEIGHT     @OME_DEFAULT_VIDEO_HEIGHT@
+#define OME_DEFAULT_AUDIO_SAMPLERATE @OME_DEFAULT_AUDIO_SAMPLERATE@
+#define OME_DEFAULT_AUDIO_CHANNELS   @OME_DEFAULT_AUDIO_CHANNELS@
+
+// --- Pipeline ---
+#define OME_MAX_PIPELINE_DEPTH       @OME_MAX_PIPELINE_DEPTH@
+#define OME_FRAME_QUEUE_SIZE         @OME_FRAME_QUEUE_SIZE@
+#define OME_MAX_CONCURRENT_PIPELINES @OME_MAX_CONCURRENT_PIPELINES@

@@ -1,0 +1,3 @@
+Tao file Index Lib.docx --> Grok --> OpenMedia_SDK_Prompts_Plan.md
+Index Lib.docx & OpenMedia_SDK_Prompts_Plan.md --> Antigravity (Claude Opus) --> 01 - 10
+Nghien cuu them Exhand.md--> Antigravity (Claude Opus) --> Nang cap 01 - 10 --> Tao Implemtation_plan & Task
