@@ -139,6 +139,7 @@ OpenMedia SDK là bộ SDK media engine hiệu năng cao, được phát triển
 | **OpenMedia.NDI** | NDI protocol engine | NDI | Server |
 | **OpenMedia.RTMP** | RTMP protocol engine | RTMP | Server |
 | **OpenMedia.ST2110** | SMPTE ST 2110 engine | ST2110 | Server |
+| **OpenMedia.ST2022** | SMPTE ST 2022 engine (with FEC and Hitless Merge) | ST2022 | Server |
 | **OpenMedia.Monitoring** | Metrics, Waveform, Vectorscope, Scopes | (built-in) | Server |
 | **OpenMedia.PluginHost** | Plugin loading & isolation (riêng biệt) | Plugin | Server |
 | **OpenMedia.PluginSDK** | Plugin interface & dynamic loading | Plugin | Server |

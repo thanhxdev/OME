@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Donate Alert</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            /* Transparent background for alpha channel */
+            background-color: transparent; 
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+        }
+
+        .alert-container {
+            width: 600px;
+            margin-bottom: 100px;
+            opacity: 0;
+            transform: translateY(50px) scale(0.9);
+            transition: opacity 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), 
+                        transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .alert-container.show {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        .alert-container.hide {
+            opacity: 0;
+            transform: translateY(-50px) scale(0.9);
+            transition: opacity 0.4s ease-in, transform 0.4s ease-in;
+        }
+
+        .glass-box {
+            background: rgba(20, 20, 30, 0.6);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-radius: 20px;
+            padding: 20px 40px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37),
+                        inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+            border-bottom: 4px solid #00f0ff;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .glass-box::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 50%; height: 100%;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.3), transparent);
+            transform: skewX(-20deg);
+        }
+
+        .alert-container.show .glass-box::before {
+            animation: shine 1.5s infinite;
+        }
+
+        @keyframes shine {
+            100% { left: 200%; }
+        }
+
+        .message {
+            color: #fff;
+            font-size: 28px;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            margin: 0;
+        }
+
+        .highlight {
+            color: #00f0ff;
+            text-shadow: 0 0 10px rgba(0, 240, 255, 0.8);
+            font-weight: 900;
+        }
+        
+        .icon {
+            font-size: 64px;
+            margin-bottom: -15px;
+            z-index: 10;
+            animation: bounce 1s infinite alternate;
+        }
+
+        @keyframes bounce {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(-10px); }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="alert-container" id="alertBox">
+        <div class="icon">💎</div>
+        <div class="glass-box">
+            <p class="message"><span class="highlight" id="donorName">Name</span> donated <span class="highlight" id="donateAmount">$0.00</span>!</p>
+        </div>
+    </div>
+
+    <script>
+        // API for CEF to call
+        function updateData(key, value) {
+            try {
+                let data = JSON.parse(value);
+                if (key === 'donate') {
+                    showDonate(data.name, data.amount);
+                }
+            } catch (e) {
+                console.error("Invalid JSON data", e);
+            }
+        }
+
+        let alertTimeout;
+        
+        function showDonate(name, amount) {
+            const alertBox = document.getElementById('alertBox');
+            document.getElementById('donorName').innerText = name;
+            document.getElementById('donateAmount').innerText = amount;
+            
+            // Reset state
+            alertBox.classList.remove('hide');
+            alertBox.classList.remove('show');
+            void alertBox.offsetWidth; // Trigger reflow
+            
+            // Show alert
+            alertBox.classList.add('show');
+            
+            clearTimeout(alertTimeout);
+            // Hide after 5 seconds
+            alertTimeout = setTimeout(() => {
+                alertBox.classList.remove('show');
+                alertBox.classList.add('hide');
+            }, 5000);
+        }
+
+        // Expose to window for CEF access
+        window.updateData = updateData;
+
+        // For local testing (remove in production if needed)
+        /*
+        setTimeout(() => {
+            updateData('donate', '{"name": "AwesomeViewer", "amount": "$50.00"}');
+        }, 1000);
+        */
+    </script>
+</body>
+</html>

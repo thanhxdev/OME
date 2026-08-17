@@ -31,16 +31,14 @@ tests/
 │   │   ├── test_frame_queue.cpp
 │   │   ├── test_media_pipeline.cpp
 │   │   ├── test_clock_sync.cpp
-│   │   ├── test_memory_pool.cpp
-│   │   ├── test_config.cpp
-│   │   └── test_engine.cpp
+│   │   └── test_memory_pool.cpp
 │   ├── io/
 │   │   ├── test_file_source.cpp
 │   │   ├── test_media_reader.cpp
 │   │   ├── test_live_source.cpp
 │   │   └── test_device_factory.cpp
 │   ├── codecs/
-│   │   ├── test_h264_encoder.cpp
+│   │   ├── test_codec_pipeline.cpp
 │   │   ├── test_h264_decoder.cpp
 │   │   ├── test_h265_encoder.cpp
 │   │   ├── test_aac_encoder.cpp
@@ -53,15 +51,14 @@ tests/
 │   ├── audio/
 │   │   ├── test_audio_mixer.cpp
 │   │   ├── test_audio_meter.cpp
-│   │   ├── test_resampler.cpp
-│   │   └── test_channel_mapper.cpp
+│   │   └── test_resampler.cpp
 │   ├── overlay/
 │   │   ├── test_text_overlay.cpp
 │   │   ├── test_logo_overlay.cpp
 │   │   └── test_ticker_overlay.cpp
 │   ├── gpu/
-│   │   ├── test_gpu_context.cpp
-│   │   ├── test_gpu_frame.cpp
+│   │   ├── test_d3d11_context.cpp
+│   │   ├── test_cuda_context.cpp
 │   │   └── test_gpu_transfer.cpp
 │   └── protocols/
 │       ├── test_srt_engine.cpp
@@ -171,14 +168,13 @@ ome_add_test(test_frame_queue unit/core/test_frame_queue.cpp OpenMedia.Core)
 ome_add_test(test_media_frame unit/core/test_media_frame.cpp OpenMedia.Core)
 ome_add_test(test_pipeline unit/core/test_media_pipeline.cpp OpenMedia.Core)
 ome_add_test(test_clock_sync unit/core/test_clock_sync.cpp OpenMedia.Core)
-ome_add_test(test_config unit/core/test_config.cpp OpenMedia.Core)
 
 # IO tests
 ome_add_test(test_file_source unit/io/test_file_source.cpp OpenMedia.IO OpenMedia.Core)
 ome_add_test(test_media_reader unit/io/test_media_reader.cpp OpenMedia.IO OpenMedia.Core)
 
 # Codec tests
-ome_add_test(test_h264_encoder unit/codecs/test_h264_encoder.cpp OpenMedia.Codecs OpenMedia.Core)
+ome_add_test(test_codec_pipeline unit/codecs/test_codec_pipeline.cpp OpenMedia.Codecs OpenMedia.Core)
 ome_add_test(test_h264_decoder unit/codecs/test_h264_decoder.cpp OpenMedia.Codecs OpenMedia.Core)
 
 # Mixer tests

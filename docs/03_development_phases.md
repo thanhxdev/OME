@@ -296,7 +296,12 @@ Implement các protocol engine chuyên dụng.
 - [ ] PTP clock sync
 - [ ] NMOS integration
 
-#### 5.6 Additional Outputs
+#### 5.6 ST 2022 Engine (OpenMedia.ST2022)
+- [ ] SMPTE ST 2022 source (MPEG-TS over IP)
+- [ ] ST 2022 output (with FEC handling)
+- [ ] SMPTE ST 2022-7 Hitless Merge support
+
+#### 5.7 Additional Outputs
 - [ ] HLS output (segmented)
 - [ ] DASH output
 - [ ] CMAF output

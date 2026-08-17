@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CG Template</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            width: 1920px;
+            height: 1080px;
+            /* Transparent background so only the banner shows up in OSR */
+            background-color: transparent;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+        }
+
+        .lower-third {
+            width: 80%;
+            margin-bottom: 80px;
+            background: linear-gradient(90deg, rgba(29, 78, 216, 0.9) 0%, rgba(30, 64, 175, 0.9) 100%);
+            border-radius: 12px;
+            padding: 24px 48px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            color: white;
+            opacity: 0;
+            transform: translateY(50px);
+            animation: slideIn 1s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+            animation-delay: 0.5s;
+        }
+
+        @keyframes slideIn {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 48px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        p {
+            margin: 10px 0 0 0;
+            font-size: 28px;
+            font-weight: 400;
+            color: #cbd5e1;
+        }
+    </style>
+</head>
+<body>
+    <div class="lower-third">
+        <h1 id="cg-title">Loading...</h1>
+        <p id="cg-subtitle">Please stand by</p>
+    </div>
+
+    <script>
+        // This function will be called from C++ via CefFrame::ExecuteJavaScript
+        function updateData(key, value) {
+            const el = document.getElementById('cg-' + key);
+            if (el) {
+                el.innerText = value;
+            }
+        }
+
+        // Test fallback (will be overridden by C++)
+        setTimeout(() => {
+            updateData('title', 'TIN TỨC CẬP NHẬT');
+            updateData('subtitle', 'Hệ thống CG đang hoạt động bình thường.');
+        }, 100);
+    </script>
+</body>
+</html>

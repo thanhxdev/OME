@@ -151,7 +151,35 @@ public:
 } // namespace openmedia
 ```
 
-### 2.4 MediaFrame
+### 2.4 WebRTCConfig
+
+```cpp
+namespace openmedia::webrtc {
+
+enum class WebRTCMode { Single, Simulcast, MultiDestination };
+
+struct SimulcastLayer {
+    int width, height, fps, bitrate;
+    std::string rid; 
+};
+
+struct WebRTCConfig {
+    std::string signalingUri;
+    std::vector<std::string> iceServers;
+    WebRTCMode mode = WebRTCMode::Single;
+    
+    // Encoder & ABR settings
+    codecs::VideoCodec videoCodec = codecs::VideoCodec::H264;
+    bool enableGpuFallback = true;
+    bool enableABR = true;
+    
+    std::vector<SimulcastLayer> simulcastLayers;
+};
+
+} // namespace openmedia::webrtc
+```
+
+### 2.5 MediaFrame
 
 ```cpp
 namespace openmedia {
@@ -234,7 +262,10 @@ int main() {
             .Build();
 
     pipeline->Start();
-    // ... wait for user input
+
+    std::cout << "Press Enter to stop...\n";
+    std::cin.get();
+
     pipeline->Stop();
 }
 ```

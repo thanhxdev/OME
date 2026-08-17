@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ticker</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: transparent; 
+            overflow: hidden;
+            font-family: 'Roboto', sans-serif;
+            display: flex;
+            align-items: flex-end; /* Align to bottom */
+        }
+
+        .ticker-bar {
+            width: 100%;
+            height: 50px;
+            background: rgba(10, 10, 15, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            border-top: 2px solid #ff0055;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.5);
+            position: relative;
+            z-index: 1;
+        }
+
+        .ticker-label {
+            background: #ff0055;
+            color: white;
+            font-weight: 700;
+            font-size: 20px;
+            padding: 0 20px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            z-index: 2;
+            box-shadow: 5px 0 15px rgba(0,0,0,0.5);
+        }
+
+        .ticker-content-wrapper {
+            flex: 1;
+            height: 100%;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .ticker-content {
+            display: flex;
+            align-items: center;
+            height: 100%;
+            white-space: nowrap;
+            position: absolute;
+            color: #fff;
+            font-size: 20px;
+            /* Adjust animation duration based on content length via JS later, 
+               but providing a default here */
+            animation: ticker 15s linear infinite; 
+        }
+
+        .ticker-item {
+            margin-right: 50px;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .ticker-item::before {
+            content: '•';
+            color: #ff0055;
+            margin-right: 15px;
+            font-size: 24px;
+        }
+        
+        .ticker-item:first-child::before {
+            display: none;
+        }
+
+        @keyframes ticker {
+            0% { transform: translateX(100vw); }
+            100% { transform: translateX(-100%); }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="ticker-bar">
+        <div class="ticker-label" id="tickerLabel">BREAKING</div>
+        <div class="ticker-content-wrapper">
+            <div class="ticker-content" id="tickerContent">
+                <div class="ticker-item">Welcome to OpenMedia SDK Phase 3!</div>
+                <div class="ticker-item">Enjoy the transparent CG Overlay!</div>
+                <div class="ticker-item">Powered by CEF and C++20</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API for CEF to call
+        function updateData(key, value) {
+            try {
+                let data = JSON.parse(value);
+                if (key === 'ticker_items') {
+                    updateTicker(data.items);
+                } else if (key === 'ticker_label') {
+                    document.getElementById('tickerLabel').innerText = data.label;
+                }
+            } catch (e) {
+                console.error("Invalid JSON data", e);
+            }
+        }
+
+        function updateTicker(items) {
+            const contentDiv = document.getElementById('tickerContent');
+            contentDiv.innerHTML = '';
+            
+            items.forEach((item, index) => {
+                let div = document.createElement('div');
+                div.className = 'ticker-item';
+                div.innerText = item;
+                contentDiv.appendChild(div);
+            });
+            
+            // Restart animation
+            contentDiv.style.animation = 'none';
+            void contentDiv.offsetWidth; 
+            // Calculate a rough duration based on item count so it doesn't move too fast/slow
+            let duration = items.length * 5 + 10; 
+            contentDiv.style.animation = `ticker ${duration}s linear infinite`;
+        }
+
+        window.updateData = updateData;
+
+        // Local testing
+        /*
+        setTimeout(() => {
+            updateData('ticker_items', JSON.stringify({
+                items: ["Live from the event", "New feature just released", "More amazing updates coming soon"]
+            }));
+            updateData('ticker_label', JSON.stringify({label: "LIVE NEWS"}));
+        }, 3000);
+        */
+    </script>
+</body>
+</html>

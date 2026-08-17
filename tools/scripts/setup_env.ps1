@@ -65,10 +65,35 @@ foreach ($dir in $dirs) {
 
 Write-Host "`nEnvironment setup complete!" -ForegroundColor Green
 
-if ($DownloadSDKs) {
-    Write-Host "`n[NOTE] SDK downloads require manual steps:" -ForegroundColor Yellow
+if ($DownloadSDKs -or $All) {
+    Write-Host "`nDownloading and setting up SDKs..." -ForegroundColor Cyan
+    
+    # Auto-download FFmpeg
+    $FfmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl-shared.zip"
+    $FfmpegZip = Join-Path $ProjectRoot "third_party/ffmpeg.zip"
+    $FfmpegDir = Join-Path $ProjectRoot "third_party/ffmpeg"
+    
+    if (-not (Test-Path "$FfmpegDir/include")) {
+        Write-Host "  Downloading FFmpeg from $FfmpegUrl..." -ForegroundColor Gray
+        Invoke-WebRequest -Uri $FfmpegUrl -OutFile $FfmpegZip
+        Write-Host "  Extracting FFmpeg..." -ForegroundColor Gray
+        Expand-Archive -Path $FfmpegZip -DestinationPath "$ProjectRoot/third_party/ffmpeg_temp" -Force
+        
+        $ExtractedFolder = Get-ChildItem -Path "$ProjectRoot/third_party/ffmpeg_temp" -Directory | Select-Object -First 1
+        
+        Copy-Item -Path "$($ExtractedFolder.FullName)/include" -Destination $FfmpegDir -Recurse -Force
+        Copy-Item -Path "$($ExtractedFolder.FullName)/lib" -Destination $FfmpegDir -Recurse -Force
+        Copy-Item -Path "$($ExtractedFolder.FullName)/bin" -Destination $FfmpegDir -Recurse -Force
+        
+        Remove-Item -Path $FfmpegZip -Force
+        Remove-Item -Path "$ProjectRoot/third_party/ffmpeg_temp" -Recurse -Force
+        Write-Host "  FFmpeg setup completed." -ForegroundColor Green
+    } else {
+        Write-Host "  FFmpeg already exists. Skipping download." -ForegroundColor Gray
+    }
+
+    Write-Host "`n[NOTE] Other SDK downloads require manual steps (license/login required):" -ForegroundColor Yellow
     Write-Host "  1. NDI SDK:      https://ndi.video/for-developers/ndi-sdk/" -ForegroundColor Gray
     Write-Host "  2. DeckLink SDK: https://www.blackmagicdesign.com/developer/" -ForegroundColor Gray
-    Write-Host "  3. FFmpeg:       https://github.com/BtbN/FFmpeg-Builds/releases" -ForegroundColor Gray
-    Write-Host "  4. CEF:          https://cef-builds.spotifycdn.com/index.html" -ForegroundColor Gray
+    Write-Host "  3. CEF:          https://cef-builds.spotifycdn.com/index.html" -ForegroundColor Gray
 }

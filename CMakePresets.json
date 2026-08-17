@@ -5,7 +5,7 @@
       "name": "demo",
       "displayName": "Demo (Debug)",
       "description": "Development/testing build",
-      "generator": "Visual Studio 17 2022",
+      "generator": "Visual Studio 18 2026",
       "architecture": {
         "value": "x64",
         "strategy": "set"
@@ -22,7 +22,7 @@
       "name": "production",
       "displayName": "Production (Release)",
       "description": "Optimized production build",
-      "generator": "Visual Studio 17 2022",
+      "generator": "Visual Studio 18 2026",
       "architecture": {
         "value": "x64",
         "strategy": "set"

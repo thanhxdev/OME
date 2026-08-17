@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="OpenMedia.Core.NET.Tests/OpenMedia.Core.NET.Tests.csproj" />
+  <Project Path="OpenMedia.Core.NET/OpenMedia.Core.NET.csproj" />
+  <Project Path="OpenMedia.NDI.NET/OpenMedia.NDI.NET.csproj" />
+  <Project Path="SampleCSharpPlugin/SampleCSharpPlugin.csproj" />
+  <Project Path="SimplePlayer/SimplePlayer.csproj" />
+  <Project Path="../samples/dotnet/OME_review/OME_review.csproj" />
+</Solution>

@@ -100,44 +100,5 @@ void Logger::SetLevel(LogLevel level) {
 std::shared_ptr<spdlog::logger> Logger::GetSpdLogger() const {
     return m_impl->logger;
 }
-
-// Template implementations
-template <typename... Args>
-void Logger::Trace(std::string_view fmt, Args&&... args) {
-    m_impl->logger->trace(fmt, std::forward<Args>(args)...);
-}
-
-template <typename... Args>
-void Logger::Debug(std::string_view fmt, Args&&... args) {
-    m_impl->logger->debug(fmt, std::forward<Args>(args)...);
-}
-
-template <typename... Args>
-void Logger::Info(std::string_view fmt, Args&&... args) {
-    m_impl->logger->info(fmt, std::forward<Args>(args)...);
-}
-
-template <typename... Args>
-void Logger::Warn(std::string_view fmt, Args&&... args) {
-    m_impl->logger->warn(fmt, std::forward<Args>(args)...);
-}
-
-template <typename... Args>
-void Logger::Error(std::string_view fmt, Args&&... args) {
-    m_impl->logger->error(fmt, std::forward<Args>(args)...);
-}
-
-template <typename... Args>
-void Logger::Critical(std::string_view fmt, Args&&... args) {
-    m_impl->logger->critical(fmt, std::forward<Args>(args)...);
-}
-
-// Explicit template instantiations for common types
-template void Logger::Trace(std::string_view);
-template void Logger::Debug(std::string_view);
-template void Logger::Info(std::string_view);
-template void Logger::Warn(std::string_view);
-template void Logger::Error(std::string_view);
-template void Logger::Critical(std::string_view);
-
 } // namespace openmedia::core
+

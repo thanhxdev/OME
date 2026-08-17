@@ -27,6 +27,9 @@ enum class ErrorCode : uint32_t {
     Cancelled = 1008,
     OutOfMemory = 1009,
     PermissionDenied = 1010,
+    IOError = 1011,
+    InvalidData = 1012,
+    WouldBlock = 1013,
 
     // Pipeline errors (2xxx)
     PipelineNotReady = 2000,
@@ -48,6 +51,8 @@ enum class ErrorCode : uint32_t {
     DeviceNotFound = 3007,
     DeviceOpenFailed = 3008,
     DeviceBusy = 3009,
+    EndOfStream = 3010,
+    InvalidFormat = 3011,
 
     // Codec errors (4xxx)
     CodecNotFound = 4000,
@@ -130,9 +135,14 @@ using VoidResult = std::expected<void, Error>;
         case ErrorCode::NotFound:             return "Not found";
         case ErrorCode::Timeout:              return "Timeout";
         case ErrorCode::OutOfMemory:          return "Out of memory";
+        case ErrorCode::IOError:              return "I/O error";
+        case ErrorCode::InvalidData:          return "Invalid data";
+        case ErrorCode::WouldBlock:           return "Would block";
         case ErrorCode::PipelineNotReady:     return "Pipeline not ready";
         case ErrorCode::PipelineInvalidGraph: return "Invalid pipeline graph";
         case ErrorCode::FileNotFound:         return "File not found";
+        case ErrorCode::EndOfStream:          return "End of stream";
+        case ErrorCode::InvalidFormat:        return "Invalid format";
         case ErrorCode::CodecNotFound:        return "Codec not found";
         case ErrorCode::GPUNotAvailable:      return "GPU not available";
         case ErrorCode::IPCConnectionFailed:  return "IPC connection failed";

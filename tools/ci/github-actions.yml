@@ -22,17 +22,13 @@ jobs:
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgDirectory: '${{ github.workspace }}/third_party/vcpkg'
+          vcpkgGitCommitId: 'master'
 
       - name: Configure CMake
-        run: >
-          cmake -B build
-          -DOME_ENV_TAG=${{ matrix.environment }}
-          -DCMAKE_BUILD_TYPE=${{ matrix.environment == 'production' && 'Release' || 'Debug' }}
-          -DOME_BUILD_TESTS=ON
-          -G "Visual Studio 17 2022" -A x64
+        run: cmake --preset ${{ matrix.environment }} -DOME_BUILD_TESTS=ON
 
       - name: Build
-        run: cmake --build build --config ${{ matrix.environment == 'production' && 'Release' || 'Debug' }} --parallel
+        run: cmake --build --preset ${{ matrix.environment }} --parallel
 
       - name: Test
         run: ctest --test-dir build -C ${{ matrix.environment == 'production' && 'Release' || 'Debug' }} --output-on-failure

@@ -1,0 +1,8 @@
+add_subdirectory(pipeline_demo)
+add_subdirectory(rtmp_demo)
+add_subdirectory(broadcast_pipeline)
+add_subdirectory(mixer_demo)
+add_subdirectory(simple_player)
+add_subdirectory(ndi_srt_output)
+add_subdirectory(d3d11_ipc_poc)
+add_subdirectory(OME_play)

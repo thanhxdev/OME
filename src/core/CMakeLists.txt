@@ -1,15 +1,19 @@
 # ============================================================
 # OpenMedia.Core — CMakeLists.txt
 # ============================================================
-add_library(OpenMedia.Core STATIC
+add_library(OpenMedia.Core SHARED
     src/Logger.cpp
     src/Config.cpp
     src/MemoryPool.cpp
+    src/MediaMetadata.cpp
     src/MediaFrame.cpp
     src/FrameQueue.cpp
     src/ClockSync.cpp
     src/MediaPipeline.cpp
+    src/PipelineGraph.cpp
+    src/TeeNode.cpp
     src/Engine.cpp
+    openmedia_c_api.cpp
 )
 
 target_include_directories(OpenMedia.Core
@@ -45,8 +49,9 @@ target_compile_definitions(OpenMedia.Core
 set_target_properties(OpenMedia.Core PROPERTIES
     VERSION ${PROJECT_VERSION}
     OUTPUT_NAME "OpenMedia.Core"
-    CXX_STANDARD 20
+    CXX_STANDARD 23
     CXX_STANDARD_REQUIRED ON
+    WINDOWS_EXPORT_ALL_SYMBOLS ON
 )
 
 # Include generated config header

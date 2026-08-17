@@ -106,6 +106,16 @@ std::unique_ptr<MediaPipeline> Engine::CreatePipeline(std::string_view name) {
     return MediaPipeline::Create(name);
 }
 
+std::vector<std::string> Engine::EnumerateDevices() const {
+    // Return a mock list of devices for now
+    // In a real implementation this would query OS APIs (e.g. DirectShow, MediaFoundation, ALSA)
+    return {
+        "Default Video Camera",
+        "Virtual Screen Capture",
+        "System Audio Recording"
+    };
+}
+
 EngineVersion Engine::GetVersion() {
     return {
         1, 0, 0,

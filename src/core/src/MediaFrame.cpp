@@ -107,6 +107,13 @@ std::shared_ptr<MediaFrame> MediaFrame::CreateAudio(
     return frame;
 }
 
+std::shared_ptr<MediaFrame> MediaFrame::CreatePacket(size_t size) {
+    auto frame = std::shared_ptr<MediaFrame>(new MediaFrame());
+    frame->m_mediaType = MediaType::Unknown; // Or add a specific Packet type later
+    frame->m_packetData.resize(size, 0);
+    return frame;
+}
+
 std::shared_ptr<MediaFrame> MediaFrame::Clone() const {
     auto clone = std::shared_ptr<MediaFrame>(new MediaFrame());
     clone->m_videoPlanes = m_videoPlanes;
@@ -119,6 +126,7 @@ std::shared_ptr<MediaFrame> MediaFrame::Clone() const {
     clone->m_channelCount = m_channelCount;
     clone->m_sampleRate = m_sampleRate;
     clone->m_sampleFormat = m_sampleFormat;
+    clone->m_packetData = m_packetData;
     clone->m_pts = m_pts;
     clone->m_dts = m_dts;
     clone->m_duration = m_duration;
@@ -166,10 +174,25 @@ size_t MediaFrame::GetAudioBufferSize() const {
     return total;
 }
 
+uint8_t* MediaFrame::GetPacketData() {
+    if (m_packetData.empty()) return nullptr;
+    return m_packetData.data();
+}
+
+const uint8_t* MediaFrame::GetPacketData() const {
+    if (m_packetData.empty()) return nullptr;
+    return m_packetData.data();
+}
+
+size_t MediaFrame::GetPacketSize() const {
+    return m_packetData.size();
+}
+
 size_t MediaFrame::GetTotalSize() const {
     size_t total = 0;
     for (const auto& plane : m_videoPlanes) total += plane.size();
     for (const auto& ch : m_audioChannels) total += ch.size();
+    total += m_packetData.size();
     return total;
 }
 
@@ -179,6 +202,9 @@ bool MediaFrame::IsValid() const {
     }
     if (m_mediaType == MediaType::Audio) {
         return m_sampleCount > 0 && m_channelCount > 0 && !m_audioChannels.empty();
+    }
+    if (m_mediaType == MediaType::Unknown) {
+        return !m_packetData.empty();
     }
     return false;
 }

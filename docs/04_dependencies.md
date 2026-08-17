@@ -250,7 +250,17 @@ git clone https://github.com/microsoft/vcpkg.git third_party/vcpkg
 # 1. Download NDI SDK → extract to third_party/ndi_sdk/
 # 2. Download DeckLink SDK → extract to third_party/decklink_sdk/
 # 3. Download CEF → extract to third_party/cef/
-# ... (xem README.md trong third_party/)
+# 5. Third-Party Dependencies
+
+OpenMedia SDK relies on several external libraries. These are typically managed via `vcpkg` or located in the `third_party/` directory:
+
+- **FFmpeg (v6.0+)**: Core library used for demuxing, decoding, encoding, and multiplexing standard media formats (H.264, HEVC, AAC).
+- **NDI SDK (v5.5+)**: Required for sending and receiving video over IP using the Network Device Interface protocol.
+- **Blackmagic DeckLink SDK (v12.0+)**: For capturing and playing out SDI/HDMI hardware.
+- **WebRTC (M100+)**: Enables ultra-low latency browser-based streaming.
+- **AJA NTV2 SDK**: For AJA Kona and Corvid capture cards.
+- **SRT (v1.5+)**: Secure Reliable Transport for broadcast-grade network streams.
+- **Catch2 / Google Test**: Used for unit testing the C++ Core Engine.
 ```
 
 ### 5.3 CMake Integration

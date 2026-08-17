@@ -8,10 +8,8 @@
 #include <string>
 #include <string_view>
 
-// Forward declare spdlog to avoid header pollution
-namespace spdlog {
-class logger;
-}
+#include <spdlog/spdlog.h>
+#include <fmt/core.h>
 
 namespace openmedia::core {
 
@@ -28,25 +26,22 @@ enum class LogLevel : uint32_t {
 
 /// @brief Structured logging wrapper around spdlog
 ///
-/// Provides module-specific logging with configurable levels,
-/// console and file output, and structured log format.
-///
+/// Instance API:
 /// @code
 /// auto& log = Logger::Get("core");
 /// log.Info("Pipeline created: id={}", pipelineId);
 /// @endcode
+///
+/// Static convenience API:
+/// @code
+/// Logger::Info("core", "Pipeline created: id={}", pipelineId);
+/// @endcode
 class Logger {
 public:
     /// @brief Get or create a named logger
-    /// @param name Module name (e.g., "core", "ipc", "mixer")
-    /// @return Reference to the logger
     static Logger& Get(std::string_view name = "default");
 
     /// @brief Initialize logging system
-    /// @param logLevel Default log level
-    /// @param logToConsole Enable console output
-    /// @param logToFile Enable file output
-    /// @param logDir Directory for log files
     static void Initialize(
         LogLevel logLevel = LogLevel::Debug,
         bool logToConsole = true,
@@ -54,30 +49,81 @@ public:
         std::string_view logDir = "./logs"
     );
 
+    /// @brief Overload for Initialize that takes a name (for ServerApp compat)
+    static void Initialize(std::string_view /*name*/,
+                           LogLevel logLevel = LogLevel::Debug) {
+        Initialize(logLevel);
+    }
+
     /// @brief Shutdown logging system
     static void Shutdown();
 
     /// @brief Set global log level
     static void SetLevel(LogLevel level);
 
-    // Logging methods
-    template <typename... Args>
-    void Trace(std::string_view fmt, Args&&... args);
+    // --- Instance logging methods ---
+    // Uses fmt::runtime() to support runtime format strings with spdlog v12/fmt v12
 
     template <typename... Args>
-    void Debug(std::string_view fmt, Args&&... args);
+    void Trace(std::string_view fmtStr, Args&&... args) {
+        GetSpdLogger()->trace(fmt::runtime(fmtStr), std::forward<Args>(args)...);
+    }
 
     template <typename... Args>
-    void Info(std::string_view fmt, Args&&... args);
+    void Debug(std::string_view fmtStr, Args&&... args) {
+        GetSpdLogger()->debug(fmt::runtime(fmtStr), std::forward<Args>(args)...);
+    }
 
     template <typename... Args>
-    void Warn(std::string_view fmt, Args&&... args);
+    void Info(std::string_view fmtStr, Args&&... args) {
+        GetSpdLogger()->info(fmt::runtime(fmtStr), std::forward<Args>(args)...);
+    }
 
     template <typename... Args>
-    void Error(std::string_view fmt, Args&&... args);
+    void Warn(std::string_view fmtStr, Args&&... args) {
+        GetSpdLogger()->warn(fmt::runtime(fmtStr), std::forward<Args>(args)...);
+    }
 
     template <typename... Args>
-    void Critical(std::string_view fmt, Args&&... args);
+    void Error(std::string_view fmtStr, Args&&... args) {
+        GetSpdLogger()->error(fmt::runtime(fmtStr), std::forward<Args>(args)...);
+    }
+
+    template <typename... Args>
+    void Critical(std::string_view fmtStr, Args&&... args) {
+        GetSpdLogger()->critical(fmt::runtime(fmtStr), std::forward<Args>(args)...);
+    }
+
+    // --- Static convenience methods (module, message, args...) ---
+    template <typename... Args>
+    static void STrace(std::string_view module, std::string_view fmtStr, Args&&... args) {
+        Get(module).Trace(fmtStr, std::forward<Args>(args)...);
+    }
+
+    template <typename... Args>
+    static void SDebug(std::string_view module, std::string_view fmtStr, Args&&... args) {
+        Get(module).Debug(fmtStr, std::forward<Args>(args)...);
+    }
+
+    template <typename... Args>
+    static void SInfo(std::string_view module, std::string_view fmtStr, Args&&... args) {
+        Get(module).Info(fmtStr, std::forward<Args>(args)...);
+    }
+
+    template <typename... Args>
+    static void SWarn(std::string_view module, std::string_view fmtStr, Args&&... args) {
+        Get(module).Warn(fmtStr, std::forward<Args>(args)...);
+    }
+
+    template <typename... Args>
+    static void SError(std::string_view module, std::string_view fmtStr, Args&&... args) {
+        Get(module).Error(fmtStr, std::forward<Args>(args)...);
+    }
+
+    template <typename... Args>
+    static void SCritical(std::string_view module, std::string_view fmtStr, Args&&... args) {
+        Get(module).Critical(fmtStr, std::forward<Args>(args)...);
+    }
 
     /// @brief Get the underlying spdlog logger
     [[nodiscard]] std::shared_ptr<spdlog::logger> GetSpdLogger() const;

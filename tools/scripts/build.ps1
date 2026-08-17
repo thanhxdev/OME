@@ -36,11 +36,9 @@ if ($Clean -and (Test-Path $BuildDir)) {
 
 # CMake Configure
 Write-Host "`nConfiguring CMake..." -ForegroundColor Cyan
-cmake -B $BuildDir `
-    -DOME_ENV_TAG=$Environment `
-    -DCMAKE_BUILD_TYPE=$BuildType `
-    -DOME_BUILD_TESTS:BOOL=$($BuildTests -or $RunTests) `
-    -G "Visual Studio 17 2022" -A x64
+cmake --preset $Environment `
+    "-DCMAKE_BUILD_TYPE=$BuildType" `
+    "-DOME_BUILD_TESTS:BOOL=$($BuildTests -or $RunTests)"
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "CMake configure failed!" -ForegroundColor Red
@@ -70,7 +68,7 @@ if ($RunTests) {
 if ($BuildDotNet) {
     Write-Host "`nBuilding .NET wrappers..." -ForegroundColor Cyan
     $DotNetConfig = if ($Environment -eq "production") { "Release" } else { "Debug" }
-    dotnet build wrappers/OpenMedia.NET.sln -c $DotNetConfig
+    dotnet build wrappers/OpenMedia.NET.slnx -c $DotNetConfig
     if ($LASTEXITCODE -ne 0) {
         Write-Host ".NET build failed!" -ForegroundColor Red
         exit 1

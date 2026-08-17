@@ -139,6 +139,8 @@ struct Resolution {
         case PixelFormat::RGBA:       return 4;
         case PixelFormat::RGB24:
         case PixelFormat::BGR24:      return 3;
+        case PixelFormat::P010LE:
+        case PixelFormat::YUV420P10LE:return 2;
         case PixelFormat::GRAY8:      return 1;
         case PixelFormat::NV12:       return 1;  // Y plane; UV interleaved separately
         case PixelFormat::YUV420P:    return 1;  // Y plane

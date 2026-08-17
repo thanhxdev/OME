@@ -1,9 +1,9 @@
 # OpenMedia SDK — Implementation Plan v2.0 (Exhand Architecture)
 
-**Version:** 2.0  
-**Date:** July 2026  
+**Version:** 2.1  
+**Date:** August 2026  
 **Tổng thời gian ước tính:** 27–37 tuần (~7–9 tháng)  
-**Thay đổi chính:** Tích hợp kiến trúc Client/Server Process Separation (Exhand)
+**Thay đổi chính:** Tích hợp kiến trúc Client/Server Process Separation (Exhand) + Native NVENC Encoder Module
 
 ---
 
@@ -92,6 +92,7 @@ GPU Manager Audio Mixer  Device Manager
 | **Input** | File, Stream, Device, Protocol (WebRTC/NDI) — chạy trong server process |
 | **Processing** | Mixer, Overlay, CG, Audio Engine, Playlist — chạy trong server process |
 | **Encoding** | H.264, H.265, AV1, MPEG-2, AAC, Opus — chạy trong server process |
+| **GPU Encoding** | **Native NVENC SDK** (H.264/HEVC, zero-copy), FFmpeg NVENC fallback |
 | **Output** | File, Stream, Protocol, Hardware, Snapshot — chạy trong server process |
 | **GPU** | CUDA/NVENC/NVDEC, QuickSync, D3D11/D3D12, Vulkan |
 | **API** | C++20 public API (via SDK proxy), .NET 8/9 managed wrappers |
@@ -191,52 +192,52 @@ graph TD
 ```
 
 > **Tài liệu tham chiếu chi tiết:**  
-> - [01_architecture_overview.md](file:///c:/Users/ASUS%20NUC/Desktop/Boardcast/OME/docs/01_architecture_overview.md) (v2.0)  
-> - [02_project_structure.md](file:///c:/Users/ASUS%20NUC/Desktop/Boardcast/OME/docs/02_project_structure.md) (v2.0)  
-> - [03_development_phases.md](file:///c:/Users/ASUS%20NUC/Desktop/Boardcast/OME/docs/03_development_phases.md) (v2.0)
+> - [01_architecture_overview.md](file:///c:/Users/ASUS%20NUC/Desktop/Code/OME/docs/01_architecture_overview.md) (v2.0)  
+> - [02_project_structure.md](file:///c:/Users/ASUS%20NUC/Desktop/Code/OME/docs/02_project_structure.md) (v2.0)  
+> - [03_development_phases.md](file:///c:/Users/ASUS%20NUC/Desktop/Code/OME/docs/03_development_phases.md) (v2.0)
 
 ---
 
 ## 4. Lộ trình triển khai
 
-### 4.1 Timeline tổng quan (Updated with Phase 1.5)
+### 4.1 Timeline tổng quan (Agile/MVP Focused)
 
-```
+```text
 Tuần:  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32
        ├──────────┤                                                                                     
-       Phase 1: Core Setup (W1-W3)                                                                      
+       Phase 1: Core (W1-W3)                                                                      
                   ├────────────────┤                                                                     
-                  Phase 1.5: Exhand IPC/Server (W3-W7) ★ NEW                                           
-                              ├────────────────┤                                                         
-                              Phase 2: I/O (W6-W10)                                                     
-                                          ├──────────────────────────┤                                   
-                                          Phase 3: Processing (W9-W15)                                   
-                                          ├────────────────┤                                             
-                                          Phase 4: GPU (W9-W13) [PARALLEL]                               
-                                                ├──────────────────────┤                                 
-                                                Phase 5: Protocols (W11-W16) [PARALLEL]                   
-                                                                  ├────────────────┤                     
-                                                                  Phase 6: .NET (W15-W19)               
-                                                                        ├──────────┤                     
-                                                                        Phase 7: Plugins (W17-W20)      
-                                                                                    ├────────────────┤   
-                                                                                    Phase 8: QA (W20-W24)
-                                                                                                ├──────┤ 
-                                                                                                Buffer   
+                  Phase 1.5: Exhand (W3-W7)                                           
+                               ├──────┤                                                         
+                               Sprint 1 (W7-W9) Phase 3 MVP & Phase 2 Basics
+                                      ├──────┤                                   
+                                      Sprint 2 (W9-W11) Phase 3 Full & Hardware I/O                                   
+                                             ├────────────────┤                                             
+                                             Phase 4: GPU (W11-W15) [PARALLEL]                               
+                                                   ├──────────────────────┤                                 
+                                                   Phase 5: Protocols (W13-W18) [PARALLEL]                   
+                                                                     ├────────────────┤                     
+                                                                     Phase 6: .NET (W17-W21)               
+                                                                           ├──────────┤                     
+                                                                           Phase 7: Plugins (W19-W22)      
+                                                                                       ├────────────────┤   
+                                                                                       Phase 8: QA (W22-W26)
+                                                                                                   ├──────┤ 
+                                                                                                   Buffer   
 ```
 
-### 4.2 Milestones (Updated)
+### 4.2 Milestones (Agile/MVP Driven)
 
 | Milestone | Target | Tiêu chí hoàn thành |
 |-----------|--------|---------------------|
 | **M0.5 — Exhand Foundation** | Tuần 7 | OpenMediaServer.exe chạy, IPC Client/Server kết nối, commands gửi/nhận thành công |
 | **M1 — Foundation** | Tuần 3 | Build thành công, core engine hoạt động |
-| **M2 — First Pipeline** | Tuần 10 | File transcode qua server process thành công |
-| **M3 — Full Processing** | Tuần 15 | Mixer, overlay, audio engine qua server |
+| **M2 — MVP End-to-End Pipeline** | Tuần 9 | Có một luồng pipeline hoàn chỉnh: File Source -> Decode -> Audio/Video Mix -> Overlay -> Encode -> Output chạy qua Exhand. |
+| **M3 — Hardware & Full Processing** | Tuần 11 | Hoàn thành tích hợp phần cứng (DeckLink, AJA) và full processing pipeline (CG, Playlist). |
 | **M4 — GPU + Protocols** | Tuần 16 | GPU pipeline + SRT/NDI streaming qua server |
-| **M5 — .NET Ready** | Tuần 19 | .NET SDK → IPC → Server pipeline hoạt động |
-| **M6 — Plugin System** | Tuần 20 | PluginHost load plugins thành công |
-| **M7 — Alpha Release** | Tuần 24 | Tất cả features, tests pass |
+| **M5 — .NET Ready** | Tuần 20 | .NET SDK → IPC → Server pipeline hoạt động |
+| **M6 — Plugin System** | Tuần 22 | PluginHost load plugins thành công |
+| **M7 — Alpha Release** | Tuần 26 | Tất cả features, tests pass |
 | **M8 — v1.0 Release** | Tuần 28–32 | Production-ready |
 
 ---
@@ -244,7 +245,7 @@ Tuần:  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 
 ## 5. Chi tiết từng Phase
 
 ### Phase 1: Project Setup & Core Architecture
-*(Giữ nguyên như implementation_plan v1.0 — xem [implementation_plan.md cũ](file:///c:/Users/ASUS%20NUC/Desktop/Boardcast/OME/docs/implementation_plan.md))*
+*(Giữ nguyên như implementation_plan v1.0 — xem [implementation_plan.md cũ](file:///c:/Users/ASUS%20NUC/Desktop/Code/OME/docs/implementation_plan.md))*
 
 **Thời gian:** Tuần 1–3 | **Ưu tiên:** 🔴 Critical
 
@@ -373,19 +374,102 @@ Xây dựng toàn bộ hạ tầng Client/Server theo kiến trúc Exhand: OpenM
 
 > **Quan trọng:** Từ Phase 2 trở đi, tất cả media processing modules (IO, Codecs, Mixer, Audio, Overlay, GPU, Protocols) đều chạy trong server process. Client chỉ giao tiếp qua SDK → IPC → Server.
 
-*(Chi tiết Phase 2–8 giữ nguyên như [implementation_plan.md v1.0](file:///c:/Users/ASUS%20NUC/Desktop/Boardcast/OME/docs/implementation_plan.md), với lưu ý rằng mọi module đều register CommandHandler vào CommandDispatcher và nhận tasks từ WorkerPool.)*
+*(Chi tiết Phase 2–8 giữ nguyên như [implementation_plan.md v1.0](file:///c:/Users/ASUS%20NUC/Desktop/Code/OME/docs/implementation_plan.md), với lưu ý rằng mọi module đều register CommandHandler vào CommandDispatcher và nhận tasks từ WorkerPool.)*
+
+---
+
+### Phase 4.6: Native NVENC Encoder Module ★ NEW (v2.1)
+
+**Thời gian:** 1–2 tuần | **Ưu tiên:** 🟡 High
+
+#### Mục tiêu
+Thay thế FFmpeg NVENC wrapper bằng Native NVENC SDK encoder, giảm ~90% CPU usage khi encoding, đưa hiệu năng lên mức commercial-grade.
+
+#### Các bước triển khai
+
+**Bước 4.6.1 — CUDAContext Implementation (Ngày 1–2)**
+- Implement CUDA Driver API: `cuInit()`, `cuDeviceGet()`, `cuCtxCreate()`
+- Upload/Download texture via `cuMemcpyHtoD` / `cuMemcpyDtoH`
+- Query device name, capabilities
+- Graceful fallback stubs khi CUDA không available
+
+**Bước 4.6.2 — NVENCEncoder Core (Ngày 2–7)**
+- Load nvEncodeAPI library dynamically (`LoadLibrary` / `dlopen`)
+- `NvEncodeAPICreateInstance()` → function table
+- `nvEncOpenEncodeSessionEx()` → encoder session trên CUDA context
+- Preset config: P1-P7, tuning modes (LowLatency, HighQuality, Lossless)
+- Rate control: CBR, VBR, CQP, target quality
+- Buffer pool: Input buffers (NV12) + Output bitstream buffers
+- PushFrame: Lock → Copy NV12 → `nvEncEncodePicture` → Lock bitstream → Output
+- Flush: EOS signal + drain pending frames
+- Stub fallback khi không có NVENC SDK (`#else` branch)
+
+**Bước 4.6.3 — NVENCCapabilities (Ngày 3–4)**
+- Query codec support (H.264, HEVC, AV1)
+- Query max resolution, B-frame, lookahead, temporal AQ, 10-bit, lossless
+- `QueryNVENCCapabilities(CUcontext)` function
+
+**Bước 4.6.4 — CodecFactory Integration (Ngày 5–6)**
+- Thêm `H264_NVENC_NATIVE`, `H265_NVENC_NATIVE` routing
+- `AutoSelectBestEncoder()`: NVENC Native → FFmpeg NVENC → QSV → Software
+
+**Bước 4.6.5 — Build & Cleanup (Ngày 6–7)**
+- Cập nhật `codecs/CMakeLists.txt` và `gpu/CMakeLists.txt`
+- Xóa stub `H264Encoder_NV` (thay thế hoàn toàn bởi `NVENCEncoder`)
+
+**Bước 4.6.6 — Tests & Benchmarks (Ngày 7–10)**
+- Unit tests: NVENCEncoder init, configure, encode, flush
+- Unit tests: CUDAContext real implementation
+- Benchmark: Native NVENC vs FFmpeg NVENC (1080p30/60, 4K30)
+
+#### Performance Targets
+| Metric | Target |
+|--------|--------|
+| NVENC H.264 1080p30 | > 240 fps |
+| NVENC HEVC 1080p60 | > 120 fps |
+| CPU usage (encoding) | < 5% |
+| Encode latency | < 5ms per frame |
+| Native vs FFmpeg speedup | ≥ 10% faster |
+
+---
+
+### Phase 4.7: H.265 10-bit HDR Support (Native NVENC) 🌟 NEW
+
+**Thời gian:** 1–2 ngày | **Ưu tiên:** 🟢 Normal
+
+#### Mục tiêu
+Mở khóa khả năng encode 10-bit (HDR10/PQ/HLG) cho H.265 trên NVIDIA GPU để đạt chất lượng commercial-grade cao nhất cho HEVC.
+
+#### Các bước triển khai
+
+**Bước 4.7.1 — Cập nhật Config API**
+- Bổ sung `core::PixelFormat pixelFormat` vào `EncoderConfig` (mặc định `NV12`).
+- Nếu user truyền `P010LE` (hoặc `YUV420P10LE`), hệ thống tự động kích hoạt 10-bit.
+
+**Bước 4.7.2 — NVENC Initialization (10-bit mode)**
+- Cập nhật `InitEncoder()`:
+  - Kiểm tra `pixelFormat == core::PixelFormat::P010LE`.
+  - Hỗ trợ đổi Profile sang `NV_ENC_HEVC_PROFILE_MAIN10_GUID`.
+  - Set `encConfig.encodeCodecConfig.hevcConfig.pixelBitDepthMinus8 = 2`.
+
+**Bước 4.7.3 — Buffer Pool & YUV Copy (P010)**
+- Cập nhật `AllocateBuffers()`: 
+  - Khởi tạo input buffer với format `NV_ENC_BUFFER_FORMAT_YUV420_10BIT`.
+- Cập nhật `PushFrame()`:
+  - Copy P010 (16-bit word per pixel) từ `MediaFrame` vào buffer của GPU.
+  - Xử lý Pitch & LineSize chuẩn xác cho 2 bytes/pixel thay vì 1.
 
 ---
 
 ## 6. Quản lý Dependencies
 
-*(Giữ nguyên như v1.0, xem [04_dependencies.md](file:///c:/Users/ASUS%20NUC/Desktop/Boardcast/OME/docs/04_dependencies.md))*
+*(Giữ nguyên như v1.0, xem [04_dependencies.md](file:///c:/Users/ASUS%20NUC/Desktop/Code/OME/docs/04_dependencies.md))*
 
 ---
 
 ## 7. Chiến lược môi trường
 
-*(Giữ nguyên như v1.0, xem [05_environment_config.md](file:///c:/Users/ASUS%20NUC/Desktop/Boardcast/OME/docs/05_environment_config.md))*
+*(Giữ nguyên như v1.0, xem [05_environment_config.md](file:///c:/Users/ASUS%20NUC/Desktop/Code/OME/docs/05_environment_config.md))*
 
 ---
 
@@ -445,15 +529,15 @@ Xây dựng toàn bộ hạ tầng Client/Server theo kiến trúc Exhand: OpenM
 
 | Document | Path |
 |----------|------|
-| Architecture Overview v2.0 | [01_architecture_overview.md](file:///c:/Users/ASUS%20NUC/Desktop/Boardcast/OME/docs/01_architecture_overview.md) |
-| Project Structure v2.0 | [02_project_structure.md](file:///c:/Users/ASUS%20NUC/Desktop/Boardcast/OME/docs/02_project_structure.md) |
-| Development Phases v2.0 | [03_development_phases.md](file:///c:/Users/ASUS%20NUC/Desktop/Boardcast/OME/docs/03_development_phases.md) |
-| Dependencies | [04_dependencies.md](file:///c:/Users/ASUS%20NUC/Desktop/Boardcast/OME/docs/04_dependencies.md) |
-| Environment Config | [05_environment_config.md](file:///c:/Users/ASUS%20NUC/Desktop/Boardcast/OME/docs/05_environment_config.md) |
-| Build System | [06_build_system.md](file:///c:/Users/ASUS%20NUC/Desktop/Boardcast/OME/docs/06_build_system.md) |
-| Plugin SDK Spec | [07_plugin_sdk_spec.md](file:///c:/Users/ASUS%20NUC/Desktop/Boardcast/OME/docs/07_plugin_sdk_spec.md) |
-| API Design | [08_api_design.md](file:///c:/Users/ASUS%20NUC/Desktop/Boardcast/OME/docs/08_api_design.md) |
-| Testing Plan | [09_testing_plan.md](file:///c:/Users/ASUS%20NUC/Desktop/Boardcast/OME/docs/09_testing_plan.md) |
-| Coding Standards | [10_coding_standards.md](file:///c:/Users/ASUS%20NUC/Desktop/Boardcast/OME/docs/10_coding_standards.md) |
-| Exhand Architecture | [Exhand.md](file:///c:/Users/ASUS%20NUC/Desktop/Boardcast/OME/docs/Exhand.md) |
-| Task List v2.0 | [task.md](file:///c:/Users/ASUS%20NUC/Desktop/Boardcast/OME/docs/task.md) |
+| Architecture Overview v2.0 | [01_architecture_overview.md](file:///c:/Users/ASUS%20NUC/Desktop/Code/OME/docs/01_architecture_overview.md) |
+| Project Structure v2.0 | [02_project_structure.md](file:///c:/Users/ASUS%20NUC/Desktop/Code/OME/docs/02_project_structure.md) |
+| Development Phases v2.0 | [03_development_phases.md](file:///c:/Users/ASUS%20NUC/Desktop/Code/OME/docs/03_development_phases.md) |
+| Dependencies | [04_dependencies.md](file:///c:/Users/ASUS%20NUC/Desktop/Code/OME/docs/04_dependencies.md) |
+| Environment Config | [05_environment_config.md](file:///c:/Users/ASUS%20NUC/Desktop/Code/OME/docs/05_environment_config.md) |
+| Build System | [06_build_system.md](file:///c:/Users/ASUS%20NUC/Desktop/Code/OME/docs/06_build_system.md) |
+| Plugin SDK Spec | [07_plugin_sdk_spec.md](file:///c:/Users/ASUS%20NUC/Desktop/Code/OME/docs/07_plugin_sdk_spec.md) |
+| API Design | [08_api_design.md](file:///c:/Users/ASUS%20NUC/Desktop/Code/OME/docs/08_api_design.md) |
+| Testing Plan | [09_testing_plan.md](file:///c:/Users/ASUS%20NUC/Desktop/Code/OME/docs/09_testing_plan.md) |
+| Coding Standards | [10_coding_standards.md](file:///c:/Users/ASUS%20NUC/Desktop/Code/OME/docs/10_coding_standards.md) |
+| Exhand Architecture | [Exhand.md](file:///c:/Users/ASUS%20NUC/Desktop/Code/OME/docs/Exhand.md) |
+| Task List v2.0 | [task.md](file:///c:/Users/ASUS%20NUC/Desktop/Code/OME/docs/task.md) |

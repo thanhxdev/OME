@@ -97,9 +97,10 @@ third_party/intel_onevpl/
 generated/
 OpenMediaConfig.h
 
-# --- Logs ---
+# --- Logs & Test Outputs ---
 logs/
 *.log
+*.raw
 
 # --- Cache ---
 cache/
@@ -107,6 +108,7 @@ temp/
 crash_dumps/
 
 # --- Environment (keep templates, ignore local overrides) ---
+.env
 .env.local
 .env.*.local
 

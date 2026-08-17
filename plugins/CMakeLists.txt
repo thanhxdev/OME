@@ -1,0 +1,3 @@
+add_subdirectory(examples/GrayscaleFilter)
+add_subdirectory(examples/LowerThirdOverlay)
+add_subdirectory(builtin/NoiseReductionFilter)

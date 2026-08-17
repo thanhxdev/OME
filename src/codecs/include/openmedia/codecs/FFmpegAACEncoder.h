@@ -1,0 +1,37 @@
+/// @file FFmpegAACEncoder.h
+#pragma once
+
+#include <openmedia/codecs/IEncoder.h>
+
+#include <string>
+#include <memory>
+
+namespace openmedia::codecs {
+
+class FFmpegAACEncoder : public IEncoder {
+public:
+    FFmpegAACEncoder();
+    ~FFmpegAACEncoder() override;
+
+    // IMediaObject
+    std::string GetName() const override;
+    core::PipelineState GetState() const override;
+    core::VoidResult Initialize() override;
+    core::VoidResult Start() override;
+    core::VoidResult Stop() override;
+    core::VoidResult PushFrame(std::shared_ptr<core::MediaFrame> frame) override;
+    [[nodiscard]] core::Result<std::shared_ptr<core::MediaFrame>> PullFrame() override;
+    core::VoidResult Connect(std::shared_ptr<core::IMediaObject> downstream) override;
+    core::VoidResult Disconnect() override;
+    void OnStateChange(core::StateChangeCallback callback) override;
+    void OnError(core::ErrorCallback callback) override;
+
+    // IEncoder (using width=sample_rate, height=channels for audio)
+    core::VoidResult Configure(const EncoderConfig& config) override;
+
+private:
+    struct Impl;
+    std::unique_ptr<Impl> m_impl;
+};
+
+} // namespace openmedia::codecs

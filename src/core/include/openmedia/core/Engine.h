@@ -69,6 +69,9 @@ public:
     [[nodiscard]] std::unique_ptr<MediaPipeline> CreatePipeline(
         std::string_view name = "pipeline");
 
+    /// @brief Enumerate available media devices
+    [[nodiscard]] std::vector<std::string> EnumerateDevices() const;
+
     // --- Info ---
 
     /// @brief Get engine version

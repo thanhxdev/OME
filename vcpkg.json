@@ -22,6 +22,15 @@
     {
       "name": "concurrentqueue",
       "version>=": "1.0.4"
+    },
+    {
+      "name": "libvpl",
+      "version>=": "2.16.0"
+    },
+    {
+      "name": "libsrt",
+      "version>=": "1.5.3"
     }
-  ]
+  ],
+  "builtin-baseline": "03e366fb91e38b9432ebd5f8cc79f7c8f55e96ab"
 }

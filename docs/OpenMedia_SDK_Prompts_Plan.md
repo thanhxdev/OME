@@ -159,6 +159,42 @@ Create GPUFrame and unified GPUContext.
 Support zero-copy transfers between CPU/GPU.
 ```
 
+### Prompt 9.1: Native NVENC Hardware Encoder (Commercial-Grade)
+```
+Implement a Native NVENC Encoder module using the NVIDIA Video Codec SDK directly
+(NOT through FFmpeg wrapper) for commercial-grade hardware encoding:
+
+Architecture:
+- NVENCEncoder class implementing IEncoder interface
+- Supports H.264 and HEVC via NVENCCodec enum
+- NVENC presets P1-P7, tuning modes (HighQuality, LowLatency, UltraLowLatency, Lossless)
+- Rate control: CBR, VBR, CQP, target quality
+- B-frame support, lookahead buffer, temporal AQ
+
+Native SDK Flow:
+1. cuInit → cuDeviceGet → cuCtxCreate (CUDA context)
+2. NvEncodeAPICreateInstance → load function table
+3. nvEncOpenEncodeSessionEx → encoder session
+4. nvEncGetEncodePresetConfigEx → preset config
+5. nvEncInitializeEncoder → configure resolution/fps/bitrate/GOP
+6. nvEncCreateInputBuffer + nvEncCreateBitstreamBuffer → I/O buffer pool
+7. PushFrame: nvEncLockInputBuffer → copy NV12 → nvEncEncodePicture → nvEncLockBitstream → output
+8. Flush: EOS → drain remaining frames
+
+Additional:
+- NVENCCapabilities.h for runtime GPU caps query
+- CUDAContext full implementation (cuInit, Upload/Download)
+- CodecFactory auto-selection: NVENC Native > FFmpeg NVENC > QSV > Software
+- Graceful stub fallback when NVIDIA GPU is unavailable
+
+Performance targets:
+- H.264 1080p30: > 240 fps
+- HEVC 1080p60: > 120 fps
+- CPU usage: < 5% (vs ~50% software)
+- Encode latency: < 5ms per frame
+```
+
+
 ---
 
 ## Phase 5: Protocol Engines
@@ -171,6 +207,7 @@ Implement dedicated engines:
 - OpenMedia.WebRTC
 - OpenMedia.RTMP
 - OpenMedia.ST2110
+- OpenMedia.ST2022
 
 Each as pluggable modules with clean APIs.
 ```

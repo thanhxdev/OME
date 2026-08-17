@@ -32,7 +32,7 @@ Config& Config::Instance() {
 bool Config::LoadFromFile(std::string_view filePath) {
     std::lock_guard lock(m_impl->mutex);
 
-    std::ifstream file(std::string(filePath));
+    std::ifstream file{std::string{filePath}};
     if (!file.is_open()) return false;
 
     std::string line;

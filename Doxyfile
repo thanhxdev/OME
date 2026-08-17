@@ -1,0 +1,16 @@
+PROJECT_NAME           = "OpenMedia SDK"
+PROJECT_NUMBER         = 1.0.0
+OUTPUT_DIRECTORY       = docs/doxygen
+INPUT                  = src/core/include src/io/include src/codecs/include src/audio/include src/rendering/include src/overlay/include src/protocols/include src/cg/include src/mixer/include
+RECURSIVE              = YES
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = YES
+HIDE_UNDOC_MEMBERS     = NO
+HIDE_UNDOC_CLASSES     = NO
+GENERATE_TREEVIEW      = YES
+DISABLE_INDEX          = NO
+FULL_PATH_NAMES        = NO
+WARN_IF_UNDOCUMENTED   = NO

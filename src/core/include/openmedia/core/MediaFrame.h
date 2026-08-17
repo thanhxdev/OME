@@ -33,6 +33,9 @@ public:
     static std::shared_ptr<MediaFrame> CreateAudio(
         uint32_t sampleCount, uint32_t channelCount, SampleFormat format, uint32_t sampleRate);
 
+    /// @brief Create an encoded media packet
+    static std::shared_ptr<MediaFrame> CreatePacket(size_t size);
+
     /// @brief Clone this frame (deep copy of data)
     [[nodiscard]] std::shared_ptr<MediaFrame> Clone() const;
 
@@ -41,6 +44,12 @@ public:
     [[nodiscard]] uint32_t GetHeight() const { return m_height; }
     [[nodiscard]] PixelFormat GetPixelFormat() const { return m_pixelFormat; }
     [[nodiscard]] uint32_t GetVideoPlaneCount() const;
+
+    void SetColorSpace(ColorSpace cs) { m_colorSpace = cs; }
+    [[nodiscard]] ColorSpace GetColorSpace() const { return m_colorSpace; }
+
+    void SetTransferFunction(TransferFunction tf) { m_transferFunction = tf; }
+    [[nodiscard]] TransferFunction GetTransferFunction() const { return m_transferFunction; }
 
     /// @brief Get video data plane
     /// @param planeIndex 0=Y/BGRA, 1=U/UV, 2=V
@@ -62,6 +71,11 @@ public:
 
     /// @brief Get audio buffer size in bytes
     [[nodiscard]] size_t GetAudioBufferSize() const;
+
+    // --- Encoded Packet Properties ---
+    [[nodiscard]] uint8_t* GetPacketData();
+    [[nodiscard]] const uint8_t* GetPacketData() const;
+    [[nodiscard]] size_t GetPacketSize() const;
 
     // --- GPU ---
     /// @brief Set GPU texture handle (platform-specific)
@@ -95,7 +109,7 @@ public:
 
     ~MediaFrame();
 
-private:
+protected:
     MediaFrame() = default;
 
     // Video data
@@ -104,6 +118,8 @@ private:
     uint32_t m_width = 0;
     uint32_t m_height = 0;
     PixelFormat m_pixelFormat = PixelFormat::Unknown;
+    ColorSpace m_colorSpace = ColorSpace::Unknown;
+    TransferFunction m_transferFunction = TransferFunction::Unknown;
 
     // Audio data
     std::vector<std::vector<uint8_t>> m_audioChannels;
@@ -111,6 +127,9 @@ private:
     uint32_t m_channelCount = 0;
     uint32_t m_sampleRate = 0;
     SampleFormat m_sampleFormat = SampleFormat::Unknown;
+
+    // Packet data (for encoded frames)
+    std::vector<uint8_t> m_packetData;
 
     // GPU
     void* m_gpuTextureHandle = nullptr;

@@ -275,16 +275,26 @@ OpenMediaSDK/
 │   │   │       ├── RTMPSource.cpp
 │   │   │       └── RTMPOutput.cpp
 │   │   │
-│   │   └── st2110/                    # OpenMedia.ST2110
+│   │   ├── st2110/                    # OpenMedia.ST2110
+│   │   │   ├── CMakeLists.txt
+│   │   │   ├── include/openmedia/st2110/
+│   │   │   │   ├── ST2110Engine.h
+│   │   │   │   ├── ST2110Source.h
+│   │   │   │   └── ST2110Output.h
+│   │   │   └── src/
+│   │   │       ├── ST2110Engine.cpp
+│   │   │       ├── ST2110Source.cpp
+│   │   │       └── ST2110Output.cpp
+│   │   └── st2022/                    # OpenMedia.ST2022
 │   │       ├── CMakeLists.txt
-│   │       ├── include/openmedia/st2110/
-│   │       │   ├── ST2110Engine.h
-│   │       │   ├── ST2110Source.h
-│   │       │   └── ST2110Output.h
+│   │       ├── include/openmedia/st2022/
+│   │       │   ├── ST2022Engine.h
+│   │       │   ├── ST2022Source.h
+│   │       │   └── ST2022Output.h
 │   │       └── src/
-│   │           ├── ST2110Engine.cpp
-│   │           ├── ST2110Source.cpp
-│   │           └── ST2110Output.cpp
+│   │           ├── ST2022Engine.cpp
+│   │           ├── ST2022Source.cpp
+│   │           └── ST2022Output.cpp
 │   │
 │   ├── monitoring/                    # OpenMedia.Monitoring
 │   │   ├── CMakeLists.txt
@@ -299,6 +309,21 @@ OpenMediaSDK/
 │   │       ├── Vectorscope.cpp
 │   │       └── HealthCheck.cpp
 │   │
+│   ├── outputs/                       # OpenMedia.Outputs
+│   │   ├── CMakeLists.txt
+│   │   ├── include/openmedia/outputs/
+│   │   └── src/
+│   │
+│   ├── scripting/                     # OpenMedia.Scripting
+│   │   ├── CMakeLists.txt
+│   │   ├── include/openmedia/scripting/
+│   │   └── src/
+│   │
+│   ├── metadata/                      # OpenMedia.Metadata
+│   │   ├── CMakeLists.txt
+│   │   ├── include/openmedia/metadata/
+│   │   └── src/
+│   │
 │   └── plugin_sdk/                    # OpenMedia.PluginSDK
 │       ├── CMakeLists.txt
 │       ├── include/openmedia/plugin/
@@ -310,7 +335,9 @@ OpenMediaSDK/
 │       │   ├── IEncoderPlugin.h
 │       │   ├── IDecoderPlugin.h
 │   │       ├── IAIFilterPlugin.h
-│   │       └── IAIFilterPlugin.h
+│       │   ├── IOverlayPlugin.h
+│       │   ├── ITransitionPlugin.h
+│       │   └── INetworkPlugin.h
 │       └── src/
 │           ├── PluginManager.cpp
 │           └── PluginRegistry.cpp

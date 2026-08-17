@@ -77,6 +77,7 @@ option(OME_ENABLE_NDI       "Enable NDI support"       ON)
 option(OME_ENABLE_SRT       "Enable SRT support"       ON)
 option(OME_ENABLE_WEBRTC    "Enable WebRTC support"    ON)
 option(OME_ENABLE_ST2110    "Enable ST2110 support"    OFF)
+option(OME_ENABLE_ST2022    "Enable ST2022 support"    OFF)
 option(OME_ENABLE_CEF       "Enable CEF HTML overlay"  ON)
 
 # --- Core Modules (always built) ---
@@ -111,6 +112,9 @@ endif()
 if(OME_ENABLE_ST2110)
     add_subdirectory(src/protocols/st2110)
 endif()
+if(OME_ENABLE_ST2022)
+    add_subdirectory(src/protocols/st2022)
+endif()
 
 # --- Tests ---
 if(OME_BUILD_TESTS)
@@ -132,7 +136,10 @@ endif()
 include(GNUInstallDirs)
 install(DIRECTORY src/core/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(DIRECTORY src/io/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-# ... (other modules)
+install(DIRECTORY src/codecs/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(DIRECTORY src/rendering/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(DIRECTORY src/audio/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(DIRECTORY src/mixer/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 # --- Summary ---
 message(STATUS "")
@@ -149,6 +156,7 @@ message(STATUS "║  NDI:          ${OME_ENABLE_NDI}")
 message(STATUS "║  SRT:          ${OME_ENABLE_SRT}")
 message(STATUS "║  WebRTC:       ${OME_ENABLE_WEBRTC}")
 message(STATUS "║  ST2110:       ${OME_ENABLE_ST2110}")
+message(STATUS "║  ST2022:       ${OME_ENABLE_ST2022}")
 message(STATUS "║  CEF:          ${OME_ENABLE_CEF}")
 message(STATUS "║  Tests:        ${OME_BUILD_TESTS}")
 message(STATUS "║  Samples:      ${OME_BUILD_SAMPLES}")
@@ -369,7 +377,7 @@ cmake -B $BuildDir `
     -DOME_ENV_TAG=$Environment `
     -DCMAKE_BUILD_TYPE=$BuildType `
     -DOME_BUILD_TESTS:BOOL=$($BuildTests -or $RunTests) `
-    -G "Visual Studio 17 2022" -A x64
+    -G "Visual Studio 18 2026" -A x64
 
 # CMake Build
 cmake --build $BuildDir --config $BuildType --parallel
@@ -432,7 +440,7 @@ jobs:
           -DOME_ENV_TAG=${{ matrix.environment }}
           -DCMAKE_BUILD_TYPE=${{ matrix.environment == 'production' && 'Release' || 'Debug' }}
           -DOME_BUILD_TESTS=ON
-          -G "Visual Studio 17 2022" -A x64
+          -G "Visual Studio 18 2026" -A x64
 
       - name: Build
         run: cmake --build build --config ${{ matrix.environment == 'production' && 'Release' || 'Debug' }} --parallel
