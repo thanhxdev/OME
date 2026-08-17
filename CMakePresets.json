@@ -15,7 +15,8 @@
         "OME_ENV_TAG": "demo",
         "CMAKE_BUILD_TYPE": "Debug",
         "OME_BUILD_TESTS": "ON",
-        "OME_BUILD_SAMPLES": "ON"
+        "OME_BUILD_SAMPLES": "ON",
+        "CMAKE_GENERATOR_INSTANCE": "C:/Program Files/Microsoft Visual Studio/18/Community"
       }
     },
     {
@@ -32,7 +33,8 @@
         "OME_ENV_TAG": "production",
         "CMAKE_BUILD_TYPE": "Release",
         "OME_BUILD_TESTS": "OFF",
-        "OME_BUILD_SAMPLES": "OFF"
+        "OME_BUILD_SAMPLES": "OFF",
+        "CMAKE_GENERATOR_INSTANCE": "C:/Program Files/Microsoft Visual Studio/18/Community"
       }
     }
   ],
