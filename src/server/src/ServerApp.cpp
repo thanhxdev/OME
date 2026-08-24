@@ -10,6 +10,7 @@
 #include <openmedia/ipc/D3D11SharedTexturePoolPoC.h>
 #include <openmedia/core/MediaFrame.h>
 #include <openmedia/audio/AudioPlayer.h>
+#include <openmedia/core/AVSyncClock.h>
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -53,6 +54,12 @@ struct ServerApp::Impl {
     // Pipelines
     uint32_t nextPipelineId = 1;
     std::unordered_map<uint32_t, std::shared_ptr<core::PipelineGraph>> pipelines;
+    struct PipelineConfig {
+        uint32_t width = 0;
+        uint32_t height = 0;
+        double fps = 0.0;
+    };
+    std::unordered_map<uint32_t, PipelineConfig> pipelineConfigs;
 
     // PoC: FileSource and render thread
     std::shared_ptr<io::FileSource> source;
@@ -341,7 +348,6 @@ void ServerApp::RegisterBuiltinHandlers() {
             uint32_t width = reader.ReadU32();
             uint32_t height = reader.ReadU32();
             double fps = reader.ReadF64();
-            (void)width; (void)height; (void)fps;
 
             if (reader.HasError()) {
                 return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload"});
@@ -355,6 +361,7 @@ void ServerApp::RegisterBuiltinHandlers() {
             std::lock_guard lock(m_impl->stateMutex);
             uint32_t id = m_impl->nextPipelineId++;
             m_impl->pipelines[id] = graph;
+            m_impl->pipelineConfigs[id] = {width, height, fps};
 
             std::vector<uint8_t> response(sizeof(uint32_t));
             std::memcpy(response.data(), &id, sizeof(uint32_t));
@@ -390,96 +397,83 @@ void ServerApp::RegisterBuiltinHandlers() {
                 m_impl->renderThread = std::thread([this, graph]() {
                     m_impl->source->Start();
 
+                    // FileSource unconditionally resamples to 48000 Hz, 2 channels, Float32
                     int audioSampleRate = 48000;
                     int audioChannels = 2;
-                    auto streams = m_impl->source->GetStreams();
-                    for (const auto& stream : streams) {
-                        if (stream.type == core::MediaType::Audio) {
-                            audioSampleRate = stream.sampleRate;
-                            audioChannels = stream.channels;
-                            break;
-                        }
-                    }
 
                     m_impl->audioPlayer = std::make_shared<audio::AudioPlayer>();
                     if (!m_impl->audioPlayer->Initialize(audioSampleRate, audioChannels)) {
                         core::Logger::SError("ServerApp", "Failed to initialize AudioPlayer on the server");
                     }
 
-                    size_t bufferIndex = 0;
-                    auto startTime = std::chrono::steady_clock::now();
-                    double videoTime = 0.0;
-                    double audioTime = 0.0;
-                    double frameDuration = 1.0 / 30.0; // Default 30 fps
-                    for (const auto& stream : streams) {
-                        if (stream.type == core::MediaType::Video && stream.frameRate > 0.0) {
-                            frameDuration = 1.0 / stream.frameRate;
-                            break;
-                        }
-                    }
-
+                    core::AVSyncClock syncClock;
                     std::shared_ptr<core::MediaFrame> pendingVideoFrame = nullptr;
-                    bool clockInitialized = false;
+                    size_t bufferIndex = 0;
 
                     while (m_impl->pipelineRunning) {
-                        auto now = std::chrono::steady_clock::now();
-                        
-                        if (!clockInitialized) {
-                            startTime = now;
-                            clockInitialized = true;
+                        // 1. Audio pacing - pull and play unconditionally
+                        auto audioResult = m_impl->source->PullAudioFrame();
+                        if (audioResult && *audioResult) {
+                            auto audioFrame = *audioResult;
+                            if (!m_impl->audioMuted && m_impl->audioPlayer) {
+                                m_impl->audioPlayer->PlayFrame(audioFrame);
+                            }
+                        } else if (audioResult.error().code == core::ErrorCode::EndOfStream) {
+                            if (m_impl->source->GetLoopMode()) {
+                                m_impl->source->Seek(0.0);
+                                if (m_impl->audioPlayer) {
+                                    m_impl->audioPlayer->Stop();
+                                }
+                                syncClock.Reset();
+                            } else {
+                                // Do not break immediately, video might still have frames
+                            }
                         }
 
-                        double elapsed = std::chrono::duration<double>(now - startTime).count();
+                        // Update audio clock from hardware
+                        if (m_impl->audioPlayer) {
+                            syncClock.UpdateAudioClock(m_impl->audioPlayer->GetPlaybackPositionSeconds());
+                        }
 
-                        // Video pacing & shared texture synchronization
-                        if (videoTime <= elapsed && m_impl->pipelineRunning) {
-                            if (!pendingVideoFrame) {
-                                auto frameRes = m_impl->source->PullVideoFrame();
-                                if (frameRes && *frameRes) {
-                                    pendingVideoFrame = *frameRes;
-                                } else if (m_impl->source->GetLoopMode()) {
-                                    m_impl->source->Seek(0.0);
-                                    auto retryRes = m_impl->source->PullVideoFrame();
-                                    if (retryRes && *retryRes) {
-                                        pendingVideoFrame = *retryRes;
-                                    }
+                        // 2. Video pacing & shared texture synchronization
+                        if (!pendingVideoFrame) {
+                            auto frameRes = m_impl->source->PullVideoFrame();
+                            if (frameRes && *frameRes) {
+                                pendingVideoFrame = *frameRes;
+                            } else if (m_impl->source->GetLoopMode()) {
+                                // Loop mode handled primarily in audio branch, but just in case
+                                m_impl->source->Seek(0.0);
+                                auto retryRes = m_impl->source->PullVideoFrame();
+                                if (retryRes && *retryRes) {
+                                    pendingVideoFrame = *retryRes;
                                 }
+                            } else if (!frameRes && frameRes.error().code == core::ErrorCode::EndOfStream) {
+                                break;
                             }
+                        }
 
-                            if (pendingVideoFrame) {
-                                if (auto* pool = m_impl->ipcServer->GetSharedTexturePool()) {
-                                    // Acquire Key 0 lock from client/initial state
-                                    if (pool->AcquireWriteLock(bufferIndex, 100)) {
-                                        pool->UpdateFrame(bufferIndex, pendingVideoFrame->GetVideoPlane(0), static_cast<uint32_t>(pendingVideoFrame->GetLineSize(0)));
-                                        pool->ReleaseWriteLock(bufferIndex);
-                                        bufferIndex = (bufferIndex + 1) % 2;
-                                        pendingVideoFrame = nullptr;
-                                        videoTime += frameDuration;
-                                    }
-                                    else {
-                                        // Client has not released buffer yet; keep clock tightly aligned with videoTime
-                                        if (elapsed > videoTime + 0.05) {
-                                            startTime = now - std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(videoTime));
+                        if (pendingVideoFrame) {
+                            auto action = syncClock.EvaluateVideoFrame(*pendingVideoFrame);
+                            switch (action) {
+                                case core::AVSyncClock::VideoAction::Display:
+                                    if (auto* pool = m_impl->ipcServer->GetSharedTexturePool()) {
+                                        // Acquire Key 0 lock from client/initial state
+                                        if (pool->AcquireWriteLock(bufferIndex, 100)) {
+                                            pool->UpdateFrame(bufferIndex, pendingVideoFrame->GetVideoPlane(0), static_cast<uint32_t>(pendingVideoFrame->GetLineSize(0)));
+                                            pool->ReleaseWriteLock(bufferIndex);
+                                            bufferIndex = (bufferIndex + 1) % 2;
+                                            pendingVideoFrame = nullptr;
+                                        }
+                                        else {
+                                            // Client has not released buffer yet; hold frame
                                         }
                                     }
-                                }
-                            }
-                        }
-
-                        // Audio pacing
-                        while (audioTime <= elapsed && m_impl->pipelineRunning) {
-                            auto audioResult = m_impl->source->PullAudioFrame();
-                            if (audioResult && *audioResult) {
-                                auto audioFrame = *audioResult;
-                                if (!m_impl->audioMuted && m_impl->audioPlayer) {
-                                    m_impl->audioPlayer->PlayFrame(audioFrame);
-                                }
-                                audioTime += static_cast<double>(audioFrame->GetSampleCount()) / audioSampleRate;
-                            } else {
-                                if (m_impl->source->GetLoopMode()) {
-                                    audioTime = videoTime;
-                                }
-                                break;
+                                    break;
+                                case core::AVSyncClock::VideoAction::Drop:
+                                    pendingVideoFrame = nullptr;  // skip, pull next
+                                    break;
+                                case core::AVSyncClock::VideoAction::Wait:
+                                    break;  // hold frame, try again next iteration
                             }
                         }
 
@@ -645,7 +639,19 @@ void ServerApp::RegisterBuiltinHandlers() {
             (void)loop; (void)startMs;
             if (reader.HasError()) return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload"});
 
+            auto configIt = m_impl->pipelineConfigs.find(pipelineId);
+            uint32_t targetWidth = 0;
+            uint32_t targetHeight = 0;
+            if (configIt != m_impl->pipelineConfigs.end()) {
+                targetWidth = configIt->second.width;
+                targetHeight = configIt->second.height;
+            }
+
             m_impl->source = std::make_shared<io::FileSource>();
+            if (targetWidth > 0 && targetHeight > 0) {
+                m_impl->source->SetOutputResolution(targetWidth, targetHeight);
+            }
+            
             if (auto res = m_impl->source->Open(url); !res) {
                 return std::unexpected(res.error());
             }
@@ -658,9 +664,11 @@ void ServerApp::RegisterBuiltinHandlers() {
             auto streams = m_impl->source->GetStreams();
             for (const auto& stream : streams) {
                 if (stream.type == core::MediaType::Video && stream.width > 0 && stream.height > 0) {
-                    m_impl->ipcServer->SetVideoResolution(stream.width, stream.height);
-                    core::Logger::SInfo("ServerApp", "Video resolution: {}x{} @ {:.1f} FPS",
-                                       stream.width, stream.height, stream.frameRate);
+                    uint32_t resWidth = (targetWidth > 0) ? targetWidth : stream.width;
+                    uint32_t resHeight = (targetHeight > 0) ? targetHeight : stream.height;
+                    m_impl->ipcServer->SetVideoResolution(resWidth, resHeight);
+                    core::Logger::SInfo("ServerApp", "Video resolution: {}x{} (Scaled to {}x{}) @ {:.1f} FPS",
+                                       stream.width, stream.height, resWidth, resHeight, stream.frameRate);
                     break;
                 }
             }

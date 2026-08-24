@@ -11,9 +11,12 @@ namespace OpenMedia.SDK
         GetStatus = 0x0003,
         Shutdown = 0x0006,
         CreatePipeline = 0x0100,
+        DestroyPipeline = 0x0101,
         StartPipeline = 0x0102,
         StopPipeline = 0x0103,
+        PausePipeline = 0x0104,
         OpenSource = 0x0200,
+        GetSourceInfo = 0x0203,
         AddMixerInput = 0x0300,
         SetLayerProperties = 0x0303,
         ShareD3D11Texture = 0x0704

@@ -8,6 +8,7 @@
 #include <openmedia/rendering/Preview.h>
 #include <openmedia/audio/AudioPlayer.h>
 #include <openmedia/audio/AudioMeter.h>
+#include <openmedia/core/AVSyncClock.h>
 
 using namespace openmedia::core;
 using namespace openmedia::io;
@@ -17,6 +18,7 @@ using namespace OpenMedia::Audio;
 
 // Global pointers for WndProc
 std::shared_ptr<Preview> g_preview;
+std::shared_ptr<AudioPlayer> g_audioPlayer;
 ScaleMode g_currentMode = ScaleMode::AspectRatioFit;
 
 // Win32 Window Procedure
@@ -39,6 +41,13 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
                               << (g_currentMode == ScaleMode::Stretch ? "Stretch" : "AspectRatioFit") << std::endl;
                 }
             }
+            return 0;
+        }
+        case WM_CLOSE: {
+            if (g_audioPlayer) {
+                g_audioPlayer->Stop();
+            }
+            DestroyWindow(hwnd);
             return 0;
         }
         case WM_DESTROY:
@@ -110,6 +119,7 @@ int main(int argc, char* argv[]) {
 
     // Create AudioPlayer and AudioMeter
     auto audioPlayer = std::make_shared<AudioPlayer>();
+    g_audioPlayer = audioPlayer;
     AudioMeter audioMeter;
 
     // 2. Initialize components
@@ -162,9 +172,21 @@ int main(int argc, char* argv[]) {
               << "  Press [S] key to toggle Stretch / AspectRatioFit display modes.\n"
               << "  Close window to exit.\n" << std::endl;
 
-    auto startTime = std::chrono::steady_clock::now();
-    double videoTime = 0.0;
-    double audioTime = 0.0;
+    SetConsoleCtrlHandler([](DWORD type) -> BOOL {
+        if (type == CTRL_C_EVENT || type == CTRL_CLOSE_EVENT || type == CTRL_BREAK_EVENT) {
+            if (g_audioPlayer) g_audioPlayer->Stop();
+            return TRUE;
+        }
+        return FALSE;
+    }, TRUE);
+
+    std::atexit([]() {
+        if (g_audioPlayer) g_audioPlayer->Stop();
+    });
+
+    AVSyncClock syncClock;
+    std::shared_ptr<MediaFrame> pendingVideoFrame;
+
     MSG msg = {};
     bool playing = true;
 
@@ -181,58 +203,67 @@ int main(int argc, char* argv[]) {
         }
         if (!playing) break;
 
-        auto now = std::chrono::steady_clock::now();
-        double elapsed = std::chrono::duration<double>(now - startTime).count();
+        // Pull and play audio unconditionally (audio never waits)
+        auto audioResult = fileSource->PullAudioFrame();
+        if (audioResult && *audioResult) {
+            auto audioFrame = *audioResult;
+            audioPlayer->PlayFrame(audioFrame);
 
-        // Pull and render video frames
-        while (videoTime <= elapsed && playing) {
+            // Compute audio meter levels
+            audioMeter.ProcessSamples(audioFrame.get());
+            auto channelData = audioMeter.GetChannelData();
+            if (!channelData.empty()) {
+                float rms = channelData[0].rms_db; // Channel 0 (Left)
+                
+                // Normalize RMS dB range (-60dB to 0dB) to 0.0 - 1.0
+                float normalized = (rms + 60.0f) / 60.0f;
+                if (normalized < 0.0f) normalized = 0.0f;
+                if (normalized > 1.0f) normalized = 1.0f;
+                
+                int barLength = static_cast<int>(normalized * 25);
+                std::string bar(barLength, '=');
+                std::string spaces(25 - barLength, ' ');
+                std::cout << "\rAudio Volume Bar: [" << bar << spaces << "] " << (int)rms << " dB   " << std::flush;
+            }
+        } else if (audioResult.error().code == ErrorCode::EndOfStream) {
+            // Do not break immediately, video might still have frames
+        }
+
+        // Update audio clock from hardware
+        syncClock.UpdateAudioClock(audioPlayer->GetPlaybackPositionSeconds());
+
+        // Sync video to audio clock
+        if (!pendingVideoFrame) {
             auto frameResult = fileSource->PullVideoFrame();
-            if (frameResult.has_value() && frameResult.value()) {
-                preview->DisplayFrame(frameResult.value());
-                videoTime += frameDuration;
-            } else {
-                auto err = frameResult.error();
-                if (err.code == openmedia::core::ErrorCode::EndOfStream) {
-                    std::cout << "\nEnd of video stream reached." << std::endl;
-                } else {
-                    std::cerr << "\nError pulling video frame: " << err.message << std::endl;
-                }
+            if (frameResult && *frameResult) {
+                pendingVideoFrame = *frameResult;
+            } else if (!frameResult && frameResult.error().code == ErrorCode::EndOfStream) {
+                std::cout << "\nEnd of video stream reached." << std::endl;
+                playing = false;
+                break;
+            } else if (!frameResult) {
+                std::cerr << "\nError pulling video frame: " << frameResult.error().message << std::endl;
                 playing = false;
                 break;
             }
         }
 
-        // Pull and play audio frames
-        while (audioTime <= elapsed && playing) {
-            auto audioResult = fileSource->PullAudioFrame();
-            if (audioResult.has_value() && audioResult.value()) {
-                auto audioFrame = audioResult.value();
-                audioPlayer->PlayFrame(audioFrame);
-
-                // Compute audio meter levels
-                audioMeter.ProcessSamples(audioFrame.get());
-                auto channelData = audioMeter.GetChannelData();
-                if (!channelData.empty()) {
-                    float rms = channelData[0].rms_db; // Channel 0 (Left)
-                    
-                    // Normalize RMS dB range (-60dB to 0dB) to 0.0 - 1.0
-                    float normalized = (rms + 60.0f) / 60.0f;
-                    if (normalized < 0.0f) normalized = 0.0f;
-                    if (normalized > 1.0f) normalized = 1.0f;
-                    
-                    int barLength = static_cast<int>(normalized * 25);
-                    std::string bar(barLength, '=');
-                    std::string spaces(25 - barLength, ' ');
-                    std::cout << "\rAudio Volume Bar: [" << bar << spaces << "] " << (int)rms << " dB   " << std::flush;
-                }
-
-                audioTime += static_cast<double>(audioFrame->GetSampleCount()) / audioSampleRate;
-            } else {
-                break;
+        if (pendingVideoFrame) {
+            auto action = syncClock.EvaluateVideoFrame(*pendingVideoFrame);
+            switch (action) {
+                case AVSyncClock::VideoAction::Display:
+                    preview->DisplayFrame(pendingVideoFrame);
+                    pendingVideoFrame = nullptr;
+                    break;
+                case AVSyncClock::VideoAction::Drop:
+                    pendingVideoFrame = nullptr;  // skip, pull next
+                    break;
+                case AVSyncClock::VideoAction::Wait:
+                    break;  // hold frame, try again next iteration
             }
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
 
     // 6. Stop and cleanup

@@ -23,6 +23,7 @@ struct StreamInfo {
     uint32_t channels = 0;
     double durationSeconds = 0.0;
     double frameRate = 0.0;
+    core::Rational timeBase = {0, 1};
 };
 
 class MediaReader {

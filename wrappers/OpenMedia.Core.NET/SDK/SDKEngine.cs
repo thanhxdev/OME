@@ -33,6 +33,7 @@ namespace OpenMedia.SDK
         public void WriteU32(uint value) => _writer.Write(value);
         public void WriteF64(double value) => _writer.Write(value);
         public void WriteBool(bool value) => _writer.Write(value);
+        public void WriteI32(int value) => _writer.Write(value);
 
         public byte[] ToArray() => _ms.ToArray();
     }
@@ -57,6 +58,9 @@ namespace OpenMedia.SDK
         }
 
         public uint ReadU32() => _reader.ReadUInt32();
+        public int ReadI32() => _reader.ReadInt32();
+        public double ReadF64() => _reader.ReadDouble();
+        public ulong ReadU64() => _reader.ReadUInt64();
     }
 
     public class SDKEngine
@@ -69,7 +73,7 @@ namespace OpenMedia.SDK
 
         public IPCClient IPC => _ipcClient;
 
-        public async Task<bool> InitializeAsync(string pipeName = "OpenMediaSDK")
+        public async Task<bool> InitializeAsync(string pipeName = "OpenMediaSDK", string serverPath = "OpenMediaServer.exe")
         {
             // Try to connect first, in case it's already running
             _ipcClient = new IPCClient();
@@ -78,11 +82,10 @@ namespace OpenMedia.SDK
             if (!connected)
             {
                 // Not running, launch it
-                string serverExe = "OpenMediaServer.exe";
-                if (File.Exists(serverExe))
+                if (File.Exists(serverPath))
                 {
                     _serverProcess = new Process();
-                    _serverProcess.StartInfo.FileName = serverExe;
+                    _serverProcess.StartInfo.FileName = serverPath;
                     if (pipeName != "OpenMediaSDK")
                     {
                         _serverProcess.StartInfo.Arguments = $"--pipe-name \\\\.\\pipe\\{pipeName}";

@@ -76,6 +76,7 @@ core::VoidResult MediaReader::Open(const std::string& path, const std::string& f
         const AVCodecParameters* codecpar = stream->codecpar;
         StreamInfo info;
         info.index = i;
+        info.timeBase = {stream->time_base.num, stream->time_base.den};
         info.durationSeconds = stream->duration * av_q2d(stream->time_base);
         if (info.durationSeconds < 0 || stream->duration == AV_NOPTS_VALUE) {
             info.durationSeconds = (double)fmtCtx->duration / AV_TIME_BASE;

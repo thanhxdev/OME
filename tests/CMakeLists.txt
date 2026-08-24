@@ -342,6 +342,7 @@ if(GTest_FOUND)
             OpenMedia.CommandDispatcher
             OpenMedia.WorkerPool
             OpenMedia.SDK
+            OpenMedia.Audio
             GTest::gtest
             GTest::gtest_main
     )

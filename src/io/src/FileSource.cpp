@@ -28,6 +28,8 @@ struct FileSource::Impl {
     bool loopMode = false;
     uint32_t bitrate = 0;
     double durationSeconds = 0.0;
+    uint32_t targetWidth = 0;
+    uint32_t targetHeight = 0;
 
     Impl() {
         decodedVideoFrame = av_frame_alloc();
@@ -73,16 +75,23 @@ core::Result<std::shared_ptr<core::MediaFrame>> FileSource::PullVideoFrame() {
     int height = m_impl->decodedVideoFrame->height;
     auto format = static_cast<AVPixelFormat>(m_impl->decodedVideoFrame->format);
 
-    m_impl->swsCtx = sws_getCachedContext(m_impl->swsCtx, width, height, format, width, height, AV_PIX_FMT_BGRA, SWS_FAST_BILINEAR, nullptr, nullptr, nullptr);
+    int outWidth = (m_impl->targetWidth > 0) ? m_impl->targetWidth : width;
+    int outHeight = (m_impl->targetHeight > 0) ? m_impl->targetHeight : height;
+
+    m_impl->swsCtx = sws_getCachedContext(m_impl->swsCtx, width, height, format, outWidth, outHeight, AV_PIX_FMT_BGRA, SWS_FAST_BILINEAR, nullptr, nullptr, nullptr);
     if (!m_impl->swsCtx) return std::unexpected(core::Error::Make(core::ErrorCode::Unknown, "swscale context failed"));
 
-    auto mediaFrame = core::MediaFrame::CreateVideo(width, height, core::PixelFormat::BGRA);
+    auto mediaFrame = core::MediaFrame::CreateVideo(outWidth, outHeight, core::PixelFormat::BGRA);
     uint8_t* dstData[1] = { mediaFrame->GetVideoPlane(0) };
     int dstLinesize[1] = { static_cast<int>(mediaFrame->GetLineSize(0)) };
 
     sws_scale(m_impl->swsCtx, m_impl->decodedVideoFrame->data, m_impl->decodedVideoFrame->linesize, 0, height, dstData, dstLinesize);
     mediaFrame->SetPts(m_impl->decodedVideoFrame->pts);
     mediaFrame->SetDts(m_impl->decodedVideoFrame->pkt_dts);
+    auto videoIdx = m_impl->reader.GetBestVideoStreamIndex();
+    if (videoIdx >= 0) {
+        mediaFrame->SetTimeBase(m_impl->reader.GetStreams()[videoIdx].timeBase);
+    }
     return mediaFrame;
 }
 
@@ -116,13 +125,32 @@ core::Result<std::shared_ptr<core::MediaFrame>> FileSource::PullAudioFrame() {
         }
     }
 
-    auto mediaFrame = core::MediaFrame::CreateAudio(m_impl->decodedAudioFrame->nb_samples, 2, core::SampleFormat::Float32, 48000);
-    uint8_t* outData[1] = { mediaFrame->GetAudioData(0) }; // Interleaved output? No, wait, planar or interleaved? FLT is interleaved, FLTP is planar. CreateAudio expects interleaved if only 1 channel pointer is fetched? Actually MediaFrame API allows per channel or just channel 0 for interleaved. Let's assume channel 0 is the single interleaved buffer if format is interleaved.
+    int out_samples = av_rescale_rnd(swr_get_delay(m_impl->swrCtx, m_impl->decodedAudioFrame->sample_rate) +
+                                     m_impl->decodedAudioFrame->nb_samples, 48000, m_impl->decodedAudioFrame->sample_rate, AV_ROUND_UP);
 
-    swr_convert(m_impl->swrCtx, outData, m_impl->decodedAudioFrame->nb_samples, 
-                (const uint8_t**)m_impl->decodedAudioFrame->data, m_impl->decodedAudioFrame->nb_samples);
+    std::vector<uint8_t> tempBuffer(out_samples * 2 * 4); // 2 channels, Float32
+    uint8_t* outData[1] = { tempBuffer.data() };
+
+    int actual_out = swr_convert(m_impl->swrCtx, outData, out_samples, 
+                                 (const uint8_t**)m_impl->decodedAudioFrame->data, m_impl->decodedAudioFrame->nb_samples);
+
+    if (actual_out < 0) {
+        return std::unexpected(core::Error::Make(core::ErrorCode::Unknown, "swr_convert failed"));
+    }
+    
+    // Create MediaFrame with EXACTLY the actual number of output samples
+    auto mediaFrame = core::MediaFrame::CreateAudio(actual_out > 0 ? actual_out : 1, 2, core::SampleFormat::Float32, 48000);
+    if (actual_out > 0) {
+        std::memcpy(mediaFrame->GetAudioData(0), tempBuffer.data(), actual_out * 2 * 4);
+    } else {
+        std::memset(mediaFrame->GetAudioData(0), 0, 1 * 2 * 4);
+    }
 
     mediaFrame->SetPts(m_impl->decodedAudioFrame->pts);
+    auto audioIdx = m_impl->reader.GetBestAudioStreamIndex();
+    if (audioIdx >= 0) {
+        mediaFrame->SetTimeBase(m_impl->reader.GetStreams()[audioIdx].timeBase);
+    }
     return mediaFrame;
 }
 
@@ -154,6 +182,12 @@ bool FileSource::GetLoopMode() const { std::lock_guard lock(m_impl->readerMutex)
 double FileSource::GetDurationSeconds() const { std::lock_guard lock(m_impl->readerMutex); return m_impl->durationSeconds; }
 uint32_t FileSource::GetBitrate() const { std::lock_guard lock(m_impl->readerMutex); return m_impl->bitrate; }
 core::VoidResult FileSource::SeekFrame(int64_t) { return std::unexpected(core::Error::Make(core::ErrorCode::NotSupported, "")); }
+
+void FileSource::SetOutputResolution(uint32_t width, uint32_t height) {
+    std::lock_guard lock(m_impl->readerMutex);
+    m_impl->targetWidth = width;
+    m_impl->targetHeight = height;
+}
 
 } // namespace openmedia::io
 

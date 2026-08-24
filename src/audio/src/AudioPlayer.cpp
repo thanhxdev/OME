@@ -101,7 +101,7 @@ core::VoidResult AudioPlayer::PlayFrame(std::shared_ptr<core::MediaFrame> frame)
     // Limit queued buffers to prevent infinite lag/memory growth
     XAUDIO2_VOICE_STATE state;
     m_sourceVoice->GetState(&state);
-    if (state.BuffersQueued > 10) {
+    if (state.BuffersQueued > 4) {
         // Simple drop logic if the queue is too full
         return {};
     }
@@ -140,6 +140,22 @@ void AudioPlayer::Stop() {
         m_xaudio2 = nullptr;
     }
     m_initialized = false;
+}
+
+double AudioPlayer::GetPlaybackPositionSeconds() const {
+    if (!m_initialized || !m_sourceVoice || m_sampleRate == 0) return 0.0;
+
+    XAUDIO2_VOICE_STATE state;
+    m_sourceVoice->GetState(&state);
+    return static_cast<double>(state.SamplesPlayed) / m_sampleRate;
+}
+
+uint32_t AudioPlayer::GetQueuedBufferCount() const {
+    if (!m_initialized || !m_sourceVoice) return 0;
+
+    XAUDIO2_VOICE_STATE state;
+    m_sourceVoice->GetState(&state, XAUDIO2_VOICE_NOSAMPLESPLAYED);
+    return state.BuffersQueued;
 }
 
 } // namespace openmedia::audio

@@ -31,5 +31,32 @@ namespace OpenMedia.SDK
 
             throw new Exception("Failed to open source via IPC");
         }
+
+        public async Task<SourceInfo> GetInfoAsync()
+        {
+            var builder = new MessageBuilder();
+            builder.WriteU32(_pipelineId);
+            builder.WriteU32(_sourceId);
+
+            byte[] response = await SDKEngine.Instance.IPC.SendAndReceiveAsync(CommandType.GetSourceInfo, builder.ToArray());
+            if (response != null && response.Length > 0)
+            {
+                var reader = new MessageReader(response);
+                var info = new SourceInfo();
+                info.Url = reader.ReadString();
+                info.DurationMs = reader.ReadF64();
+                info.Width = reader.ReadU32();
+                info.Height = reader.ReadU32();
+                info.FrameRate = reader.ReadF64();
+                info.VideoCodec = reader.ReadString();
+                info.AudioCodec = reader.ReadString();
+                info.AudioChannels = reader.ReadI32();
+                info.AudioSampleRate = reader.ReadI32();
+                info.BitrateKbps = (long)reader.ReadU64();
+                return info;
+            }
+
+            throw new Exception("Failed to get source info via IPC");
+        }
     }
 }

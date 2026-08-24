@@ -9,6 +9,7 @@ add_library(OpenMedia.Core SHARED
     src/MediaFrame.cpp
     src/FrameQueue.cpp
     src/ClockSync.cpp
+    src/AVSyncClock.cpp
     src/MediaPipeline.cpp
     src/PipelineGraph.cpp
     src/TeeNode.cpp

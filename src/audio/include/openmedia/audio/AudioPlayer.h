@@ -37,6 +37,13 @@ public:
     /// @brief Stop playback and clear queues
     void Stop();
 
+    /// @brief Get current playback position in seconds (from XAudio2 SamplesPlayed)
+    /// @return Playback position in seconds, or 0.0 if not initialized
+    double GetPlaybackPositionSeconds() const;
+
+    /// @brief Get number of buffers currently queued in XAudio2
+    uint32_t GetQueuedBufferCount() const;
+
 private:
     IXAudio2* m_xaudio2 = nullptr;
     IXAudio2MasteringVoice* m_masteringVoice = nullptr;

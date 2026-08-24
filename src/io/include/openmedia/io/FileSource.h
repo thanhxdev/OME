@@ -43,6 +43,8 @@ public:
     double GetDurationSeconds() const;
     uint32_t GetBitrate() const;
 
+    void SetOutputResolution(uint32_t width, uint32_t height);
+
 private:
     struct Impl;
     std::unique_ptr<Impl> m_impl;

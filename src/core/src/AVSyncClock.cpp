@@ -1,0 +1,69 @@
+#include <openmedia/core/AVSyncClock.h>
+#include <openmedia/core/Logger.h>
+
+namespace openmedia::core {
+
+AVSyncClock::AVSyncClock(const Config& config)
+    : m_config(config) {}
+
+void AVSyncClock::UpdateAudioClock(double audioPositionSec) {
+    m_audioClockSec = audioPositionSec;
+}
+
+AVSyncClock::VideoAction AVSyncClock::EvaluateVideoFrame(const MediaFrame& frame) const {
+    double videoPts = PtsToSeconds(frame);
+    double drift = videoPts - m_audioClockSec;  // positive = video ahead
+
+    if (drift < -m_config.maxDropThresholdSec) {
+        // Video is significantly behind audio -> drop
+        return VideoAction::Drop;
+    }
+
+    if (drift > m_config.syncThresholdSec) {
+        // Video is ahead of audio -> wait
+        // Unless we've been waiting too long and audio clock stalled
+        if (drift > m_config.maxWaitThresholdSec) {
+            return VideoAction::Display;
+        }
+        return VideoAction::Wait;
+    }
+
+    // Within tolerance -> display
+    return VideoAction::Display;
+}
+
+double AVSyncClock::PtsToSeconds(const MediaFrame& frame) {
+    auto tb = frame.GetTimeBase();
+    if (tb.den == 0) return 0.0;
+    return static_cast<double>(frame.GetPts()) * tb.num / tb.den;
+}
+
+double AVSyncClock::GetAudioClockSeconds() const {
+    return m_audioClockSec;
+}
+
+const AVSyncClock::SyncStats& AVSyncClock::GetStats() const {
+    return m_stats;
+}
+
+void AVSyncClock::RecordAction(VideoAction action, double driftSec) {
+    m_stats.currentDriftSec = driftSec;
+    switch (action) {
+        case VideoAction::Display:
+            m_stats.framesDisplayed++;
+            break;
+        case VideoAction::Wait:
+            m_stats.framesWaited++;
+            break;
+        case VideoAction::Drop:
+            m_stats.framesDropped++;
+            break;
+    }
+}
+
+void AVSyncClock::Reset() {
+    m_audioClockSec = 0.0;
+    m_stats = SyncStats{};
+}
+
+} // namespace openmedia::core
