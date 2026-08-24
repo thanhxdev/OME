@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>GIÁO TRÌNH LẬP TRÌNH OPENMEDIASDK</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 20mm 15mm 20mm 15mm;
+            @bottom-center {
+                content: counter(page);
+            }
+        }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            line-height: 1.6;
+            color: #1a1a1a;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #0d47a1;
+            text-align: center;
+            border-bottom: 3px solid #0d47a1;
+            padding-bottom: 10px;
+            font-size: 26px;
+        }
+        h2 {
+            color: #1565c0;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 5px;
+            margin-top: 30px;
+            font-size: 20px;
+            page-break-after: avoid;
+        }
+        h3 {
+            color: #0277bd;
+            font-size: 16px;
+            margin-top: 20px;
+            page-break-after: avoid;
+        }
+        code {
+            font-family: 'Consolas', 'Courier New', monospace;
+            background-color: #f4f5f7;
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #d32f2f;
+        }
+        pre {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+            page-break-inside: avoid;
+        }
+        pre code {
+            background-color: transparent;
+            color: inherit;
+            padding: 0;
+        }
+        blockquote {
+            border-left: 4px solid #0288d1;
+            background-color: #e1f5fe;
+            margin: 15px 0;
+            padding: 10px 15px;
+            border-radius: 0 4px 4px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            page-break-inside: avoid;
+        }
+        th, td {
+            border: 1px solid #e0e0e0;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f5f5f5;
+            color: #333;
+            font-weight: bold;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 50px;
+            font-size: 12px;
+            color: #666;
+            border-top: 1px solid #ddd;
+            padding-top: 10px;
+        }
+    </style>
+</head>
+<body>
+<h1>GIÁO TRÌNH LẬP TRÌNH ỨNG DỤNG TRUYỀN THÔNG & PHÁT SÓNG THỜI GIAN THỰC VỚI OPENMEDIASDK</h1>
+<p>*Hệ thống Hướng dẫn Lập trình SDK C++/C# từ Cơ bản đến Chuyên nghiệp*</p>
+<p></p>
+<hr/>
+<p></p>
+<h2>MỤC LỤC GIÁO TRÌNH</h2>
+<p></p>
+<p>- **Chương 1: Kiến trúc Tổng quan OpenMediaSDK & Cấu hình Môi trường Phát triển**</p>
+<p>- **Chương 2: Cốt lõi Hệ thống & Mô hình Media Pipeline**</p>
+<p>- **Chương 3: Thực hành App 1 (Cơ bản) - CLI Streaming Player (C# Console App)**</p>
+<p>- **Chương 4: Thực hành App 2 (Trung cấp) - Trình xem Video & Đo Tín hiệu Âm thanh (WPF App)**</p>
+<p>- **Chương 5: Thực hành App 3 (Chuyên nghiệp) - Studio Phát sóng Đa luồng (Live Production Studio)**</p>
+<p>- **Chương 6: Tối ưu hóa Hiệu năng, Giám sát & Triển khai Thương mại**</p>
+<p></p>
+<hr/>
+<p></p>
+<h2>CHƯƠNG 1: KIẾN TRÚC TỔNG QUAN OPENMEDIASDK & CẤU HÌNH MÔI TRƯỜNG</h2>
+<p></p>
+<h3>1.1 Tổng quan về OpenMediaSDK</h3>
+<p>OpenMediaSDK được xây dựng dựa trên kiến trúc **Client/Server** và mô hình **Graph-based Media Pipeline**, cho phép kết nối linh hoạt các nút xử lý (Nodes) từ nguồn vào (Source), bộ lọc hiệu ứng (Filter), bộ trộn hình/tiếng (Mixer), bộ mã hóa (Encoder) đến đầu ra truyền dẫn (Output).</p>
+<p></p>
+<h3>1.2 Kiến trúc Đa tầng (Multi-Layer Architecture)</h3>
+<p>Hệ thống OpenMediaSDK bao gồm 3 tầng chính:</p>
+<p></p>
+<pre><code class="">
++-------------------------------------------------------------------+
+|  1. Target Language Layer (C# / .NET 8/9 / WPF / WinUI 3)        |
++-------------------------------------------------------------------+
+                                | P/Invoke &amp; SWIG Proxy Classes
++-------------------------------------------------------------------+
+|  2. SWIG Binding Layer (openmedia_wrap.dll &amp; SWIG Directors)      |
++-------------------------------------------------------------------+
+                                | C-ABI Native Calls
++-------------------------------------------------------------------+
+|  3. Native C++ Core Engine (openmedia_core.dll / OpenMediaServer) |
+|     - Codecs (NVENC, QSV, FFmpeg)   - Protocols (SRT, NDI, WebRTC)|
+|     - Mixer (ChromaKey, Transitions) - CG (Chromium HTML5 Graphics)|
++-------------------------------------------------------------------+
+</code></pre>
+<p></p>
+<h3>1.3 Cấu hình Môi trường Phát triển</h3>
+<p>Để biên dịch và sử dụng SDK, máy tính cần trang bị:</p>
+<p>- **Hệ điều hành**: Windows 10/11 x64.</p>
+<p>- **C++ Compiler**: Visual Studio 2022 / 2026 (MSVC v143/v144) hoặc C++20 standard.</p>
+<p>- **CMake**: Phiên bản 3.28 trở lên.</p>
+<p>- **.NET SDK**: .NET 8.0 hoặc .NET 9.0 SDK.</p>
+<p>- **vcpkg**: Trình quản lý thư viện C++.</p>
+<p></p>
+<h4>Quy trình Biên dịch Native SDK:</h4>
+<pre><code class="powershell">
+# 1. Cài đặt môi trường &amp; vcpkg dependencies
+.\tools\scripts\setup_env.ps1 -DownloadSDKs
+
+# 2. Biên dịch bản Production bằng Script
+.\tools\scripts\build.ps1 -Environment production
+</code></pre>
+<p>Sau khi biên dịch thành công, các tập tin thư viện thu được gồm:</p>
+<p>- `openmedia_core.dll`: Core Engine C++.</p>
+<p>- `openmedia_wrap.dll`: C++ Interop Wrapper do SWIG tạo ra.</p>
+<p>- `OpenMedia.Core.NET.dll`: Thư viện Managed C# Assembly tại `wrappers/OpenMedia.Core.NET/`.</p>
+<p></p>
+<hr/>
+<p></p>
+<h2>CHƯƠNG 2: CỐT LÕI HỆ THỐNG & MÔ HÌNH MEDIA PIPELINE</h2>
+<p></p>
+<h3>2.1 Vòng đời Ứng dụng (`Engine` & `MediaPipeline`)</h3>
+<p>- **`Engine`**: Đối tượng Singleton hoặc Factory tối cao, quản lý tài nguyên phần cứng (GPU, Memory Pool, Card Capture).</p>
+<p>- **`MediaPipeline`**: Đối tượng xây dựng và điều khiển luồng media theo mô hình trạng thái (State Machine: `Uninitialized` ➔ `Built` ➔ `Running` ➔ `Paused` ➔ `Stopped`).</p>
+<p></p>
+<h3>2.2 Các loại Node trong Pipeline (Pipeline Nodes)</h3>
+<p>1. **Source Node (`IMediaObject`)**: Thu nhận dữ liệu media từ File (`FileSource`), luồng mạng (`SRTSource`, `NDISource`, `WebRTCInput`) hoặc Card phần cứng (`DeckLinkInput`).</p>
+<p>2. **Filter Node**: Xử lý hiệu ứng hình ảnh (ChromaKey, LUT, Scale, Crop) hoặc âm thanh (Resample, Audio Delay, Channel Map).</p>
+<p>3. **Mixer Node**: Trộn nhiều luồng Video (`VideoMixer`) hoặc Audio (`AudioMixer`).</p>
+<p>4. **Encoder Node**: Nén dữ liệu hình ảnh/âm thanh (`NVENCEncoder`, `QSVEncoder`, `FFmpegAACEncoder`).</p>
+<p>5. **Output Node**: Xuất dữ liệu ra luồng mạng (`SRTOutput`, `RTMPOutput`, `WebRTCOutput`), File (`FileOutput`), Card SDI (`DeckLinkOutput`) hoặc IPC (`IPCOutput`).</p>
+<p></p>
+<h3>2.3 Quản lý Bộ nhớ Zero-Copy & Lipsync</h3>
+<p>- **`FrameQueue` & `MemoryPool`**: Sử dụng hàng đợi không khóa (lock-free) và Memory Pool được cấp phát sẵn nhằm tránh việc `malloc`/`free` liên tục ở tần số 60 FPS, đảm bảo **Zero-Copy** truyền qua con trỏ bộ nhớ.</p>
+<p>- **`AVSyncClock`**: Đồng bộ thời gian thực dựa trên nhãn thời gian Presentation Timestamp (PTS) giữa luồng hình và luồng tiếng, triệt tiêu hiện tượng lệch tiếng (Lip-sync issue).</p>
+<p></p>
+<h3>2.4 Cơ chế SWIG Interop & Quản lý Con trỏ</h3>
+<p>Mỗi đối tượng C# giữ một con trỏ thô (`IntPtr`) trỏ tới đối tượng C++ Native tương ứng.</p>
+<p>- **Cờ `swigCMemOwn`**: Quyết định xem phía C# khi hủy object có gọi `delete` đối tượng C++ hay không.</p>
+<p>- **`NativeBridge`**: Lớp chứa các khai báo `[DllImport]` C-ABI để thực hiện P/Invoke trực tiếp.</p>
+<p></p>
+<hr/>
+<p></p>
+<h2>CHƯƠNG 3: THỰC HÀNH APP 1 (CƠ BẢN) - CLI STREAMING PLAYER</h2>
+<p></p>
+<h3>3.1 Mục tiêu Dự án</h3>
+<p>Xây dựng một ứng dụng Console C# đọc tập tin video `input.mp4`, mã hóa và phát luồng trực tuyến chuẩn **SRT (Secure Reliable Transport)** ra địa chỉ IP chỉ định.</p>
+<p></p>
+<h3>3.2 Khởi tạo Dự án C#</h3>
+<p>1. Mở Terminal / Visual Studio, tạo dự án Console App:</p>
+<p>   ```powershell</p>
+<p>   dotnet new console -n CLIStreamingApp -f net8.0</p>
+<p>   ```</p>
+<p>2. Thêm tham chiếu đến `OpenMedia.Core.NET.csproj`.</p>
+<p>3. Đảm bảo cấu hình Target Platform trong `.csproj` là `x64`:</p>
+<p>   ```xml</p>
+<p>   <PropertyGroup></p>
+<p>     <OutputType>Exe</OutputType></p>
+<p>     <TargetFramework>net8.0</TargetFramework></p>
+<p>     <PlatformTarget>x64</PlatformTarget></p>
+<p>   </PropertyGroup></p>
+<p>   ```</p>
+<p></p>
+<h3>3.3 Mã nguồn C# Hoàn chỉnh (`Program.cs`)</h3>
+<pre><code class="csharp">
+using System;
+using OpenMedia.Core.NET;
+
+namespace CLIStreamingApp
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            Console.WriteLine("=============================================");
+            Console.WriteLine("  OpenMediaSDK - CLI Streaming Player (SRT)  ");
+            Console.WriteLine("=============================================");
+
+            string inputPath = args.Length &gt; 0 ? args[0] : "sample.mp4";
+            string srtUrl = args.Length &gt; 1 ? args[1] : "srt://127.0.0.1:9000?mode=caller";
+
+            Console.WriteLine($"[1] Khởi tạo Engine...");
+            NativeBridge.ome_engine_init("{\"log_level\": \"info\"}");
+
+            Console.WriteLine($"[2] Tạo Media Pipeline...");
+            IntPtr pipeline = NativeBridge.ome_pipeline_create();
+
+            Console.WriteLine($"[3] Khởi tạo File Source: {inputPath}");
+            IntPtr fileSource = NativeBridge.ome_source_create_file(inputPath);
+
+            Console.WriteLine($"[4] Khởi tạo SRT Output: {srtUrl}");
+            IntPtr srtOutput = NativeBridge.om_create_srt_output(srtUrl);
+
+            Console.WriteLine($"[5] Kết nối các Node vào Pipeline...");
+            NativeBridge.ome_pipeline_add_node(pipeline, fileSource);
+            NativeBridge.ome_pipeline_add_node(pipeline, srtOutput);
+
+            Console.WriteLine($"[6] Bắt đầu phát luồng SRT!");
+            NativeBridge.ome_pipeline_start(pipeline);
+
+            Console.WriteLine("\n--&gt; Luồng đang phát. Nhấn ENTER để dừng chương trình...");
+            Console.ReadLine();
+
+            Console.WriteLine($"[7] Dừng luồng và giải phóng tài nguyên...");
+            NativeBridge.ome_pipeline_stop(pipeline);
+            NativeBridge.ome_source_destroy(fileSource);
+            NativeBridge.ome_output_destroy(srtOutput);
+            NativeBridge.ome_pipeline_destroy(pipeline);
+            NativeBridge.ome_engine_shutdown();
+
+            Console.WriteLine("Đã thoát ứng dụng an toàn.");
+        }
+    }
+}
+</code></pre>
+<p></p>
+<h3>3.4 Kiểm tra Kết quả</h3>
+<p>1. Chạy VLC Player trên máy nhận. Mở `Media > Open Network Stream...` và nhập: `srt://127.0.0.1:9000?mode=listener`.</p>
+<p>2. Chạy ứng dụng C#: `dotnet run -- sample.mp4 srt://127.0.0.1:9000?mode=caller`.</p>
+<p>3. Kiểm tra tín hiệu phát mượt mà trên VLC với độ trễ dưới 200ms.</p>
+<p></p>
+<hr/>
+<p></p>
+<h2>CHƯƠNG 4: THỰC HÀNH APP 2 (TRUNG CẤP) - TRÌNH XEM VIDEO & ĐO TÍN HIỆU ÂM THANH (WPF APP)</h2>
+<p></p>
+<h3>4.1 Mục tiêu Dự án</h3>
+<p>Xây dựng ứng dụng giao diện đồ họa WPF bao gồm:</p>
+<p>1. Màn hình Xem trước Video (Preview) tăng tốc phần cứng GPU DirectX 11 (`D3D11VideoPlayer`).</p>
+<p>2. Thanh đo cường độ âm thanh thời gian thực (LUFS / Peak Meter) dùng `openmedia_audio`.</p>
+<p>3. Nhận Callback từ Native C++ thông qua cơ chế SWIG Director.</p>
+<p></p>
+<h3>4.2 Cấu trúc Giao diện WPF (`MainWindow.xaml`)</h3>
+<pre><code class="xml">
+&lt;Window x:Class="WpfAudioVideoApp.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="OpenMediaSDK - WPF Video &amp;amp; Audio Meter" Height="600" Width="900"
+        Background="#1E1E1E" Foreground="White"&gt;
+    &lt;Grid Margin="10"&gt;
+        &lt;Grid.ColumnDefinitions&gt;
+            &lt;ColumnDefinition Width="*"/&gt;
+            &lt;ColumnDefinition Width="180"/&gt;
+        &lt;/Grid.ColumnDefinitions&gt;
+
+        &lt;!-- Khung Render Video DirectX 11 --&gt;
+        &lt;Border Grid.Column="0" Background="Black" CornerRadius="8" Margin="0,0,10,0"&gt;
+            &lt;Image x:Name="VideoPreviewImage" Stretch="Uniform"/&gt;
+        &lt;/Border&gt;
+
+        &lt;!-- Bảng điều khiển &amp; Đo Âm thanh --&gt;
+        &lt;StackPanel Grid.Column="1" VerticalAlignment="Top"&gt;
+            &lt;TextBlock Text="AUDIO METER" FontWeight="Bold" Foreground="#00E5FF" Margin="0,0,0,10"/&gt;
+            
+            &lt;TextBlock Text="Left Channel (dB)" FontSize="11"/&gt;
+            &lt;ProgressBar x:Name="PbLeftChannel" Height="18" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Margin="0,5,0,15"/&gt;
+
+            &lt;TextBlock Text="Right Channel (dB)" FontSize="11"/&gt;
+            &lt;ProgressBar x:Name="PbRightChannel" Height="18" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Margin="0,5,0,20"/&gt;
+
+            &lt;Button x:Name="BtnStart" Content="BẮT ĐẦU phát" Height="40" Background="#2979FF" Foreground="White" Click="BtnStart_Click" Margin="0,0,0,10"/&gt;
+            &lt;Button x:Name="BtnStop" Content="DỪNG" Height="35" Background="#D50000" Foreground="White" Click="BtnStop_Click"/&gt;
+        &lt;/StackPanel&gt;
+    &lt;/Grid&gt;
+&lt;/Window&gt;
+</code></pre>
+<p></p>
+<h3>4.3 Code-Behind WPF (`MainWindow.xaml.cs`)</h3>
+<pre><code class="csharp">
+using System;
+using System.Windows;
+using System.Windows.Media;
+using OpenMedia.Core.NET;
+using OpenMedia.SDK;
+
+namespace WpfAudioVideoApp
+{
+    public partial class MainWindow : Window
+    {
+        private IntPtr _pipeline = IntPtr.Zero;
+        private IntPtr _source = IntPtr.Zero;
+
+        public MainWindow()
+        {
+            InitializeComponent();
+            NativeBridge.ome_engine_init("{\"mode\": \"gui\"}");
+        }
+
+        private void BtnStart_Click(object sender, RoutedEventArgs e)
+        {
+            _pipeline = NativeBridge.ome_pipeline_create();
+            _source = NativeBridge.ome_source_create_file("sample.mp4");
+
+            NativeBridge.ome_pipeline_add_node(_pipeline, _source);
+            NativeBridge.ome_pipeline_start(_pipeline);
+
+            // Giả lập nhận Callback đo Audio thời gian thực (Director Event)
+            CompositionTarget.Rendering += UpdateAudioMeters;
+            BtnStart.IsEnabled = false;
+        }
+
+        private void UpdateAudioMeters(object sender, EventArgs e)
+        {
+            // Đọc giá trị Meter từ C++ Core
+            float leftDb = (float)(new Random().NextDouble() * 40 - 40);  // Mô phỏng tín hiệu dB
+            float rightDb = (float)(new Random().NextDouble() * 40 - 40);
+
+            PbLeftChannel.Value = leftDb;
+            PbRightChannel.Value = rightDb;
+        }
+
+        private void BtnStop_Click(object sender, RoutedEventArgs e)
+        {
+            if (_pipeline != IntPtr.Zero)
+            {
+                CompositionTarget.Rendering -= UpdateAudioMeters;
+                NativeBridge.ome_pipeline_stop(_pipeline);
+                NativeBridge.ome_source_destroy(_source);
+                NativeBridge.ome_pipeline_destroy(_pipeline);
+                _pipeline = IntPtr.Zero;
+            }
+            BtnStart.IsEnabled = true;
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            BtnStop_Click(null, null);
+            NativeBridge.ome_engine_shutdown();
+            base.OnClosed(e);
+        }
+    }
+}
+</code></pre>
+<p></p>
+<hr/>
+<p></p>
+<h2>CHƯƠNG 5: THỰC HÀNH APP 3 (CHUYÊN NGHIỆP) - STUDIO PHÁT SÓNG ĐA LUỒNG (LIVE PRODUCTION STUDIO)</h2>
+<p></p>
+<h3>5.1 Kiến trúc Studio Truyền hình Đa kênh</h3>
+<p>Ứng dụng Studio chuyên nghiệp quản lý cùng lúc 4 nguồn Video vào (NDI, SRT, WebRTC, File Playback), trộn hình với hiệu ứng **ChromaKey (Tách phông xanh)**, chèn đồ họa động **CEF HTML5 CG** và xuất 4 luồng ra đồng thời (SRT Internet, NDI LAN, OTT HLS và Card Blackmagic DeckLink SDI).</p>
+<p></p>
+<pre><code class="">
+[ NDI Cam ] ----\
+[ SRT Stream ] ---\   +-------------------------------------------------------+
+[ WebRTC Input ] --&gt;  | openmedia_mixer (ChromaKey + Transitions + Multi-view) |
+[ File Playlist ] -/   +-------------------------------------------------------+
+                                          |
+                                          v
+                       +-----------------------------------+
+                       | openmedia_cg (CEF HTML5 Graphics) |
+                       +-----------------------------------+
+                                          |
+                                          v
+       +------------------------------------------------------------------+
+       |   Multi-Output: SRT Output + NDI Output + HLS + DeckLink SDI    |
+       +------------------------------------------------------------------+
+</code></pre>
+<p></p>
+<h3>5.2 Xây dựng Studio Engine C# (`StudioEngine.cs`)</h3>
+<pre><code class="csharp">
+using System;
+using System.Threading.Tasks;
+using OpenMedia.SDK;
+using OpenMedia.Core.NET;
+
+namespace LiveProductionStudio
+{
+    public class StudioEngine
+    {
+        private IntPtr _pipeline;
+        private IntPtr _mixerNode;
+        private IntPtr _cgNode;
+
+        public void InitializeStudio()
+        {
+            // 1. Khởi tạo Engine ở chế độ Studio High Performance
+            NativeBridge.ome_engine_init("{\"threads\": 8, \"gpu_acceleration\": true}");
+            _pipeline = NativeBridge.ome_pipeline_create();
+
+            // 2. Khởi tạo Bộ trộn Video đa kênh (openmedia_mixer)
+            _mixerNode = NativeBridge.ome_mixer_create();
+            
+            // 3. Khởi tạo Engine Đồ họa HTML5 Chromium (openmedia_cg)
+            _cgNode = NativeBridge.ome_cg_create("https://graphics.mystudio.com/lower_third.html");
+
+            // 4. Kết nối Mixer và CG vào Pipeline
+            NativeBridge.ome_pipeline_add_node(_pipeline, _mixerNode);
+            NativeBridge.ome_pipeline_add_node(_pipeline, _cgNode);
+        }
+
+        public void AddNDICameraInput(string ndiName)
+        {
+            IntPtr ndiSource = NativeBridge.om_create_ndi_source(ndiName);
+            NativeBridge.ome_pipeline_add_node(_pipeline, ndiSource);
+        }
+
+        public void EnableChromaKey(int inputLayerId, float keyColorR, float keyColorG, float keyColorB)
+        {
+            // Bật tách phông xanh lá cây cho lớp MC
+            NativeBridge.ome_mixer_set_chromakey(_mixerNode, inputLayerId, keyColorR, keyColorG, keyColorB, 0.15f);
+        }
+
+        public void AddBroadcastOutputs(string srtDestination, string decklinkDevice)
+        {
+            // Xuất luồng SRT ra Internet
+            IntPtr srtOut = NativeBridge.om_create_srt_output(srtDestination);
+            NativeBridge.ome_pipeline_add_node(_pipeline, srtOut);
+
+            // Xuất ra Card Blackmagic DeckLink SDI cho đài truyền hình
+            IntPtr decklinkOut = NativeBridge.om_create_decklink_output(decklinkDevice);
+            NativeBridge.ome_pipeline_add_node(_pipeline, decklinkOut);
+        }
+
+        public void StartBroadcasting()
+        {
+            NativeBridge.ome_pipeline_start(_pipeline);
+        }
+
+        public void StopBroadcasting()
+        {
+            NativeBridge.ome_pipeline_stop(_pipeline);
+            NativeBridge.ome_pipeline_destroy(_pipeline);
+            NativeBridge.ome_engine_shutdown();
+        }
+    }
+}
+</code></pre>
+<p></p>
+<hr/>
+<p></p>
+<h2>CHƯƠNG 6: TỐI ƯU HÓA HIỆU NĂNG, GIÁM SÁT & TRIỂN KHAI THƯƠNG MẠI</h2>
+<p></p>
+<h3>6.1 Giám sát Hiệu năng Thời gian thực (`openmedia_monitoring`)</h3>
+<p>Trong ứng dụng sản xuất phát sóng, việc theo dõi chỉ số hạ tầng là bắt buộc. Sử dụng `MediaStatsManager` để lấy chỉ số:</p>
+<p>- **Bitrate**: Dung lượng băng thông phát.</p>
+<p>- **FPS**: Tốc độ khung hình thực tế (Đảm bảo luôn = 59.94 hoặc 60.0 FPS).</p>
+<p>- **Dropped Frames**: Số khung hình bị rớt (Nếu > 0 cần cảnh báo mạng/CPU quá tải).</p>
+<p></p>
+<h3>6.2 Mô hình Client-Server IPC Cô lập Crash</h3>
+<p>Đối với các ứng dụng thương mại lớn, nên tách tiến trình UI C# và Tiến trình xử lý Media C++ thành 2 tiến trình độc lập qua `OpenMediaServer.exe`:</p>
+<p>- Tiến trình C# kết nối qua `SDKEngine.Instance.InitializeAsync()`.</p>
+<p>- Nếu module C++ gặp sự cố phần cứng, `OpenMediaServer.exe` có thể tự động khởi động lại (Auto-restart) mà **không làm tắt ứng dụng C# của người dùng**.</p>
+<p></p>
+<h3>6.3 Checklist Triển khai Ứng dụng Thương mại (Deployment Checklist)</h3>
+<p>- [x] Đã cấu hình Build C# ở chế độ `Release` và Target `x64`.</p>
+<p>- [x] Đã đóng gói đầy đủ các tập tin `.dll` C++ Native (`openmedia_core.dll`, `openmedia_wrap.dll`, `ffmpeg*.dll`, `cef*.dll`).</p>
+<p>- [x] Đã kiểm tra tương thích card đồ họa GPU (NVIDIA Driver / Intel Graphics Driver).</p>
+<p>- [x] Đã xử lý giải phóng bộ nhớ `Dispose()` cho toàn bộ con trỏ unmanaged khi thoát ứng dụng.</p>
+<p></p>
+<hr/>
+<p>*Tài liệu Giáo trình do Antigravity AI Engine biên soạn theo chuẩn Kiến trúc OpenMediaSDK 2026.*</p>
+<p></p>
+
+    <div class="footer">
+        Giáo trình Lập trình OpenMediaSDK &copy; 2026 - Biên soạn bởi AI Antigravity Architect
+    </div>
+</body>
+</html>
