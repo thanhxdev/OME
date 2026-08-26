@@ -9,7 +9,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 
-using OpenMedia.Core.NET;
+using OpenMedia.SDK;
 using System.Diagnostics;
 
 namespace WpfDemo;

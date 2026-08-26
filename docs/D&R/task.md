@@ -1,0 +1,28 @@
+# Task:## Implementation Checklist
+
+- [x] **G1. Missing Code Features**
+  - [x] `VideoMixer.cs`: Thêm `RemoveSource(int layerId)` logic và error handling.
+  - [x] `StreamOutput.cs`: Bổ sung property để chứa internal URI/cấu hình cho server (RTMP/SRT/NDI). Serialize IPC payload.
+  - [x] `DeviceCapture.cs`: Cải thiện logic list thiết bị (thêm caching với SemaphoreSlim) và gọi IPC thực tế (thay vì mock data).
+  - [x] `MediaPlaylist.cs`: Implement logic Pre-load next item, gapless transition bằng cách quản lý 2 `MediaPlayer` instance nội bộ. Gửi event `ItemChanged`.
+- [x] **G2. WinUI 3 Stub**
+  - [x] Tạo `Controls/WinUI/WinUIVideoView.cs`.
+  - [x] Implement interface `IVideoView`.
+  - [x] Thêm XML comments giải thích Phase C (sẽ dùng SwapChainPanel).
+- [x] **G3. Overlay Fluent API**
+  - [x] Tạo models: `OverlayItem`, `TextOverlay`, `ImageOverlay`, `ClockOverlay`.
+  - [x] Thêm class `OverlayManager` và các Builder (`TextOverlayBuilder`, v.v.).
+  - [x] Thêm extension methods cho `MediaPlayer` và `VideoMixer`.
+- [x] **G4. Unit Tests**
+  - [x] Setup Test Project: `OpenMedia.Platform.Tests.csproj` (xUnit).
+  - [x] Viết `ServerDiscoveryTests.cs`: Test case cho logic tìm `OpenMediaServer.exe`.
+  - [x] Viết `MediaPlayerTests.cs`: Test case state machine (`PlayAsync`, `StopAsync`).
+  - [x] Viết `VideoMixerTests.cs`: Test case add/remove layer bounds.
+  - [x] Viết `StreamOutputTests.cs`: Test các Factory method (RTMP/SRT/NDI).
+- [x] **G5. Cập nhật Sample Apps & Docs**
+  - [x] Polish UI cho `WpfQuickPlayer` (thêm slider thời gian, nút Play/Pause).
+  - [x] Scaffold 4 apps: `VisionSwitcher`, `LiveStreamer`, `NdiBridge`, `PlaylistPlayout`.
+  - [x] Viết code demo tương ứng cho các apps bằng API vừa hoàn thiện.
+  - [x] Viết tài liệu `docs/quickstart_platform.md`.
+- [x] `README.md` update
+- [x] Update `task_D&R.md` checkboxes

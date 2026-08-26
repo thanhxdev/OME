@@ -459,6 +459,7 @@ void ServerApp::RegisterBuiltinHandlers() {
                                     if (auto* pool = m_impl->ipcServer->GetSharedTexturePool()) {
                                         // Acquire Key 0 lock from client/initial state
                                         if (pool->AcquireWriteLock(bufferIndex, 100)) {
+                                            std::cout << "ServerApp: Updating frame on buffer " << bufferIndex << "\n";
                                             pool->UpdateFrame(bufferIndex, pendingVideoFrame->GetVideoPlane(0), static_cast<uint32_t>(pendingVideoFrame->GetLineSize(0)));
                                             pool->ReleaseWriteLock(bufferIndex);
                                             bufferIndex = (bufferIndex + 1) % 2;

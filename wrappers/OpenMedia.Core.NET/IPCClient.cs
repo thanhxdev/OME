@@ -10,6 +10,7 @@ namespace OpenMedia.SDK
         Handshake = 0x0001,
         GetStatus = 0x0003,
         Shutdown = 0x0006,
+        ListDevices = 0x0007,
         CreatePipeline = 0x0100,
         DestroyPipeline = 0x0101,
         StartPipeline = 0x0102,
@@ -63,6 +64,8 @@ namespace OpenMedia.SDK
         private NamedPipeClientStream _pipeClient;
         private readonly System.Threading.SemaphoreSlim _pipeLock = new System.Threading.SemaphoreSlim(1, 1);
         private uint _sequence = 0;
+
+        public bool IsConnected => _pipeClient != null && _pipeClient.IsConnected;
 
         public async Task<bool> ConnectAsync(string pipeName = "OpenMediaIPC", int timeout = 5000)
         {

@@ -31,6 +31,7 @@ namespace OpenMedia.SDK
         }
 
         public void WriteU32(uint value) => _writer.Write(value);
+        public void WriteU64(ulong value) => _writer.Write(value);
         public void WriteF64(double value) => _writer.Write(value);
         public void WriteBool(bool value) => _writer.Write(value);
         public void WriteI32(int value) => _writer.Write(value);
