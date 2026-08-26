@@ -1,6 +1,6 @@
 using System;
 using System.Threading;
-using OpenMedia.Core.NET;
+using OpenMedia.SDK;
 
 namespace StreamingApp
 {

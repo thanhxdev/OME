@@ -260,11 +260,190 @@ await mixer.StartAsync();
 await mixer.SwitchToAsync(1, TransitionType.Dissolve, TimeSpan.FromSeconds(1));
 ```
 
+### Ví dụ 3: Thu Camera và Hiển thị Preview
+
+```csharp
+using OpenMedia.Platform;
+
+// Liệt kê thiết bị và mở webcam
+var devices = await DeviceCapture.EnumerateDevicesAsync();
+var cam = await DeviceCapture.OpenAsync(devices[0].Name);
+cam.AttachPreview(wpfVideoView);
+await cam.PlayAsync();
+```
+
+### Ví dụ 4: Playlist Phát liên tục (Gapless)
+
+```csharp
+using OpenMedia.Platform;
+
+var playlist = new MediaPlaylist();
+playlist.Add("video1.mp4");
+playlist.Add("video2.mp4");
+playlist.Add("video3.mp4");
+playlist.LoopMode = LoopMode.All;
+playlist.AttachPreview(wpfVideoView);
+await playlist.PlayAsync();
+
+// Chuyển bài
+await playlist.NextAsync();
+```
+
+### Ví dụ 5: NDI Bridge — Nhận NDI và Xuất RTMP
+
+```csharp
+using OpenMedia.Platform;
+
+// Nhận NDI stream và chuyển tiếp qua RTMP
+var mixer = new VideoMixer(1920, 1080);
+mixer.AddSource("ndi://My NDI Source");
+mixer.AddOutput(StreamOutput.RTMP("rtmp://a.rtmp.youtube.com/live2/KEY"));
+mixer.AddOutput(StreamOutput.File("recording.mp4"));
+await mixer.StartAsync();
+```
+
+### Ví dụ 6: Desktop Capture + SRT Output
+
+```csharp
+using OpenMedia.Platform;
+
+// Capture desktop và stream qua SRT
+var desktop = await DeviceCapture.CaptureDesktopAsync(0);
+desktop.AttachPreview(wpfVideoView);
+
+var mixer = new VideoMixer(1920, 1080);
+mixer.AddSource(desktop);
+mixer.AddOutput(StreamOutput.SRT("192.168.1.100", 9000, SRTMode.Caller));
+await mixer.StartAsync();
+```
+
 ---
 
 ## 7. Tiêu chí Đánh giá & Nghiệm thu (Verification & Acceptance Criteria)
 
 1. **Tiêu chí Độ tinh gọn Code**: Mọi tác vụ cơ bản (Play file, Capture webcam, Stream RTMP) không vượt quá 5 dòng lệnh C#.
 2. **Tiêu chí Ổn định & Cách ly Process**: Nếu `OpenMediaServer.exe` bị tắt đột ngột, ứng dụng WPF Client không bị crash/SEHException mà kích hoạt sự kiện `OpenMediaRuntime.ServerDisconnected`.
-3. **Tiêu chí Hiệu năng Preview trên WPF**: Độ trễ render GPU DXGI Shared Texture < 1 frame (< 16ms ở 60fps), mức tiêu thụ CPU phía Client < 2%.
+3. **Tiêu chí Hiệu năng Preview trên WPF**: Độ trễ render GPU DXGI Shared Texture < 1 frame (<16ms ở 60fps), mức tiêu thụ CPU phía Client < 2%.
 4. **Tiêu chí Tương thích**: Chạy mượt mà trên môi trường .NET 8 / .NET 9 (x64) trên Windows 10/11.
+5. **Tiêu chí Security**: Named Pipe ACL chỉ cho phép current user SID truy cập.
+6. **Tiêu chí Diagnostics**: Trace logs đầy đủ cho mọi IPC command (có thể bật/tắt qua `RuntimeOptions`).
+7. **Tiêu chí Dispose**: Mọi `IDisposable` objects giải phóng đúng server resources, không memory leak.
+8. **Tiêu chí IntelliSense**: XML Documentation `<summary>`, `<param>`, `<returns>`, `<example>` đầy đủ cho tất cả public API.
+
+---
+
+## 8. Đánh giá Rủi ro & Chiến lược Giảm thiểu (Risk Assessment)
+
+| # | Rủi ro | Xác suất | Tác động | Chiến lược Giảm thiểu |
+|---|---|---|---|---|
+| **R1** | DXGI Shared Texture không hoạt động trên một số GPU | Trung bình | Cao | Triển khai fallback `HwndHost` path (CPU copy); kiểm thử trên Intel/NVIDIA/AMD |
+| **R2** | IPC Named Pipe performance bottleneck | Thấp | Cao | Benchmark IPC latency sớm ở Phase A; có thể chuyển sang Memory-Mapped File nếu cần |
+| **R3** | WPF `D3DImage` flicker / tearing | Trung bình | Trung bình | Sử dụng `D3DImage.Lock()/Unlock()` đúng lifecycle; fallback `HwndHost` nếu không khắc phục được |
+| **R4** | Server process orphaned (không bị kill khi client crash) | Trung bình | Thấp | Server tự tắt nếu không nhận heartbeat trong `HeartbeatTimeout` (mặc định 30s) |
+| **R5** | Breaking changes trong OpenMedia.Core.NET API | Thấp | Cao | Platform layer dùng internal adapter pattern; không expose Core types trực tiếp |
+| **R6** | WinUI 3 SwapChainPanel API thay đổi | Thấp | Trung bình | Phase C bắt đầu sau khi WinAppSDK stable; interface `IVideoView` cách ly |
+| **R7** | DeckLink SDK version incompatibility | Trung bình | Trung bình | Dùng runtime COM loading, không hard-link DeckLink DLL |
+
+---
+
+## 9. Yêu cầu Tài nguyên (Resource Requirements)
+
+### 9.1 Nhân lực
+
+| Vai trò | Số người | Phase | Ghi chú |
+|---|---|---|---|
+| **C# Platform Developer** | 1–2 | A–D | Core implementation, IPC integration |
+| **Graphics/D3D11 Specialist** | 1 | A, C | WPF/WinUI renderer, shared texture handling |
+| **QA Engineer** | 1 | B–D | Test plan, integration tests, performance profiling |
+| **Technical Writer** | 0.5 | D | Quick Start Guide, API docs review |
+
+### 9.2 Môi trường Phát triển
+
+| Yêu cầu | Tối thiểu | Khuyến nghị |
+|---|---|---|
+| **OS** | Windows 10 21H2 (x64) | Windows 11 23H2 (x64) |
+| **IDE** | Visual Studio 2022 17.8+ | Visual Studio 2022 17.10+ |
+| **SDK** | .NET 8 SDK | .NET 9 SDK (preview) |
+| **GPU** | DirectX 11 compatible | NVIDIA GTX 1060+ / AMD RX 580+ |
+| **RAM** | 8 GB | 16 GB |
+| **Thiết bị test** | Webcam USB | Webcam + DeckLink Mini Recorder |
+
+### 9.3 Ước tính Thời gian Tổng thể
+
+| Phase | Thời gian Ước tính | Dependencies |
+|---|---|---|
+| **A**: Nền tảng & WPF Preview | 2–3 tuần | Không |
+| **B**: Đối tượng Nghiệp vụ | 3–4 tuần | Phase A hoàn tất |
+| **C**: Playlist & WinUI 3 | 2–3 tuần | Phase B cơ bản hoàn tất |
+| **D**: Samples & Docs | 1–2 tuần | Phase B–C hoàn tất |
+| **Tổng** | **8–12 tuần** | — |
+
+---
+
+## 10. Định nghĩa Hoàn thành theo Phase (Definition of Done)
+
+### Phase A — DoD
+
+- [ ] Project `OpenMedia.Platform` build thành công trên .NET 8/9
+- [ ] `OpenMediaRuntime.InitializeAsync()` kết nối được đến server
+- [ ] `ServerDiscovery` hoạt động đúng 4 bước priority chain
+- [ ] `WpfD3D11Renderer` hiển thị test pattern từ shared texture
+- [ ] Sample `WpfQuickPlayer` phát video MP4 trong ≤ 5 dòng code
+- [ ] Latency preview < 16ms (đo bằng profiler)
+- [ ] Unit tests cho `ServerDiscovery` pass
+
+### Phase B — DoD
+
+- [ ] `MediaPlayer` state machine hoạt động đúng (Idle → Playing → Paused → Stopped)
+- [ ] `VideoMixer` trộn 2 video files với transition Cut/Dissolve
+- [ ] `StreamOutput.RTMP()` streaming thành công đến test server
+- [ ] `DeviceCapture.EnumerateDevicesAsync()` liệt kê đúng thiết bị
+- [ ] Tất cả objects implement `IDisposable` đúng pattern
+- [ ] Integration tests cho MediaPlayer end-to-end pass
+
+### Phase C — DoD
+
+- [ ] `MediaPlaylist` gapless transition giữa 3+ items
+- [ ] WinUI 3 preview hiển thị video qua `SwapChainPanel`
+- [ ] Overlay Fluent API hiển thị text trên preview
+- [ ] `IVideoView` interface chung cho WPF và WinUI
+
+### Phase D — DoD
+
+- [ ] Tất cả 5 sample apps build và chạy thành công
+- [ ] Quick Start Guide hoàn chỉnh, có screenshots
+- [ ] XML docs hiển thị đúng trong Visual Studio IntelliSense
+- [ ] README.md cập nhật section về `OpenMedia.Platform`
+
+---
+
+## 11. Chiến lược Rollback & Khôi phục (Rollback Strategy)
+
+### 11.1 Nguyên tắc
+
+- **Mỗi Phase = 1 feature branch** riêng biệt (theo project convention)
+- **Merge chỉ khi DoD hoàn tất** và đã review
+- **Không break Tier 2 API**: `OpenMedia.Platform` chỉ thêm mới, không sửa `OpenMedia.Core.NET`
+
+### 11.2 Rollback Plan
+
+| Tình huống | Hành động |
+|---|---|
+| Phase A renderer fail | Revert branch `feature/platform-phase-a`, giữ project structure |
+| Phase B API design thay đổi | Sửa trên branch, không affect Phase A đã merge |
+| Phase C WinUI 3 incompatible | Skip WinUI, giữ WPF-only (interface `IVideoView` vẫn sẵn sàng) |
+| Server IPC protocol change | Adapter pattern trong `Internal/IPCCommandBuilder.cs` cách ly thay đổi |
+
+### 11.3 Branching Strategy
+
+```
+main
+  └── feature/platform-phase-a     ← Phase A (Foundation + WPF)
+        └── feature/platform-phase-b   ← Phase B (Business Objects)
+              └── feature/platform-phase-c ← Phase C (Playlist + WinUI)
+                    └── feature/platform-phase-d ← Phase D (Samples + Docs)
+```
+
+> [!NOTE]
+> Mỗi branch được tạo từ branch phase trước (sequential), nhưng Phase C có thể chạy song song một phần với Phase B nếu Phase B cơ bản đã ổn định.
+

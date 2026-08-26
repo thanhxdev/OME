@@ -453,12 +453,271 @@ graph TD
 
 ---
 
-## 8. Tiêu chí Nghiệm thu Kiến trúc
+## 8. Security & IPC Authentication
+
+### 8.1 Threat Model
+
+`OpenMedia.Platform` hoạt động trong mô hình **same-machine IPC**, nên threat surface giới hạn ở:
+
+```mermaid
+flowchart LR
+    subgraph Client Process
+        A["OpenMedia.Platform API"]
+    end
+
+    subgraph IPC Channel
+        B["Named Pipe: \\.\pipe\OpenMedia_{SessionId}"]
+    end
+
+    subgraph Server Process
+        C["OpenMediaServer.exe"]
+    end
+
+    A -->|"Authenticated Commands"| B
+    B -->|"Validated Dispatch"| C
+    C -->|"Responses + Frame Signals"| B
+    B -->|"Event Callbacks"| A
+```
+
+### 8.2 Cơ chế Bảo mật
+
+| Lớp | Cơ chế | Chi tiết |
+|---|---|---|
+| **Named Pipe ACL** | Windows Security Descriptor | Pipe được tạo với ACL chỉ cho phép user hiện tại (`CURRENT_USER SID`) truy cập |
+| **Session Isolation** | Pipe name chứa Session ID | Mỗi session có pipe riêng: `\\.\pipe\OpenMedia_{SessionId}_{PID}` |
+| **Command Validation** | Server-side validation | Mọi command đều được validate schema trước khi dispatch |
+| **Shared Memory** | DACL trên Section Object | Shared memory mapped files chỉ accessible bởi creator process và server |
+| **DXGI Shared Textures** | NT Handle Permissions | Shared texture handles được tạo với `DXGI_SHARED_RESOURCE_READ` chỉ cho authorized process |
+
+### 8.3 Giới hạn Bảo mật (Acknowledged)
+
+- **Không mã hóa IPC data**: Named Pipes trên cùng máy không cần encryption (OS đã cách ly)
+- **Không có authentication token**: Trust dựa trên OS-level ACL, không phải application-level token
+- **Admin access**: Process chạy với admin rights có thể truy cập pipe của user khác
+
+---
+
+## 9. Logging & Diagnostics
+
+### 9.1 Logging Architecture
+
+```mermaid
+flowchart TB
+    subgraph "OpenMedia.Platform"
+        L1["Trace.WriteLine (Default)"]
+        L2["ILogger (Optional DI)"]
+    end
+
+    subgraph "Sinks"
+        S1["Debug Output"]
+        S2["File Log"]
+        S3["Event Tracing for Windows (ETW)"]
+    end
+
+    L1 --> S1
+    L2 --> S1 & S2 & S3
+```
+
+### 9.2 Log Levels & Categories
+
+| Category | Prefix | Mô tả | Ví dụ |
+|---|---|---|---|
+| **Discovery** | `[Discovery]` | Server discovery chain steps | `[Discovery] Trying env: OPENMEDIA_SERVER_PATH → not set` |
+| **IPC** | `[IPC]` | Command/response lifecycle | `[IPC] SendCommand: CreatePipeline (12 bytes) → OK (8 bytes)` |
+| **MediaPlayer** | `[MediaPlayer]` | Playback state transitions | `[MediaPlayer] State: Ready → Playing` |
+| **VideoMixer** | `[VideoMixer]` | Layer/output management | `[VideoMixer] Added source layer 0: camera1.mp4` |
+| **Renderer** | `[Renderer]` | D3D11 shared texture events | `[Renderer] Shared texture attached: 1920x1080` |
+
+### 9.3 Diagnostics API
+
+```csharp
+// Opt-in chi tiết diagnostics
+RuntimeOptions options = new()
+{
+    EnableDiagnostics = true,     // Bật logging chi tiết
+    LogLevel = LogLevel.Debug,    // Mức log
+    LogFilePath = "openmedia.log" // Optional file output
+};
+await OpenMediaRuntime.InitializeAsync(options);
+```
+
+### 9.4 Performance Counters
+
+| Counter | Loại | Mô tả |
+|---|---|---|
+| `FrameRate` | Gauge | FPS hiện tại của preview |
+| `FrameDropCount` | Counter | Số frame bị bỏ qua |
+| `IPCLatencyMs` | Histogram | Độ trễ trung bình IPC round-trip |
+| `SharedTextureAcquireMs` | Histogram | Thời gian acquire shared texture |
+| `MemoryUsageMB` | Gauge | Tổng bộ nhớ sử dụng phía client |
+
+---
+
+## 10. Configuration Model
+
+### 10.1 `RuntimeOptions` — Cấu hình chi tiết
+
+```mermaid
+classDiagram
+    class RuntimeOptions {
+        +string? ServerPath
+        +bool AutoLaunchServer
+        +TimeSpan ConnectionTimeout
+        +TimeSpan HeartbeatInterval
+        +int MaxReconnectAttempts
+        +bool EnableDiagnostics
+        +LogLevel LogLevel
+        +string? LogFilePath
+    }
+
+    class ServerDiscoveryChain {
+        +TryEnvironmentVariable() string?
+        +TryAppConfig() string?
+        +TryRegistry() string?
+        +TryDefaultPath() string?
+    }
+
+    RuntimeOptions --> ServerDiscoveryChain : "ServerPath == null → Discovery"
+```
+
+### 10.2 Discovery Priority Chain
+
+```
+Priority 0: RuntimeOptions.ServerPath (explicit override)
+    ↓ null?
+Priority 1: Environment Variable → OPENMEDIA_SERVER_PATH
+    ↓ null?
+Priority 2: App Config → appsettings.json > "OpenMedia:ServerPath"
+    ↓ null?
+Priority 3: Registry → HKLM\Software\OpenMedia\ServerPath
+    ↓ null?
+Priority 4: Default → %ProgramFiles%\OpenMedia\bin\OpenMediaServer.exe
+    ↓ not found?
+Throw ServerNotFoundException
+```
+
+### 10.3 Mặc định (Defaults)
+
+| Property | Default | Ghi chú |
+|---|---|---|
+| `AutoLaunchServer` | `true` | Tự động khởi chạy server nếu chưa chạy |
+| `ConnectionTimeout` | `10s` | Timeout khi kết nối IPC |
+| `HeartbeatInterval` | `5s` | Chu kỳ kiểm tra server sống |
+| `MaxReconnectAttempts` | `3` | Số lần thử kết nối lại khi mất kết nối |
+| `EnableDiagnostics` | `false` | Logging chi tiết tắt theo mặc định |
+| `LogLevel` | `Warning` | Chỉ log warning trở lên |
+
+---
+
+## 11. Module Diagrams bổ sung
+
+### 11.1 `DeviceCapture` — Flow Diagram
+
+```mermaid
+flowchart TB
+    A["DeviceCapture.EnumerateDevicesAsync()"] --> B["IPC Query: ListDevices"]
+    B --> C["Server: Query DirectShow"]
+    B --> D["Server: Query DeckLink SDK"]
+    B --> E["Server: Enumerate Monitors"]
+    C & D & E --> F["IReadOnlyList<DeviceInfo>"]
+    F --> G{"User selects device"}
+    G --> H["DeviceCapture.OpenAsync(deviceName)"]
+    H --> I["Create MediaPlayer"]
+    I --> J["player.OpenAsync('device://deviceName')"]
+    J --> K["Server: Open Device Source → Pipeline"]
+    K --> L["MediaPlayer ready for AttachPreview() + PlayAsync()"]
+```
+
+### 11.2 `MediaPlaylist` — State & Flow Diagram
+
+```mermaid
+stateDiagram-v2
+    [*] --> Empty: new MediaPlaylist()
+    Empty --> Loaded: Add(uri) / Insert()
+    Loaded --> Playing: PlayAsync()
+    Playing --> Playing: NextAsync() / PreviousAsync()
+    Playing --> Paused: PauseAsync()
+    Paused --> Playing: PlayAsync()
+    Playing --> Completed: Last item + LoopMode.None
+    Completed --> Playing: PlayAsync() (restart)
+    Playing --> [*]: StopAsync()
+
+    state Playing {
+        [*] --> PreDecoding
+        PreDecoding --> CurrentItem: Item ready
+        CurrentItem --> PreDecoding: Gapless transition to next
+    }
+```
+
+```mermaid
+flowchart LR
+    subgraph MediaPlaylist
+        Q["Item Queue"]
+        PD["Pre-Decoder (next item)"]
+        XF["Crossfade Engine"]
+    end
+
+    subgraph Current
+        P1["MediaPlayer (current)"]
+    end
+
+    subgraph Next
+        P2["MediaPlayer (pre-loaded)"]
+    end
+
+    Q --> P1
+    Q --> PD --> P2
+    P1 & P2 --> XF --> OUT["Preview / Output"]
+```
+
+---
+
+## 12. Known Limitations & Future Work
+
+### 12.1 Giới hạn Hiện tại (Phase A–B)
+
+| # | Giới hạn | Ảnh hưởng | Hướng xử lý |
+|---|---|---|---|
+| 1 | **Windows only** | Không hỗ trợ macOS/Linux | Kiến trúc IPC có thể mở rộng (Unix sockets), nhưng D3D11 yêu cầu Windows |
+| 2 | **x64 only** | Không hỗ trợ ARM64 | OpenMediaServer.exe cần build ARM64 native |
+| 3 | **Single server instance** | Không hỗ trợ multi-server cluster | Mỗi `OpenMediaRuntime` kết nối 1 server duy nhất |
+| 4 | **GPU required** | DXGI Shared Texture cần GPU tương thích | Fallback CPU path chưa triển khai (Phase C) |
+| 5 | **Không hỗ trợ HDR** | Chỉ hỗ trợ SDR (8-bit per channel) | HDR pipeline cần D3D12 hoặc Vulkan |
+| 6 | **Không có Audio Mixer riêng** | Audio mixing nằm trong VideoMixer | Tách `AudioMixer` nếu cần tính năng audio-only |
+
+### 12.2 Roadmap Tương lai
+
+```mermaid
+timeline
+    title OpenMedia.Platform Evolution
+    Phase A-B (Current) : Foundation + WPF Preview + Core Objects
+    Phase C : MediaPlaylist + WinUI 3 + Overlay API
+    Phase D : Samples + Documentation
+    Phase E (Future) : Audio-only pipeline + HDR support
+    Phase F (Future) : ARM64 + Remote Server (network IPC)
+    Phase G (Future) : Plugin API cho third-party extensions
+```
+
+| Phase | Tính năng | Ưu tiên |
+|---|---|---|
+| **E** | Audio-only mixer, HDR 10-bit pipeline | Medium |
+| **F** | ARM64 native, Remote server over TCP/gRPC | Medium |
+| **G** | Plugin API (`IMediaFilter`, `IMediaSource`) | Low |
+| **H** | Cross-platform preview (Avalonia, MAUI) | Low |
+
+---
+
+## 13. Tiêu chí Nghiệm thu Kiến trúc
 
 | # | Tiêu chí | Ngưỡng |
 |---|---|---|
 | 1 | Số dòng code cho tác vụ cơ bản | ≤ 5 dòng C# |
 | 2 | Server crash isolation | Client không crash, event `ServerDisconnected` kích hoạt |
-| 3 | Preview latency (GPU DXGI) | < 1 frame (< 16ms @ 60fps) |
+| 3 | Preview latency (GPU DXGI) | < 1 frame (<16ms @ 60fps) |
 | 4 | CPU usage phía Client khi preview | < 2% |
 | 5 | Tương thích runtime | .NET 8/9 x64, Windows 10/11 |
+| 6 | IPC security | Named Pipe ACL chỉ cho phép current user |
+| 7 | Diagnostics | Trace logs đầy đủ cho mọi IPC command |
+| 8 | Configuration discovery | Tìm server qua 4 bước priority chain |
+| 9 | Dispose cleanup | Tất cả objects giải phóng đúng server resources |
+| 10 | Error propagation | Mọi lỗi server → client events, không exception ẩn |

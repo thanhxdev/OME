@@ -20,6 +20,7 @@ enum class CommandType : uint32_t {
     GetMetrics = 0x0004,
     SetConfig = 0x0005,
     Shutdown = 0x0006,
+    ListDevices = 0x0007,
 
     // Pipeline commands (0x0100-0x01FF)
     CreatePipeline = 0x0100,
@@ -132,6 +133,7 @@ struct ResponseHeader {
         case CommandType::GetMetrics:       return "GetMetrics";
         case CommandType::SetConfig:        return "SetConfig";
         case CommandType::Shutdown:         return "Shutdown";
+        case CommandType::ListDevices:      return "ListDevices";
         
         // Pipeline
         case CommandType::CreatePipeline:   return "CreatePipeline";
