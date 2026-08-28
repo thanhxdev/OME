@@ -325,18 +325,30 @@ namespace OpenMedia.Platform
         }
 
         /// <summary>
-        /// Seeks to the specified position.
+        /// Seeks to the specified position. If position exceeds media duration, resets position to start and stops playback.
         /// </summary>
         /// <param name="position">The target position.</param>
         public async Task SeekAsync(TimeSpan position)
         {
             ThrowIfDisposed();
+
+            if (position < TimeSpan.Zero)
+            {
+                position = TimeSpan.Zero;
+            }
+
+            if (Duration > TimeSpan.Zero && position >= Duration)
+            {
+                await HandleEndOfMediaAsync();
+                return;
+            }
+
             Position = position;
             _suppressPositionUntilTick = Environment.TickCount64 + 400;
 
             if (_pipelineCreated)
             {
-                var payload = IPCCommandBuilder.SeekSource(_pipelineId, _sourceId, (ulong)Math.Max(0, position.TotalMilliseconds));
+                var payload = IPCCommandBuilder.SeekSource(_pipelineId, _sourceId, (ulong)position.TotalMilliseconds);
                 await OpenMediaRuntime.SendCommandAsync(CommandType.SeekSource, payload);
             }
             RaiseEvent(() => PositionChanged?.Invoke(this, position));
@@ -454,15 +466,19 @@ namespace OpenMedia.Platform
 
                     if (Duration > TimeSpan.Zero && Position >= Duration)
                     {
-                        Position = Duration;
-                        RaiseEvent(() => EndOfMedia?.Invoke(this, EventArgs.Empty));
-                        State = PlaybackState.Stopped;
+                        _ = HandleEndOfMediaAsync();
                         break;
                     }
 
                     RaiseEvent(() => PositionChanged?.Invoke(this, Position));
                 }
             }, ct);
+        }
+
+        private async Task HandleEndOfMediaAsync()
+        {
+            await StopAsync();
+            RaiseEvent(() => EndOfMedia?.Invoke(this, EventArgs.Empty));
         }
 
         private void StopPositionTracking()
