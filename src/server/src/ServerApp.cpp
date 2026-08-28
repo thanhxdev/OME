@@ -66,6 +66,8 @@ struct ServerApp::Impl {
     std::thread renderThread;
     std::atomic<bool> pipelineRunning{false};
     std::atomic<bool> pipelinePaused{false};
+    std::atomic<bool> seekRequested{false};
+    std::atomic<double> seekTargetSec{0.0};
     std::shared_ptr<audio::AudioPlayer> audioPlayer;
     std::atomic<bool> audioMuted{false};
     std::atomic<float> audioVolume{1.0f};
@@ -430,6 +432,35 @@ void ServerApp::RegisterBuiltinHandlers() {
                     size_t bufferIndex = 0;
 
                     while (m_impl->pipelineRunning) {
+                        if (m_impl->seekRequested.exchange(false)) {
+                            double targetSec = m_impl->seekTargetSec.load();
+                            if (m_impl->source) {
+                                m_impl->source->Seek(targetSec);
+                            }
+                            pendingVideoFrame = nullptr;
+                            if (m_impl->audioPlayer) {
+                                m_impl->audioPlayer->Stop();
+                                m_impl->audioPlayer->Initialize(audioSampleRate, audioChannels);
+                                m_impl->audioPlayer->SetMuted(m_impl->audioMuted);
+                                m_impl->audioPlayer->SetVolume(m_impl->audioVolume);
+                            }
+                            syncClock.Reset();
+
+                            if (m_impl->pipelinePaused.load() && m_impl->source) {
+                                auto frameRes = m_impl->source->PullVideoFrame();
+                                if (frameRes && *frameRes) {
+                                    auto frame = *frameRes;
+                                    if (auto* pool = m_impl->ipcServer->GetSharedTexturePool()) {
+                                        if (pool->AcquireWriteLock(bufferIndex, 100)) {
+                                            pool->UpdateFrame(bufferIndex, frame->GetVideoPlane(0), static_cast<uint32_t>(frame->GetLineSize(0)));
+                                            pool->ReleaseWriteLock(bufferIndex);
+                                            bufferIndex = (bufferIndex + 1) % 2;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         if (m_impl->pipelinePaused.load()) {
                             std::this_thread::sleep_for(std::chrono::milliseconds(10));
                             continue;
@@ -724,6 +755,11 @@ void ServerApp::RegisterBuiltinHandlers() {
                 targetHeight = configIt->second.height;
             }
 
+            if (m_impl->source) {
+                m_impl->source->Close();
+                m_impl->source.reset();
+            }
+
             m_impl->source = std::make_shared<io::FileSource>();
             if (targetWidth > 0 && targetHeight > 0) {
                 m_impl->source->SetOutputResolution(targetWidth, targetHeight);
@@ -764,6 +800,10 @@ void ServerApp::RegisterBuiltinHandlers() {
             (void)pipelineId; (void)sourceId;
             if (reader.HasError()) return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload"});
             
+            if (m_impl->source) {
+                m_impl->source->Close();
+                m_impl->source.reset();
+            }
             return std::vector<uint8_t>{};
         });
 
@@ -774,10 +814,14 @@ void ServerApp::RegisterBuiltinHandlers() {
             ipc::MessageReader reader(payload);
             uint32_t pipelineId = reader.ReadU32();
             uint32_t sourceId = reader.ReadU32();
-            uint64_t pos = reader.ReadU64();
-            (void)pipelineId; (void)sourceId; (void)pos;
+            uint64_t posMs = reader.ReadU64();
+            (void)pipelineId; (void)sourceId;
             if (reader.HasError()) return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload"});
             
+            double targetSec = static_cast<double>(posMs) / 1000.0;
+            core::Logger::SInfo("ServerApp", "SeekSource requested to {:.3f}s", targetSec);
+            m_impl->seekTargetSec.store(targetSec);
+            m_impl->seekRequested.store(true);
             return std::vector<uint8_t>{};
         });
 

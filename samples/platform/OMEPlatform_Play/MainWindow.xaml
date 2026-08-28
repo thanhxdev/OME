@@ -237,7 +237,8 @@
                 <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
                     <TextBlock Text="Tua đến:" VerticalAlignment="Center" Foreground="#A6ADC8" Margin="0,0,6,0"/>
                     <TextBox x:Name="TxtJumpTime" Width="75" Text="00:00:00" Background="#313244" Foreground="#CDD6F4" 
-                             BorderBrush="#45475A" Padding="4,2" VerticalContentAlignment="Center" TextAlignment="Center" ToolTip="Nhập định dạng HH:mm:ss hoặc số giây"/>
+                             BorderBrush="#45475A" Padding="4,2" VerticalContentAlignment="Center" TextAlignment="Center" ToolTip="Nhập định dạng HH:mm:ss hoặc số giây"
+                             KeyDown="TxtJumpTime_KeyDown"/>
                     <Button x:Name="BtnJumpTime" Content="Go ➔" Click="BtnJumpTime_Click" Margin="4,0,0,0" Padding="8,4" ToolTip="Tua phát từ thời gian đã chọn"/>
                 </StackPanel>
             </Grid>

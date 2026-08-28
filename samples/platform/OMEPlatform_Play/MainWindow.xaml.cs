@@ -344,6 +344,9 @@ namespace OMEPlatform_Play
                 var newPos = _player.Position - TimeSpan.FromSeconds(10);
                 if (newPos < TimeSpan.Zero) newPos = TimeSpan.Zero;
                 await _player.SeekAsync(newPos);
+                SldPosition.Value = newPos.TotalSeconds;
+                TxtPosition.Text = FormatTimeSpan(newPos);
+                TxtStatus.Text = $"Lùi lại 10s -> {FormatTimeSpan(newPos)}";
             }
         }
 
@@ -354,6 +357,9 @@ namespace OMEPlatform_Play
                 var newPos = _player.Position + TimeSpan.FromSeconds(10);
                 if (newPos > _player.Duration) newPos = _player.Duration;
                 await _player.SeekAsync(newPos);
+                SldPosition.Value = newPos.TotalSeconds;
+                TxtPosition.Text = FormatTimeSpan(newPos);
+                TxtStatus.Text = $"Tua tới 10s -> {FormatTimeSpan(newPos)}";
             }
         }
 
@@ -371,6 +377,7 @@ namespace OMEPlatform_Play
                 var targetPos = TimeSpan.FromSeconds(targetSeconds);
                 await _player.SeekAsync(targetPos);
                 TxtPosition.Text = FormatTimeSpan(targetPos);
+                TxtStatus.Text = $"Đã tua đến thời điểm: {FormatTimeSpan(targetPos)}";
             }
         }
 
@@ -379,6 +386,15 @@ namespace OMEPlatform_Play
             if (_isDraggingSlider)
             {
                 TxtPosition.Text = FormatTimeSpan(TimeSpan.FromSeconds(e.NewValue));
+            }
+        }
+
+        private void TxtJumpTime_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                e.Handled = true;
+                BtnJumpTime_Click(sender, e);
             }
         }
 
