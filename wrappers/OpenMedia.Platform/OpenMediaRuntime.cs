@@ -69,10 +69,16 @@ namespace OpenMedia.Platform
                     return true; // Already initialized
             }
 
+            string effectivePipeName = options.PipeName;
+            if (effectivePipeName == "OpenMediaSDK")
+            {
+                effectivePipeName = $"OpenMediaSDK_{Process.GetCurrentProcess().Id}";
+            }
+
             _ipcClient = new IPCClient();
 
             // Try connecting to already-running server first
-            bool connected = await _ipcClient.ConnectAsync(options.PipeName, 1000);
+            bool connected = await _ipcClient.ConnectAsync(effectivePipeName, 1000);
 
             if (!connected && options.AutoLaunch)
             {
@@ -98,10 +104,7 @@ namespace OpenMedia.Platform
                     }
                 }
 
-                if (options.PipeName != "OpenMediaSDK")
-                {
-                    _serverProcess.StartInfo.Arguments = $"--pipe-name \\\\.\\pipe\\{options.PipeName}";
-                }
+                _serverProcess.StartInfo.Arguments = $"--pipe-name \\\\.\\pipe\\{effectivePipeName}";
                 _serverProcess.StartInfo.UseShellExecute = false;
                 _serverProcess.StartInfo.CreateNoWindow = true;
                 _serverProcess.EnableRaisingEvents = true;
@@ -110,7 +113,7 @@ namespace OpenMedia.Platform
                 try
                 {
                     _serverProcess.Start();
-                    Trace.WriteLine($"[OpenMedia.Platform] Launched server: {serverPath} (PID: {_serverProcess.Id})");
+                    Trace.WriteLine($"[OpenMedia.Platform] Launched server: {serverPath} (PID: {_serverProcess.Id}) with pipe {effectivePipeName}");
                 }
                 catch (Exception ex)
                 {
@@ -119,7 +122,7 @@ namespace OpenMedia.Platform
                 }
 
                 // Retry connection with longer timeout
-                connected = await _ipcClient.ConnectAsync(options.PipeName, options.ConnectionTimeout);
+                connected = await _ipcClient.ConnectAsync(effectivePipeName, options.ConnectionTimeout);
             }
 
             if (!connected)

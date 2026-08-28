@@ -35,8 +35,19 @@ struct IPCServer::Impl {
 IPCServer::IPCServer(const IPCServerConfig& config)
     : m_impl(std::make_unique<Impl>()) {
     m_impl->config = config;
-    m_impl->pipeServer = std::make_unique<NamedPipeServer>(config.pipeConfig);
-    m_impl->sharedMem = std::make_unique<SharedMemoryBuffer>(config.sharedMemConfig, true);
+    if (m_impl->config.sharedMemConfig.name == "OpenMedia_SharedMem" &&
+        !m_impl->config.pipeConfig.pipeName.empty()) {
+        std::string pipeName = m_impl->config.pipeConfig.pipeName;
+        const std::string prefix = "\\\\.\\pipe\\";
+        if (pipeName.starts_with(prefix)) {
+            pipeName = pipeName.substr(prefix.length());
+        }
+        if (!pipeName.empty()) {
+            m_impl->config.sharedMemConfig.name = "OpenMedia_SharedMem_" + pipeName;
+        }
+    }
+    m_impl->pipeServer = std::make_unique<NamedPipeServer>(m_impl->config.pipeConfig);
+    m_impl->sharedMem = std::make_unique<SharedMemoryBuffer>(m_impl->config.sharedMemConfig, true);
 }
 
 IPCServer::~IPCServer() {

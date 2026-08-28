@@ -76,9 +76,15 @@ namespace OpenMedia.SDK
 
         public async Task<bool> InitializeAsync(string pipeName = "OpenMediaSDK", string serverPath = "OpenMediaServer.exe")
         {
+            string effectivePipeName = pipeName;
+            if (effectivePipeName == "OpenMediaSDK")
+            {
+                effectivePipeName = $"OpenMediaSDK_{Process.GetCurrentProcess().Id}";
+            }
+
             // Try to connect first, in case it's already running
             _ipcClient = new IPCClient();
-            bool connected = await _ipcClient.ConnectAsync(pipeName, 1000);
+            bool connected = await _ipcClient.ConnectAsync(effectivePipeName, 1000);
 
             if (!connected)
             {
@@ -99,16 +105,13 @@ namespace OpenMedia.SDK
                         }
                     }
 
-                    if (pipeName != "OpenMediaSDK")
-                    {
-                        _serverProcess.StartInfo.Arguments = $"--pipe-name \\\\.\\pipe\\{pipeName}";
-                    }
+                    _serverProcess.StartInfo.Arguments = $"--pipe-name \\\\.\\pipe\\{effectivePipeName}";
                     _serverProcess.StartInfo.UseShellExecute = false;
                     _serverProcess.StartInfo.CreateNoWindow = true; // Run in background
                     _serverProcess.Start();
 
                     // Try connecting again with longer timeout
-                    connected = await _ipcClient.ConnectAsync(pipeName, 5000);
+                    connected = await _ipcClient.ConnectAsync(effectivePipeName, 5000);
                 }
             }
 
