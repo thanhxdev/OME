@@ -519,7 +519,8 @@ void ServerApp::RegisterBuiltinHandlers() {
                         }
 
                         if (pendingVideoFrame) {
-                            auto action = syncClock.EvaluateVideoFrame(*pendingVideoFrame);
+                            double effectiveOffsetSec = (m_impl->videoDelayMs.load() - m_impl->audioDelayMs.load() + m_impl->masterDelayMs.load()) / 1000.0;
+                            auto action = syncClock.EvaluateVideoFrame(*pendingVideoFrame, effectiveOffsetSec);
                             switch (action) {
                                 case core::AVSyncClock::VideoAction::Display:
                                     if (auto* pool = m_impl->ipcServer->GetSharedTexturePool()) {

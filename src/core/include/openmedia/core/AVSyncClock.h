@@ -41,8 +41,9 @@ public:
 
     /// @brief Decide what to do with a video frame
     /// @param frame The video frame to evaluate
+    /// @param effectiveOffsetSec Optional offset to apply to the video PTS (positive = delay video)
     /// @return Action to take (Display, Wait, or Drop)
-    VideoAction EvaluateVideoFrame(const MediaFrame& frame) const;
+    VideoAction EvaluateVideoFrame(const MediaFrame& frame, double effectiveOffsetSec = 0.0) const;
 
     /// @brief Convert a frame's PTS to seconds using its timebase
     static double PtsToSeconds(const MediaFrame& frame);

@@ -108,51 +108,62 @@ namespace OpenMedia.Platform
         private int _masterDelayMs = 0;
 
         /// <summary>
-        /// Current Video Delay in milliseconds.
+        /// Độ trễ hình ảnh (0ms đến 5000ms)
         /// </summary>
-        public int VideoDelayMs => _videoDelayMs;
-
-        public void SetVideoDelayMs(int delayMs)
+        public int VideoDelayMs
         {
-            if (_videoDelayMs != delayMs)
-            {
-                _videoDelayMs = delayMs;
-                _ = UpdateServerDelayAsync();
-            }
+            get => _videoDelayMs;
+            set { _videoDelayMs = Math.Max(0, value); ApplyEffectiveVideoOffset(); }
         }
 
         /// <summary>
-        /// Current Audio Delay in milliseconds.
+        /// Độ trễ âm thanh (-2000ms đến +5000ms)
         /// </summary>
-        public int AudioDelayMs => _audioDelayMs;
-
-        public void SetAudioDelayMs(int delayMs)
+        public int AudioDelayMs
         {
-            if (_audioDelayMs != delayMs)
-            {
-                _audioDelayMs = delayMs;
-                _ = UpdateServerDelayAsync();
-            }
+            get => _audioDelayMs;
+            set { _audioDelayMs = value; ApplyEffectiveVideoOffset(); }
         }
 
         /// <summary>
-        /// Current Master Delay (A/V) in milliseconds.
+        /// Độ trễ tổng thể Master Stream (0ms đến 10000ms)
         /// </summary>
-        public int MasterDelayMs => _masterDelayMs;
-
-        public void SetMasterDelayMs(int delayMs)
+        public int MasterDelayMs
         {
-            if (_masterDelayMs != delayMs)
-            {
-                _masterDelayMs = delayMs;
-                _ = UpdateServerDelayAsync();
-            }
+            get => _masterDelayMs;
+            set { _masterDelayMs = Math.Max(0, value); ApplyEffectiveVideoOffset(); }
         }
 
-        private async Task UpdateServerDelayAsync()
+        /// <summary>
+        /// Tính toán độ trễ hiệu dụng của Video theo công thức Relative PTS Offset
+        /// </summary>
+        public int EffectiveVideoOffsetMs => (_videoDelayMs - _audioDelayMs) + _masterDelayMs;
+
+        private void ApplyEffectiveVideoOffset()
         {
             if (!_pipelineCreated || !OpenMediaRuntime.IsConnected) return;
 
+            // Gửi thông số EffectiveVideoOffsetMs xuống Server/AVSyncClock để điều chỉnh thời điểm Render Video
+            _ = UpdateServerVideoOffsetAsync(EffectiveVideoOffsetMs);
+            // Gửi thông số delay chi tiết (Video, Audio, Master)
+            _ = UpdateServerAVDelayAsync();
+        }
+
+        private async Task UpdateServerVideoOffsetAsync(int offsetMs)
+        {
+            try
+            {
+                var payload = IPCCommandBuilder.SetVideoPTSOffset(_pipelineId, offsetMs);
+                await OpenMediaRuntime.SendCommandAsync(CommandType.SetVideoPTSOffset, payload);
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"[MediaPlayer] Lỗi áp dụng PTS Offset: {ex.Message}");
+            }
+        }
+
+        private async Task UpdateServerAVDelayAsync()
+        {
             try
             {
                 var payload = IPCCommandBuilder.SetAVDelay(_pipelineId, _videoDelayMs, _audioDelayMs, _masterDelayMs);
@@ -160,7 +171,7 @@ namespace OpenMedia.Platform
             }
             catch (Exception ex)
             {
-                Trace.WriteLine($"[MediaPlayer] Failed to update AV Delay: {ex.Message}");
+                Trace.WriteLine($"[MediaPlayer] Lỗi áp dụng AV Delay: {ex.Message}");
             }
         }
 
@@ -284,6 +295,7 @@ namespace OpenMedia.Platform
 
                 State = PlaybackState.Ready;
                 await UpdateServerAudioPropertiesAsync();
+                ApplyEffectiveVideoOffset();
                 Trace.WriteLine($"[MediaPlayer] Opened: {sourceUri} ({_information?.Duration})");
             }
             catch (Exception ex)

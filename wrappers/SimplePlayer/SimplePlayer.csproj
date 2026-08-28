@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\OpenMedia.Core.NET\OpenMedia.Core.NET.csproj" />
+    <ProjectReference Include="..\OpenMedia.Platform\OpenMedia.Platform.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

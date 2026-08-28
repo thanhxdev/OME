@@ -25,7 +25,8 @@ namespace OpenMedia.SDK
         AddMixerInput = 0x0300,
         SetLayerProperties = 0x0303,
         ShareD3D11Texture = 0x0704,
-        SetAVDelay = 0x0108
+        SetAVDelay = 0x0108,
+        SetVideoPTSOffset = 0x0109
     }
 
     // C++ struct MessageHeader

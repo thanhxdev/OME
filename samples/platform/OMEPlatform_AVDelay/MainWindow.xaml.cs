@@ -217,42 +217,54 @@ namespace OMEPlatform_AVDelay
             UpdateDelayValues(null, null, (int)e.NewValue);
         }
 
+        private int _lastVideoMs = 0;
+        private int _lastAudioMs = 0;
+        private int _lastMasterMs = 0;
+
         private void UpdateDelayValues(int? videoMs, int? audioMs, int? masterMs)
         {
             _isUpdatingDelaysFromCode = true;
 
             try
             {
+                int newVideo = videoMs ?? (int)VideoDelaySlider.Value;
+                int newAudio = audioMs ?? (int)AudioDelaySlider.Value;
+                int newMaster = masterMs ?? (int)MasterDelaySlider.Value;
+
                 // Xử lý Lock Ratio
                 if (LockRatioCheck.IsChecked == true)
                 {
                     if (videoMs.HasValue)
                     {
-                        int diff = videoMs.Value - (int)VideoDelaySlider.Value;
-                        AudioDelaySlider.Value += diff;
+                        int diff = newVideo - _lastVideoMs;
+                        newAudio += diff;
                     }
                     else if (audioMs.HasValue)
                     {
-                        int diff = audioMs.Value - (int)AudioDelaySlider.Value;
-                        VideoDelaySlider.Value += diff;
+                        int diff = newAudio - _lastAudioMs;
+                        newVideo += diff;
                     }
                 }
 
-                if (videoMs.HasValue) VideoDelaySlider.Value = videoMs.Value;
-                if (audioMs.HasValue) AudioDelaySlider.Value = audioMs.Value;
-                if (masterMs.HasValue) MasterDelaySlider.Value = masterMs.Value;
+                VideoDelaySlider.Value = newVideo;
+                AudioDelaySlider.Value = newAudio;
+                MasterDelaySlider.Value = newMaster;
+
+                _lastVideoMs = newVideo;
+                _lastAudioMs = newAudio;
+                _lastMasterMs = newMaster;
 
                 // Cập nhật TextBoxes
-                VideoDelayText.Text = ((int)VideoDelaySlider.Value).ToString();
-                AudioDelayText.Text = ((int)AudioDelaySlider.Value).ToString();
-                MasterDelayText.Text = ((int)MasterDelaySlider.Value).ToString();
+                VideoDelayText.Text = newVideo.ToString();
+                AudioDelayText.Text = newAudio.ToString();
+                MasterDelayText.Text = newMaster.ToString();
 
                 // Gửi lệnh xuống Player SDK
                 if (_player != null)
                 {
-                    _player.SetVideoDelayMs((int)VideoDelaySlider.Value);
-                    _player.SetAudioDelayMs((int)AudioDelaySlider.Value);
-                    _player.SetMasterDelayMs((int)MasterDelaySlider.Value);
+                    _player.VideoDelayMs = newVideo;
+                    _player.AudioDelayMs = newAudio;
+                    _player.MasterDelayMs = newMaster;
                     Player_StateChanged(_player, _player.State); // update UI
                 }
             }

@@ -216,5 +216,15 @@ namespace OpenMedia.Platform.Internal
             b.WriteI32(masterDelayMs);
             return b.ToArray();
         }
+        /// <summary>
+        /// Builds a SetVideoPTSOffset command payload.
+        /// </summary>
+        internal static byte[] SetVideoPTSOffset(uint pipelineId, int offsetMs)
+        {
+            var b = new MessageBuilder();
+            b.WriteU32(pipelineId);
+            b.WriteI32(offsetMs);
+            return b.ToArray();
+        }
     }
 }
