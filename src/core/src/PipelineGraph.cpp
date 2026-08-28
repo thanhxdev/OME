@@ -308,9 +308,10 @@ VoidResult PipelineGraph::Start() {
     std::lock_guard lock(m_impl->mutex);
 
     if (m_impl->state != PipelineState::Ready &&
-        m_impl->state != PipelineState::Paused) {
+        m_impl->state != PipelineState::Paused &&
+        m_impl->state != PipelineState::Stopped) {
         return std::unexpected(OME_ERROR(
-            ErrorCode::InvalidState, "Graph must be Ready or Paused to start"));
+            ErrorCode::InvalidState, "Graph must be Ready, Paused, or Stopped to start"));
     }
 
     if (!m_impl->built) {

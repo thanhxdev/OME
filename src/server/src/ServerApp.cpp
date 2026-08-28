@@ -412,6 +412,7 @@ void ServerApp::RegisterBuiltinHandlers() {
             if (!m_impl->pipelineRunning.exchange(true) && m_impl->source) {
                 m_impl->renderThread = std::thread([this, graph]() {
                     m_impl->source->Start();
+                    m_impl->source->Seek(0.0);
 
                     // FileSource unconditionally resamples to 48000 Hz, 2 channels, Float32
                     int audioSampleRate = 48000;
@@ -515,6 +516,7 @@ void ServerApp::RegisterBuiltinHandlers() {
                         m_impl->audioPlayer->Stop();
                         m_impl->audioPlayer.reset();
                     }
+                    m_impl->pipelineRunning.store(false);
                 });
             }
 

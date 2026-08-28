@@ -261,7 +261,7 @@ namespace OMEPlatform_Play
                     {
                         await _player.PauseAsync();
                     }
-                    else if (_player.State == PlaybackState.Paused || _player.State == PlaybackState.Ready)
+                    else if (_player.State == PlaybackState.Paused || _player.State == PlaybackState.Ready || _player.State == PlaybackState.Stopped)
                     {
                         await _player.PlayAsync();
                     }

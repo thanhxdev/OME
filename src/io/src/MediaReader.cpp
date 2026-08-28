@@ -232,6 +232,12 @@ core::VoidResult MediaReader::Seek(double timestampSeconds) {
 
     int64_t timestamp = static_cast<int64_t>(timestampSeconds * AV_TIME_BASE);
     int ret = avformat_seek_file(m_impl->formatContext, -1, INT64_MIN, timestamp, INT64_MAX, AVSEEK_FLAG_BACKWARD);
+    if (ret < 0) {
+        ret = av_seek_frame(m_impl->formatContext, -1, timestamp, AVSEEK_FLAG_BACKWARD);
+    }
+    if (ret < 0 && timestampSeconds == 0.0) {
+        ret = av_seek_frame(m_impl->formatContext, -1, 0, AVSEEK_FLAG_BYTE);
+    }
     if (ret < 0) return std::unexpected(core::Error{core::ErrorCode::IOError, "Error seeking"});
     return {};
 }

@@ -244,10 +244,15 @@ namespace OpenMedia.Platform
                 if (State == PlaybackState.Error) return;
             }
 
-            if (State != PlaybackState.Ready && State != PlaybackState.Paused) return;
+            if (State != PlaybackState.Ready && State != PlaybackState.Paused && State != PlaybackState.Stopped) return;
 
             try
             {
+                if (State == PlaybackState.Stopped || Position >= Duration)
+                {
+                    await SeekAsync(TimeSpan.Zero);
+                }
+
                 var payload = IPCCommandBuilder.PipelineControl(_pipelineId);
                 var cmd = State == PlaybackState.Paused ? CommandType.ResumePipeline : CommandType.StartPipeline;
                 await OpenMediaRuntime.SendCommandAsync(cmd, payload);
