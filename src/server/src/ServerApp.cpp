@@ -71,6 +71,7 @@ struct ServerApp::Impl {
     std::shared_ptr<audio::AudioPlayer> audioPlayer;
     std::atomic<bool> audioMuted{false};
     std::atomic<float> audioVolume{1.0f};
+    std::atomic<double> currentPlaybackPositionSec{0.0};
 
     ~Impl() {
         if (pipelineRunning.exchange(false)) {
@@ -522,6 +523,12 @@ void ServerApp::RegisterBuiltinHandlers() {
                                             pool->UpdateFrame(bufferIndex, pendingVideoFrame->GetVideoPlane(0), static_cast<uint32_t>(pendingVideoFrame->GetLineSize(0)));
                                             pool->ReleaseWriteLock(bufferIndex);
                                             bufferIndex = (bufferIndex + 1) % 2;
+
+                                            double ptsSec = core::AVSyncClock::PtsToSeconds(*pendingVideoFrame);
+                                            if (ptsSec >= 0.0) {
+                                                m_impl->currentPlaybackPositionSec.store(ptsSec);
+                                            }
+
                                             pendingVideoFrame = nullptr;
                                         }
                                         else {
@@ -675,8 +682,10 @@ void ServerApp::RegisterBuiltinHandlers() {
             (void)id;
             if (reader.HasError()) return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload"});
             
-            // Just return success for now
-            return std::vector<uint8_t>{};
+            ipc::MessageBuilder builder;
+            builder.WriteF64(m_impl->currentPlaybackPositionSec.load() * 1000.0);
+            builder.WriteBool(m_impl->pipelinePaused.load());
+            return builder.Finish();
         });
 
     // Pipeline: PausePipeline

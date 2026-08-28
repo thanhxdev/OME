@@ -35,6 +35,7 @@ namespace OpenMedia.Platform
         private WpfD3D11Renderer? _renderer;
         private CancellationTokenSource? _positionCts;
         private SynchronizationContext? _syncContext;
+        private long _suppressPositionUntilTick = 0;
 
         // ─── Properties ─────────────────────────────────────────────
 
@@ -331,6 +332,8 @@ namespace OpenMedia.Platform
         {
             ThrowIfDisposed();
             Position = position;
+            _suppressPositionUntilTick = Environment.TickCount64 + 400;
+
             if (_pipelineCreated)
             {
                 var payload = IPCCommandBuilder.SeekSource(_pipelineId, _sourceId, (ulong)Math.Max(0, position.TotalMilliseconds));
@@ -400,6 +403,21 @@ namespace OpenMedia.Platform
             }
         }
 
+        private async Task<double> GetServerPositionMsAsync()
+        {
+            if (!_pipelineCreated || !OpenMediaRuntime.IsConnected) return -1.0;
+            try
+            {
+                var payload = IPCCommandBuilder.GetPipelineState(_pipelineId);
+                var response = await OpenMediaRuntime.SendCommandAsync(CommandType.GetPipelineState, payload);
+                return IPCCommandBuilder.ParsePipelineStatePosition(response);
+            }
+            catch
+            {
+                return -1.0;
+            }
+        }
+
         private void StartPositionTracking()
         {
             StopPositionTracking();
@@ -413,8 +431,26 @@ namespace OpenMedia.Platform
                     await Task.Delay(100, ct);
                     if (ct.IsCancellationRequested) break;
 
-                    // Increment position estimate (actual position from server would be better)
-                    Position = Position.Add(TimeSpan.FromMilliseconds(100));
+                    if (State == PlaybackState.Playing)
+                    {
+                        if (Environment.TickCount64 < _suppressPositionUntilTick)
+                        {
+                            // In seek grace period: smoothly advance position estimate from seek target
+                            Position = Position.Add(TimeSpan.FromMilliseconds(100));
+                        }
+                        else
+                        {
+                            double serverPosMs = await GetServerPositionMsAsync();
+                            if (serverPosMs >= 0 && Environment.TickCount64 >= _suppressPositionUntilTick)
+                            {
+                                Position = TimeSpan.FromMilliseconds(serverPosMs);
+                            }
+                            else
+                            {
+                                Position = Position.Add(TimeSpan.FromMilliseconds(100));
+                            }
+                        }
+                    }
 
                     if (Duration > TimeSpan.Zero && Position >= Duration)
                     {

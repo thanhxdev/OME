@@ -17,6 +17,8 @@ namespace OpenMedia.SDK
         StopPipeline = 0x0103,
         PausePipeline = 0x0104,
         ResumePipeline = 0x0105,
+        GetPipelineState = 0x0106,
+        GetPipelineInfo = 0x0107,
         OpenSource = 0x0200,
         SeekSource = 0x0202,
         GetSourceInfo = 0x0203,

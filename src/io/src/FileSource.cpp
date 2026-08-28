@@ -31,6 +31,9 @@ struct FileSource::Impl {
     uint32_t targetWidth = 0;
     uint32_t targetHeight = 0;
 
+    bool hasPreloadedVideo = false;
+    bool hasPreloadedAudio = false;
+
     Impl() {
         decodedVideoFrame = av_frame_alloc();
         decodedAudioFrame = av_frame_alloc();
@@ -61,14 +64,18 @@ core::Result<std::shared_ptr<core::MediaFrame>> FileSource::PullVideoFrame() {
     std::lock_guard lock(m_impl->readerMutex);
     if (m_impl->state != core::PipelineState::Running) return std::unexpected(core::Error::Make(core::ErrorCode::InvalidState, "Not running"));
 
-    av_frame_unref(m_impl->decodedVideoFrame);
-    auto result = m_impl->reader.ReadVideoFrame(m_impl->decodedVideoFrame);
-    if (!result) {
-        if (result.error().code == core::ErrorCode::EndOfStream && m_impl->loopMode) {
-            m_impl->reader.Seek(0.0);
-            result = m_impl->reader.ReadVideoFrame(m_impl->decodedVideoFrame);
-            if (!result) return std::unexpected(result.error());
-        } else return std::unexpected(result.error());
+    if (m_impl->hasPreloadedVideo) {
+        m_impl->hasPreloadedVideo = false;
+    } else {
+        av_frame_unref(m_impl->decodedVideoFrame);
+        auto result = m_impl->reader.ReadVideoFrame(m_impl->decodedVideoFrame);
+        if (!result) {
+            if (result.error().code == core::ErrorCode::EndOfStream && m_impl->loopMode) {
+                m_impl->reader.Seek(0.0);
+                result = m_impl->reader.ReadVideoFrame(m_impl->decodedVideoFrame);
+                if (!result) return std::unexpected(result.error());
+            } else return std::unexpected(result.error());
+        }
     }
 
     int width = m_impl->decodedVideoFrame->width;
@@ -99,14 +106,16 @@ core::Result<std::shared_ptr<core::MediaFrame>> FileSource::PullAudioFrame() {
     std::lock_guard lock(m_impl->readerMutex);
     if (m_impl->state != core::PipelineState::Running) return std::unexpected(core::Error::Make(core::ErrorCode::InvalidState, "Not running"));
 
-    av_frame_unref(m_impl->decodedAudioFrame);
-    auto result = m_impl->reader.ReadAudioFrame(m_impl->decodedAudioFrame);
-    if (!result) {
-        if (result.error().code == core::ErrorCode::EndOfStream && m_impl->loopMode) {
-            // Already seeked by video logic maybe? Let's not seek again if we can avoid it.
-            // But if audio ends before video, we might just return EOF.
-            return std::unexpected(result.error());
-        } else return std::unexpected(result.error());
+    if (m_impl->hasPreloadedAudio) {
+        m_impl->hasPreloadedAudio = false;
+    } else {
+        av_frame_unref(m_impl->decodedAudioFrame);
+        auto result = m_impl->reader.ReadAudioFrame(m_impl->decodedAudioFrame);
+        if (!result) {
+            if (result.error().code == core::ErrorCode::EndOfStream && m_impl->loopMode) {
+                return std::unexpected(result.error());
+            } else return std::unexpected(result.error());
+        }
     }
 
     if (!m_impl->swrCtx) {
@@ -172,11 +181,67 @@ core::VoidResult FileSource::Open(const std::string& path) {
 
 void FileSource::Close() {
     std::lock_guard lock(m_impl->readerMutex);
+    m_impl->hasPreloadedVideo = false;
+    m_impl->hasPreloadedAudio = false;
+    av_frame_unref(m_impl->decodedVideoFrame);
+    av_frame_unref(m_impl->decodedAudioFrame);
     m_impl->reader.Close();
     m_impl->filePath.clear();
 }
 const std::vector<StreamInfo>& FileSource::GetStreams() const { std::lock_guard lock(m_impl->readerMutex); return m_impl->reader.GetStreams(); }
-core::VoidResult FileSource::Seek(double ts) { std::lock_guard lock(m_impl->readerMutex); return m_impl->reader.Seek(ts); }
+
+core::VoidResult FileSource::Seek(double ts) {
+    std::lock_guard lock(m_impl->readerMutex);
+    m_impl->hasPreloadedVideo = false;
+    m_impl->hasPreloadedAudio = false;
+
+    auto res = m_impl->reader.Seek(ts);
+    if (!res) return res;
+
+    // Prune frames decoded prior to target timestamp 'ts' to ensure accurate seek
+    if (ts > 0.05) {
+        auto videoIdx = m_impl->reader.GetBestVideoStreamIndex();
+        if (videoIdx >= 0) {
+            auto tb = m_impl->reader.GetStreams()[videoIdx].timeBase;
+            while (true) {
+                av_frame_unref(m_impl->decodedVideoFrame);
+                auto vRes = m_impl->reader.ReadVideoFrame(m_impl->decodedVideoFrame);
+                if (!vRes) break;
+
+                double ptsSec = 0.0;
+                if (m_impl->decodedVideoFrame->pts != AV_NOPTS_VALUE && tb.den > 0) {
+                    ptsSec = static_cast<double>(m_impl->decodedVideoFrame->pts) * tb.num / tb.den;
+                }
+                if (ptsSec >= (ts - 0.08)) {
+                    m_impl->hasPreloadedVideo = true;
+                    break;
+                }
+            }
+        }
+
+        auto audioIdx = m_impl->reader.GetBestAudioStreamIndex();
+        if (audioIdx >= 0) {
+            auto tb = m_impl->reader.GetStreams()[audioIdx].timeBase;
+            while (true) {
+                av_frame_unref(m_impl->decodedAudioFrame);
+                auto aRes = m_impl->reader.ReadAudioFrame(m_impl->decodedAudioFrame);
+                if (!aRes) break;
+
+                double ptsSec = 0.0;
+                if (m_impl->decodedAudioFrame->pts != AV_NOPTS_VALUE && tb.den > 0) {
+                    ptsSec = static_cast<double>(m_impl->decodedAudioFrame->pts) * tb.num / tb.den;
+                }
+                if (ptsSec >= (ts - 0.08)) {
+                    m_impl->hasPreloadedAudio = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    return res;
+}
+
 void FileSource::SetLoopMode(bool loop) { std::lock_guard lock(m_impl->readerMutex); m_impl->loopMode = loop; }
 bool FileSource::GetLoopMode() const { std::lock_guard lock(m_impl->readerMutex); return m_impl->loopMode; }
 double FileSource::GetDurationSeconds() const { std::lock_guard lock(m_impl->readerMutex); return m_impl->durationSeconds; }
@@ -190,4 +255,3 @@ void FileSource::SetOutputResolution(uint32_t width, uint32_t height) {
 }
 
 } // namespace openmedia::io
-

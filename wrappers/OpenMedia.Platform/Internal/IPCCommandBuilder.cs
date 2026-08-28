@@ -67,6 +67,26 @@ namespace OpenMedia.Platform.Internal
         }
 
         /// <summary>
+        /// Builds a GetPipelineState command payload.
+        /// </summary>
+        internal static byte[] GetPipelineState(uint pipelineId)
+        {
+            var b = new MessageBuilder();
+            b.WriteU32(pipelineId);
+            return b.ToArray();
+        }
+
+        /// <summary>
+        /// Parses a GetPipelineState response into current position in milliseconds.
+        /// </summary>
+        internal static double ParsePipelineStatePosition(byte[]? response)
+        {
+            if (response == null || response.Length < 8) return -1.0;
+            var r = new MessageReader(response);
+            return r.ReadF64();
+        }
+
+        /// <summary>
         /// Parses a CreatePipeline response to extract the pipeline ID.
         /// </summary>
         internal static uint? ParsePipelineId(byte[]? response)

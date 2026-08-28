@@ -18,6 +18,12 @@ namespace OMEPlatform_Play
         private bool _isDraggingSlider = false;
         private double _lastNonMuteVolume = 1.0;
         private string? _currentFilePath;
+        private long _ignorePositionEventsUntilTick = 0;
+
+        private void SuppressPositionUpdatesFor(int milliseconds = 400)
+        {
+            _ignorePositionEventsUntilTick = Environment.TickCount64 + milliseconds;
+        }
 
         public MainWindow()
         {
@@ -271,9 +277,11 @@ namespace OMEPlatform_Play
 
         private void Player_PositionChanged(object? sender, TimeSpan position)
         {
+            if (Environment.TickCount64 < _ignorePositionEventsUntilTick) return;
+
             Dispatcher.Invoke(() =>
             {
-                if (!_isDraggingSlider)
+                if (!_isDraggingSlider && Environment.TickCount64 >= _ignorePositionEventsUntilTick)
                 {
                     SldPosition.Value = position.TotalSeconds;
                     TxtPosition.Text = FormatTimeSpan(position);
@@ -339,27 +347,33 @@ namespace OMEPlatform_Play
 
         private async void BtnRewind10_Click(object sender, RoutedEventArgs e)
         {
-            if (_player != null)
+            if (_player != null && _player.Duration > TimeSpan.Zero)
             {
                 var newPos = _player.Position - TimeSpan.FromSeconds(10);
                 if (newPos < TimeSpan.Zero) newPos = TimeSpan.Zero;
-                await _player.SeekAsync(newPos);
+                
+                SuppressPositionUpdatesFor(400);
                 SldPosition.Value = newPos.TotalSeconds;
                 TxtPosition.Text = FormatTimeSpan(newPos);
                 TxtStatus.Text = $"Lùi lại 10s -> {FormatTimeSpan(newPos)}";
+
+                await _player.SeekAsync(newPos);
             }
         }
 
         private async void BtnForward10_Click(object sender, RoutedEventArgs e)
         {
-            if (_player != null)
+            if (_player != null && _player.Duration > TimeSpan.Zero)
             {
                 var newPos = _player.Position + TimeSpan.FromSeconds(10);
                 if (newPos > _player.Duration) newPos = _player.Duration;
-                await _player.SeekAsync(newPos);
+
+                SuppressPositionUpdatesFor(400);
                 SldPosition.Value = newPos.TotalSeconds;
                 TxtPosition.Text = FormatTimeSpan(newPos);
                 TxtStatus.Text = $"Tua tới 10s -> {FormatTimeSpan(newPos)}";
+
+                await _player.SeekAsync(newPos);
             }
         }
 
@@ -375,9 +389,27 @@ namespace OMEPlatform_Play
             {
                 var targetSeconds = SldPosition.Value;
                 var targetPos = TimeSpan.FromSeconds(targetSeconds);
-                await _player.SeekAsync(targetPos);
+
+                SuppressPositionUpdatesFor(400);
                 TxtPosition.Text = FormatTimeSpan(targetPos);
                 TxtStatus.Text = $"Đã tua đến thời điểm: {FormatTimeSpan(targetPos)}";
+
+                await _player.SeekAsync(targetPos);
+            }
+        }
+
+        private async void SldPosition_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (!_isDraggingSlider && _player != null)
+            {
+                var targetSeconds = SldPosition.Value;
+                var targetPos = TimeSpan.FromSeconds(targetSeconds);
+
+                SuppressPositionUpdatesFor(400);
+                TxtPosition.Text = FormatTimeSpan(targetPos);
+                TxtStatus.Text = $"Đã tua đến thời điểm: {FormatTimeSpan(targetPos)}";
+
+                await _player.SeekAsync(targetPos);
             }
         }
 
@@ -405,7 +437,7 @@ namespace OMEPlatform_Play
             string text = TxtJumpTime.Text.Trim();
             if (TryParseTimeSpan(text, out TimeSpan targetPos))
             {
-                if (targetPos > _player.Duration)
+                if (targetPos > _player.Duration && _player.Duration > TimeSpan.Zero)
                 {
                     targetPos = _player.Duration;
                 }
@@ -414,10 +446,12 @@ namespace OMEPlatform_Play
                     targetPos = TimeSpan.Zero;
                 }
 
-                await _player.SeekAsync(targetPos);
+                SuppressPositionUpdatesFor(400);
                 SldPosition.Value = targetPos.TotalSeconds;
                 TxtPosition.Text = FormatTimeSpan(targetPos);
                 TxtStatus.Text = $"Đã tua đến thời điểm: {FormatTimeSpan(targetPos)}";
+
+                await _player.SeekAsync(targetPos);
             }
             else
             {
