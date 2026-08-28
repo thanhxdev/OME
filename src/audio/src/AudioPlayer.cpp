@@ -73,6 +73,7 @@ core::VoidResult AudioPlayer::Initialize(int sampleRate, int channels) {
         return std::unexpected(core::Error::Make(core::ErrorCode::Unknown, "Failed to create SourceVoice"));
     }
 
+    m_sourceVoice->SetVolume(m_muted ? 0.0f : m_volume);
     m_sourceVoice->Start(0);
     
     m_sampleRate = sampleRate;
@@ -93,24 +94,24 @@ core::VoidResult AudioPlayer::PlayFrame(std::shared_ptr<core::MediaFrame> frame)
         return {};
     }
 
-    // Audio format expectation: float32, interleaved
-    uint8_t* dataPtr = frame->GetAudioData(0); 
+    uint8_t* pAudioData = frame->GetAudioData(0);
     size_t dataSize = frame->GetAudioBufferSize();
-    if (!dataPtr || dataSize == 0) return {};
+    if (!pAudioData || dataSize == 0) {
+        return {};
+    }
 
-    // Copy data to a dynamic array that the callback will free
-    uint8_t* pData = new uint8_t[dataSize];
-    std::memcpy(pData, dataPtr, dataSize);
+    uint8_t* pBuffer = new uint8_t[dataSize];
+    std::memcpy(pBuffer, pAudioData, dataSize);
 
     XAUDIO2_BUFFER buffer = {};
     buffer.AudioBytes = static_cast<UINT32>(dataSize);
-    buffer.pAudioData = pData;
-    buffer.pContext = pData; // Pass pointer as context to free it in OnBufferEnd
+    buffer.pAudioData = pBuffer;
+    buffer.pContext = pBuffer;
 
     HRESULT hr = m_sourceVoice->SubmitSourceBuffer(&buffer);
     if (FAILED(hr)) {
-        delete[] pData;
-        return std::unexpected(core::Error::Make(core::ErrorCode::Unknown, "Failed to submit XAudio2 buffer"));
+        delete[] pBuffer;
+        return std::unexpected(core::Error::Make(core::ErrorCode::Unknown, "Failed to submit source buffer"));
     }
 
     return {};
@@ -118,25 +119,28 @@ core::VoidResult AudioPlayer::PlayFrame(std::shared_ptr<core::MediaFrame> frame)
 
 void AudioPlayer::Stop() {
     if (m_sourceVoice) {
-        m_sourceVoice->Stop();
+        m_sourceVoice->Stop(0);
         m_sourceVoice->FlushSourceBuffers();
         m_sourceVoice->DestroyVoice();
         m_sourceVoice = nullptr;
     }
+
     if (m_masteringVoice) {
         m_masteringVoice->DestroyVoice();
         m_masteringVoice = nullptr;
     }
+
     if (m_xaudio2) {
         m_xaudio2->Release();
         m_xaudio2 = nullptr;
     }
+
     m_initialized = false;
 }
 
 void AudioPlayer::Pause() {
     if (m_sourceVoice) {
-        m_sourceVoice->Stop();
+        m_sourceVoice->Stop(0);
     }
 }
 
@@ -147,14 +151,16 @@ void AudioPlayer::Resume() {
 }
 
 void AudioPlayer::SetVolume(float volume) {
+    m_volume = volume;
     if (m_sourceVoice) {
-        m_sourceVoice->SetVolume(volume);
+        m_sourceVoice->SetVolume(m_muted ? 0.0f : m_volume);
     }
 }
 
 void AudioPlayer::SetMuted(bool muted) {
+    m_muted = muted;
     if (m_sourceVoice) {
-        m_sourceVoice->SetVolume(muted ? 0.0f : 1.0f);
+        m_sourceVoice->SetVolume(m_muted ? 0.0f : m_volume);
     }
 }
 

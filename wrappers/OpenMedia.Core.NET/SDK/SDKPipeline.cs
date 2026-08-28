@@ -49,10 +49,16 @@ namespace OpenMedia.SDK
 
         public async Task<bool> SetLayerMuteAsync(uint layerIndex, bool muted)
         {
+            return await SetLayerPropertiesAsync(layerIndex, muted, 1.0);
+        }
+
+        public async Task<bool> SetLayerPropertiesAsync(uint layerIndex, bool muted, double volume)
+        {
             var builder = new MessageBuilder();
             builder.WriteU32(_id);
             builder.WriteU32(layerIndex);
             builder.WriteBool(muted);
+            builder.WriteF64(volume);
             byte[] response = await SDKEngine.Instance.IPC.SendAndReceiveAsync(CommandType.SetLayerProperties, builder.ToArray());
             return response != null;
         }

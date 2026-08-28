@@ -68,6 +68,7 @@ struct ServerApp::Impl {
     std::atomic<bool> pipelinePaused{false};
     std::shared_ptr<audio::AudioPlayer> audioPlayer;
     std::atomic<bool> audioMuted{false};
+    std::atomic<float> audioVolume{1.0f};
 
     ~Impl() {
         if (pipelineRunning.exchange(false)) {
@@ -417,6 +418,8 @@ void ServerApp::RegisterBuiltinHandlers() {
                     int audioChannels = 2;
 
                     m_impl->audioPlayer = std::make_shared<audio::AudioPlayer>();
+                    m_impl->audioPlayer->SetMuted(m_impl->audioMuted);
+                    m_impl->audioPlayer->SetVolume(m_impl->audioVolume);
                     if (!m_impl->audioPlayer->Initialize(audioSampleRate, audioChannels)) {
                         core::Logger::SError("ServerApp", "Failed to initialize AudioPlayer on the server");
                     }
@@ -531,7 +534,18 @@ void ServerApp::RegisterBuiltinHandlers() {
             }
 
             m_impl->audioMuted = muted;
-            core::Logger::SInfo("ServerApp", "SetLayerProperties: pipeline {} layer {} muted={}", pipelineId, layerIndex, muted);
+            if (reader.HasMore() && reader.Remaining() >= sizeof(double)) {
+                double vol = reader.ReadF64();
+                m_impl->audioVolume = static_cast<float>(vol);
+            }
+
+            if (m_impl->audioPlayer) {
+                m_impl->audioPlayer->SetMuted(m_impl->audioMuted);
+                m_impl->audioPlayer->SetVolume(m_impl->audioVolume);
+            }
+
+            core::Logger::SInfo("ServerApp", "SetLayerProperties: pipeline {} layer {} muted={} volume={}",
+                pipelineId, layerIndex, muted, m_impl->audioVolume.load());
             return std::vector<uint8_t>{};
         });
 

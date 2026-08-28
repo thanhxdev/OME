@@ -71,6 +71,9 @@ private:
     // A simple queue to keep the audio data alive while XAudio2 plays it
     std::vector<std::vector<uint8_t>> m_bufferQueue;
     size_t m_maxQueueSize = 10;
+
+    float m_volume = 1.0f;
+    bool m_muted = false;
 };
 
 } // namespace openmedia::audio

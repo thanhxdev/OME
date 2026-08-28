@@ -170,5 +170,18 @@ namespace OpenMedia.Platform.Internal
         {
             return output.ToIPCPayload(pipelineId);
         }
+
+        /// <summary>
+        /// Builds a SetLayerProperties command payload (mute & volume).
+        /// </summary>
+        internal static byte[] SetLayerProperties(uint pipelineId, uint layerIndex, bool muted, double volume)
+        {
+            var b = new MessageBuilder();
+            b.WriteU32(pipelineId);
+            b.WriteU32(layerIndex);
+            b.WriteBool(muted);
+            b.WriteF64(volume);
+            return b.ToArray();
+        }
     }
 }

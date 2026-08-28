@@ -29,6 +29,7 @@ namespace OpenMedia.Platform
         private PlaybackState _state = PlaybackState.Idle;
         private MediaInfo? _information;
         private double _volume = 1.0;
+        private bool _isMuted = false;
 
         private IVideoView? _attachedView;
         private WpfD3D11Renderer? _renderer;
@@ -53,7 +54,52 @@ namespace OpenMedia.Platform
         public double Volume
         {
             get => _volume;
-            set => _volume = Math.Clamp(value, 0.0, 1.0);
+            set
+            {
+                var clamped = Math.Clamp(value, 0.0, 1.0);
+                if (Math.Abs(_volume - clamped) > 0.0001)
+                {
+                    _volume = clamped;
+                    if (_pipelineCreated && OpenMediaRuntime.IsConnected)
+                    {
+                        _ = UpdateServerAudioPropertiesAsync();
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets whether audio is muted.
+        /// </summary>
+        public bool IsMuted
+        {
+            get => _isMuted;
+            set
+            {
+                if (_isMuted != value)
+                {
+                    _isMuted = value;
+                    if (_pipelineCreated && OpenMediaRuntime.IsConnected)
+                    {
+                        _ = UpdateServerAudioPropertiesAsync();
+                    }
+                }
+            }
+        }
+
+        private async Task UpdateServerAudioPropertiesAsync()
+        {
+            if (!_pipelineCreated || !OpenMediaRuntime.IsConnected) return;
+
+            try
+            {
+                var payload = IPCCommandBuilder.SetLayerProperties(_pipelineId, 0, _isMuted, _volume);
+                await OpenMediaRuntime.SendCommandAsync(CommandType.SetLayerProperties, payload);
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"[MediaPlayer] Failed to update audio properties: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -173,6 +219,7 @@ namespace OpenMedia.Platform
                 _information = IPCCommandBuilder.ParseSourceInfo(infoResponse, sourceUri);
 
                 State = PlaybackState.Ready;
+                await UpdateServerAudioPropertiesAsync();
                 Trace.WriteLine($"[MediaPlayer] Opened: {sourceUri} ({_information?.Duration})");
             }
             catch (Exception ex)

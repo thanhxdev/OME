@@ -440,10 +440,9 @@ namespace OMEPlatform_Play
                 TxtVolumePercent.Text = $"{(int)(e.NewValue * 100)}%";
             }
 
-            if (ChkAudio != null && ChkAudio.IsChecked == true && _player != null)
+            if (_player != null)
             {
                 _player.Volume = e.NewValue;
-                _lastNonMuteVolume = e.NewValue;
             }
         }
 
@@ -452,16 +451,8 @@ namespace OMEPlatform_Play
             if (_player == null) return;
 
             bool isAudioEnabled = ChkAudio.IsChecked == true;
-            if (!isAudioEnabled)
-            {
-                _lastNonMuteVolume = SldVolume.Value > 0 ? SldVolume.Value : _lastNonMuteVolume;
-                _player.Volume = 0.0;
-            }
-            else
-            {
-                _player.Volume = _lastNonMuteVolume > 0 ? _lastNonMuteVolume : 1.0;
-                SldVolume.Value = _player.Volume;
-            }
+            _player.IsMuted = !isAudioEnabled;
+            _player.Volume = SldVolume.Value;
         }
 
         private void CmbStretchMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
