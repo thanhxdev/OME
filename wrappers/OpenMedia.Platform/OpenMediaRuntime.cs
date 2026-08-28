@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using OpenMedia.SDK;
 using OpenMedia.Platform.Internal;
 
@@ -85,6 +86,18 @@ namespace OpenMedia.Platform
 
                 _serverProcess = new Process();
                 _serverProcess.StartInfo.FileName = serverPath;
+
+                string? serverDir = Path.GetDirectoryName(serverPath);
+                if (!string.IsNullOrEmpty(serverDir))
+                {
+                    _serverProcess.StartInfo.WorkingDirectory = serverDir;
+                    string existingPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+                    if (!existingPath.Contains(serverDir, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _serverProcess.StartInfo.EnvironmentVariables["PATH"] = serverDir + ";" + existingPath;
+                    }
+                }
+
                 if (options.PipeName != "OpenMediaSDK")
                 {
                     _serverProcess.StartInfo.Arguments = $"--pipe-name \\\\.\\pipe\\{options.PipeName}";
@@ -152,22 +165,39 @@ namespace OpenMedia.Platform
             {
                 try
                 {
-                    _ipcClient.ShutdownServerAsync().GetAwaiter().GetResult();
+                    var task = _ipcClient.ShutdownServerAsync();
+                    task.Wait(500);
                 }
                 catch { }
-                _ipcClient.Dispose();
+
+                try
+                {
+                    _ipcClient.Dispose();
+                }
+                catch { }
                 _ipcClient = null;
             }
 
-            if (_serverProcess != null && !_serverProcess.HasExited)
+            if (_serverProcess != null)
             {
                 try
                 {
-                    if (!_serverProcess.WaitForExit(1500))
-                        _serverProcess.Kill();
+                    _serverProcess.Exited -= OnServerProcessExited;
+                    if (!_serverProcess.HasExited)
+                    {
+                        if (!_serverProcess.WaitForExit(300))
+                        {
+                            _serverProcess.Kill();
+                        }
+                    }
                 }
                 catch { }
-                _serverProcess.Dispose();
+
+                try
+                {
+                    _serverProcess.Dispose();
+                }
+                catch { }
                 _serverProcess = null;
             }
 

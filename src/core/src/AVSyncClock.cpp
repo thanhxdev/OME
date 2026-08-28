@@ -7,12 +7,28 @@ AVSyncClock::AVSyncClock(const Config& config)
     : m_config(config) {}
 
 void AVSyncClock::UpdateAudioClock(double audioPositionSec) {
-    m_audioClockSec = audioPositionSec;
+    if (audioPositionSec > 0.0) {
+        m_audioClockSec = audioPositionSec;
+        m_audioClockUpdated = true;
+    }
 }
 
 AVSyncClock::VideoAction AVSyncClock::EvaluateVideoFrame(const MediaFrame& frame) const {
-    double videoPts = PtsToSeconds(frame);
-    double drift = videoPts - m_audioClockSec;  // positive = video ahead
+    double rawVideoPts = PtsToSeconds(frame);
+    if (m_firstVideoPts < 0.0) {
+        m_firstVideoPts = rawVideoPts;
+    }
+    double videoPts = rawVideoPts - m_firstVideoPts;
+
+    double currentClock = 0.0;
+    if (m_audioClockUpdated && m_audioClockSec > 0.0) {
+        currentClock = m_audioClockSec;
+    } else {
+        auto now = std::chrono::steady_clock::now();
+        currentClock = std::chrono::duration<double>(now - m_startTime).count();
+    }
+
+    double drift = videoPts - currentClock;  // positive = video ahead
 
     if (drift < -m_config.maxDropThresholdSec) {
         // Video is significantly behind audio -> drop
@@ -63,6 +79,9 @@ void AVSyncClock::RecordAction(VideoAction action, double driftSec) {
 
 void AVSyncClock::Reset() {
     m_audioClockSec = 0.0;
+    m_audioClockUpdated = false;
+    m_startTime = std::chrono::steady_clock::now();
+    m_firstVideoPts = -1.0;
     m_stats = SyncStats{};
 }
 

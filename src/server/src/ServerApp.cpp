@@ -65,8 +65,17 @@ struct ServerApp::Impl {
     std::shared_ptr<io::FileSource> source;
     std::thread renderThread;
     std::atomic<bool> pipelineRunning{false};
+    std::atomic<bool> pipelinePaused{false};
     std::shared_ptr<audio::AudioPlayer> audioPlayer;
     std::atomic<bool> audioMuted{false};
+
+    ~Impl() {
+        if (pipelineRunning.exchange(false)) {
+            if (renderThread.joinable()) {
+                renderThread.join();
+            }
+        }
+    }
 };
 
 ServerApp::ServerApp()
@@ -392,6 +401,12 @@ void ServerApp::RegisterBuiltinHandlers() {
                 return std::unexpected(res.error());
             }
 
+            if (m_impl->pipelinePaused.exchange(false)) {
+                if (m_impl->audioPlayer) {
+                    m_impl->audioPlayer->Resume();
+                }
+            }
+
             // PoC: start render thread
             if (!m_impl->pipelineRunning.exchange(true) && m_impl->source) {
                 m_impl->renderThread = std::thread([this, graph]() {
@@ -411,22 +426,32 @@ void ServerApp::RegisterBuiltinHandlers() {
                     size_t bufferIndex = 0;
 
                     while (m_impl->pipelineRunning) {
-                        // 1. Audio pacing - pull and play unconditionally
-                        auto audioResult = m_impl->source->PullAudioFrame();
-                        if (audioResult && *audioResult) {
-                            auto audioFrame = *audioResult;
-                            if (!m_impl->audioMuted && m_impl->audioPlayer) {
-                                m_impl->audioPlayer->PlayFrame(audioFrame);
-                            }
-                        } else if (audioResult.error().code == core::ErrorCode::EndOfStream) {
-                            if (m_impl->source->GetLoopMode()) {
-                                m_impl->source->Seek(0.0);
+                        if (m_impl->pipelinePaused.load()) {
+                            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                            continue;
+                        }
+
+                        // 1. Audio pacing - target 250ms audio queue in XAudio2 to prevent buffer overflow/underflow
+                        constexpr double TARGET_AUDIO_QUEUE_SEC = 0.250;
+                        if (!m_impl->audioPlayer || m_impl->audioPlayer->GetQueuedDurationSeconds() < TARGET_AUDIO_QUEUE_SEC) {
+                            auto audioResult = m_impl->source->PullAudioFrame();
+                            if (audioResult && *audioResult) {
+                                auto audioFrame = *audioResult;
                                 if (m_impl->audioPlayer) {
-                                    m_impl->audioPlayer->Stop();
+                                    m_impl->audioPlayer->SetMuted(m_impl->audioMuted);
+                                    m_impl->audioPlayer->PlayFrame(audioFrame);
                                 }
-                                syncClock.Reset();
-                            } else {
-                                // Do not break immediately, video might still have frames
+                            } else if (audioResult.error().code == core::ErrorCode::EndOfStream) {
+                                if (m_impl->source->GetLoopMode()) {
+                                    m_impl->source->Seek(0.0);
+                                    if (m_impl->audioPlayer) {
+                                        m_impl->audioPlayer->Stop();
+                                        m_impl->audioPlayer->Initialize(audioSampleRate, audioChannels);
+                                    }
+                                    syncClock.Reset();
+                                } else {
+                                    // Do not break immediately, video might still have frames
+                                }
                             }
                         }
 
@@ -459,7 +484,6 @@ void ServerApp::RegisterBuiltinHandlers() {
                                     if (auto* pool = m_impl->ipcServer->GetSharedTexturePool()) {
                                         // Acquire Key 0 lock from client/initial state
                                         if (pool->AcquireWriteLock(bufferIndex, 100)) {
-                                            std::cout << "ServerApp: Updating frame on buffer " << bufferIndex << "\n";
                                             pool->UpdateFrame(bufferIndex, pendingVideoFrame->GetVideoPlane(0), static_cast<uint32_t>(pendingVideoFrame->GetLineSize(0)));
                                             pool->ReleaseWriteLock(bufferIndex);
                                             bufferIndex = (bufferIndex + 1) % 2;
@@ -535,11 +559,21 @@ void ServerApp::RegisterBuiltinHandlers() {
                 return std::unexpected(res.error());
             }
 
+            m_impl->pipelinePaused.store(false);
+
             // PoC: stop render thread cleanly
             if (m_impl->pipelineRunning.exchange(false)) {
                 if (m_impl->renderThread.joinable()) {
                     m_impl->renderThread.join();
                 }
+            }
+
+            if (m_impl->source) {
+                m_impl->source->Seek(0.0);
+            }
+
+            if (m_impl->audioPlayer) {
+                m_impl->audioPlayer->Stop();
             }
 
             return std::vector<uint8_t>{};
@@ -567,6 +601,21 @@ void ServerApp::RegisterBuiltinHandlers() {
             }
 
             std::ignore = graph->Stop();
+
+            if (m_impl->pipelineRunning.exchange(false)) {
+                if (m_impl->renderThread.joinable()) {
+                    m_impl->renderThread.join();
+                }
+            }
+
+            if (m_impl->source) {
+                m_impl->source->Stop();
+            }
+
+            if (m_impl->audioPlayer) {
+                m_impl->audioPlayer->Stop();
+            }
+
             return std::vector<uint8_t>{};
         });
 
@@ -592,6 +641,11 @@ void ServerApp::RegisterBuiltinHandlers() {
             (void)id;
             if (reader.HasError()) return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload"});
             
+            m_impl->pipelinePaused.store(true);
+            if (m_impl->audioPlayer) {
+                m_impl->audioPlayer->Pause();
+            }
+            core::Logger::SInfo("ServerApp", "Pipeline paused");
             return std::vector<uint8_t>{};
         });
 
@@ -604,6 +658,12 @@ void ServerApp::RegisterBuiltinHandlers() {
             (void)id;
             if (reader.HasError()) return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload"});
             
+            if (m_impl->pipelinePaused.exchange(false)) {
+                if (m_impl->audioPlayer) {
+                    m_impl->audioPlayer->Resume();
+                }
+            }
+            core::Logger::SInfo("ServerApp", "Pipeline resumed");
             return std::vector<uint8_t>{};
         });
 

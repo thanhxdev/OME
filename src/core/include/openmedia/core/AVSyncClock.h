@@ -62,6 +62,9 @@ public:
 private:
     Config m_config;
     double m_audioClockSec = 0.0;
+    bool m_audioClockUpdated = false;
+    std::chrono::steady_clock::time_point m_startTime{std::chrono::steady_clock::now()};
+    mutable double m_firstVideoPts = -1.0;
     SyncStats m_stats;
 };
 

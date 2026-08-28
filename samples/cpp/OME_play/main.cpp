@@ -139,17 +139,10 @@ int main(int argc, char* argv[]) {
     // Explicitly set default mode
     preview->SetScaleMode(g_currentMode);
 
-    // Initialize AudioPlayer
+    // Initialize AudioPlayer (FileSource always resamples audio to 48000 Hz)
     int audioSampleRate = 48000;
     int audioChannels = 2;
     auto streams = fileSource->GetStreams();
-    for (const auto& stream : streams) {
-        if (stream.type == MediaType::Audio) {
-            audioSampleRate = stream.sampleRate;
-            audioChannels = stream.channels;
-            break;
-        }
-    }
     if (!audioPlayer->Initialize(audioSampleRate, audioChannels).has_value()) {
         std::cerr << "Warning: Failed to initialize AudioPlayer. Playback will have no audio." << std::endl;
     }
@@ -203,30 +196,33 @@ int main(int argc, char* argv[]) {
         }
         if (!playing) break;
 
-        // Pull and play audio unconditionally (audio never waits)
-        auto audioResult = fileSource->PullAudioFrame();
-        if (audioResult && *audioResult) {
-            auto audioFrame = *audioResult;
-            audioPlayer->PlayFrame(audioFrame);
+        // Pull audio with pacing (target 250ms audio queue in XAudio2)
+        constexpr double TARGET_AUDIO_QUEUE_SEC = 0.250;
+        if (audioPlayer->GetQueuedDurationSeconds() < TARGET_AUDIO_QUEUE_SEC) {
+            auto audioResult = fileSource->PullAudioFrame();
+            if (audioResult && *audioResult) {
+                auto audioFrame = *audioResult;
+                audioPlayer->PlayFrame(audioFrame);
 
-            // Compute audio meter levels
-            audioMeter.ProcessSamples(audioFrame.get());
-            auto channelData = audioMeter.GetChannelData();
-            if (!channelData.empty()) {
-                float rms = channelData[0].rms_db; // Channel 0 (Left)
-                
-                // Normalize RMS dB range (-60dB to 0dB) to 0.0 - 1.0
-                float normalized = (rms + 60.0f) / 60.0f;
-                if (normalized < 0.0f) normalized = 0.0f;
-                if (normalized > 1.0f) normalized = 1.0f;
-                
-                int barLength = static_cast<int>(normalized * 25);
-                std::string bar(barLength, '=');
-                std::string spaces(25 - barLength, ' ');
-                std::cout << "\rAudio Volume Bar: [" << bar << spaces << "] " << (int)rms << " dB   " << std::flush;
+                // Compute audio meter levels
+                audioMeter.ProcessSamples(audioFrame.get());
+                auto channelData = audioMeter.GetChannelData();
+                if (!channelData.empty()) {
+                    float rms = channelData[0].rms_db; // Channel 0 (Left)
+                    
+                    // Normalize RMS dB range (-60dB to 0dB) to 0.0 - 1.0
+                    float normalized = (rms + 60.0f) / 60.0f;
+                    if (normalized < 0.0f) normalized = 0.0f;
+                    if (normalized > 1.0f) normalized = 1.0f;
+                    
+                    int barLength = static_cast<int>(normalized * 25);
+                    std::string bar(barLength, '=');
+                    std::string spaces(25 - barLength, ' ');
+                    std::cout << "\rAudio Volume Bar: [" << bar << spaces << "] " << (int)rms << " dB   " << std::flush;
+                }
+            } else if (audioResult.error().code == ErrorCode::EndOfStream) {
+                // Do not break immediately, video might still have frames
             }
-        } else if (audioResult.error().code == ErrorCode::EndOfStream) {
-            // Do not break immediately, video might still have frames
         }
 
         // Update audio clock from hardware

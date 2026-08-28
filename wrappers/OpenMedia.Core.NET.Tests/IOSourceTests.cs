@@ -1,6 +1,7 @@
 using System;
 using Xunit;
 using OpenMedia.Core.NET;
+using OpenMedia.SDK;
 
 namespace OpenMedia.Core.NET.Tests
 {

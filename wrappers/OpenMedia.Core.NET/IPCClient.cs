@@ -16,7 +16,9 @@ namespace OpenMedia.SDK
         StartPipeline = 0x0102,
         StopPipeline = 0x0103,
         PausePipeline = 0x0104,
+        ResumePipeline = 0x0105,
         OpenSource = 0x0200,
+        SeekSource = 0x0202,
         GetSourceInfo = 0x0203,
         AddMixerInput = 0x0300,
         SetLayerProperties = 0x0303,
@@ -85,9 +87,19 @@ namespace OpenMedia.SDK
         {
             if (_pipeClient == null || !_pipeClient.IsConnected) return null;
 
-            await _pipeLock.WaitAsync();
             try
             {
+                await _pipeLock.WaitAsync();
+            }
+            catch (ObjectDisposedException)
+            {
+                return null;
+            }
+
+            try
+            {
+                if (_pipeClient == null || !_pipeClient.IsConnected) return null;
+
                 // 1. Send Request
                 var header = new MessageHeader
                 {
@@ -124,9 +136,13 @@ namespace OpenMedia.SDK
 
                 return null;
             }
+            catch
+            {
+                return null;
+            }
             finally
             {
-                _pipeLock.Release();
+                try { _pipeLock.Release(); } catch { }
             }
         }
 
@@ -134,9 +150,19 @@ namespace OpenMedia.SDK
         {
             if (_pipeClient == null || !_pipeClient.IsConnected) return null;
 
-            await _pipeLock.WaitAsync();
             try
             {
+                await _pipeLock.WaitAsync();
+            }
+            catch (ObjectDisposedException)
+            {
+                return null;
+            }
+
+            try
+            {
+                if (_pipeClient == null || !_pipeClient.IsConnected) return null;
+
                 uint payloadSize = (uint)(payload?.Length ?? 0);
                 var header = new MessageHeader
                 {
@@ -184,9 +210,13 @@ namespace OpenMedia.SDK
 
                 return new byte[0]; // Empty payload on success
             }
+            catch
+            {
+                return null;
+            }
             finally
             {
-                _pipeLock.Release();
+                try { _pipeLock.Release(); } catch { }
             }
         }
 

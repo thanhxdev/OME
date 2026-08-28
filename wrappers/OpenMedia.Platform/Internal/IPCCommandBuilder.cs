@@ -44,6 +44,18 @@ namespace OpenMedia.Platform.Internal
         }
 
         /// <summary>
+        /// Builds a SeekSource command payload.
+        /// </summary>
+        internal static byte[] SeekSource(uint pipelineId, uint sourceId, ulong positionMs)
+        {
+            var b = new MessageBuilder();
+            b.WriteU32(pipelineId);
+            b.WriteU32(sourceId);
+            b.WriteU64(positionMs);
+            return b.ToArray();
+        }
+
+        /// <summary>
         /// Builds a GetSourceInfo command payload.
         /// </summary>
         internal static byte[] GetSourceInfo(uint pipelineId, uint sourceId)

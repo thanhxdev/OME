@@ -1,6 +1,7 @@
 using System;
 using Xunit;
 using OpenMedia.Core.NET;
+using OpenMedia.SDK;
 
 namespace OpenMedia.Core.NET.Tests
 {
@@ -25,9 +26,9 @@ namespace OpenMedia.Core.NET.Tests
                     Assert.NotEqual(IntPtr.Zero, frame.Handle);
                     
                     // Verify data access works
-                    var (data, stride) = frame.GetVideoPlane(0);
-                    Assert.NotEqual(IntPtr.Zero, data);
-                    Assert.True(stride > 0);
+                    var planeInfo = frame.GetVideoPlane(0);
+                    Assert.NotEqual(IntPtr.Zero, planeInfo.data);
+                    Assert.True(planeInfo.stride > 0);
                 } // frame.Dispose() is called here
             }
 

@@ -121,6 +121,19 @@ namespace OpenMedia.Platform
             ThrowIfDisposed();
             EnsureRuntimeConnected();
 
+            if (_pipelineCreated)
+            {
+                await StopAsync();
+                try
+                {
+                    var destroyPayload = IPCCommandBuilder.PipelineControl(_pipelineId);
+                    await OpenMediaRuntime.SendCommandAsync(CommandType.DestroyPipeline, destroyPayload);
+                }
+                catch { }
+                _pipelineCreated = false;
+                _sourceOpened = false;
+            }
+
             _sourceUri = sourceUri;
             State = PlaybackState.Opening;
 
@@ -189,7 +202,8 @@ namespace OpenMedia.Platform
             try
             {
                 var payload = IPCCommandBuilder.PipelineControl(_pipelineId);
-                await OpenMediaRuntime.SendCommandAsync(CommandType.StartPipeline, payload);
+                var cmd = State == PlaybackState.Paused ? CommandType.ResumePipeline : CommandType.StartPipeline;
+                await OpenMediaRuntime.SendCommandAsync(cmd, payload);
                 State = PlaybackState.Playing;
                 StartPositionTracking();
 
@@ -233,15 +247,23 @@ namespace OpenMedia.Platform
         public async Task StopAsync()
         {
             ThrowIfDisposed();
-            if (State != PlaybackState.Playing && State != PlaybackState.Paused) return;
+            if (State != PlaybackState.Playing && State != PlaybackState.Paused && State != PlaybackState.Stopped) return;
 
             try
             {
                 var payload = IPCCommandBuilder.PipelineControl(_pipelineId);
                 await OpenMediaRuntime.SendCommandAsync(CommandType.StopPipeline, payload);
+
+                if (_pipelineCreated)
+                {
+                    var seekPayload = IPCCommandBuilder.SeekSource(_pipelineId, _sourceId, 0);
+                    await OpenMediaRuntime.SendCommandAsync(CommandType.SeekSource, seekPayload);
+                }
+
                 Position = TimeSpan.Zero;
                 State = PlaybackState.Stopped;
                 StopPositionTracking();
+                RaiseEvent(() => PositionChanged?.Invoke(this, TimeSpan.Zero));
             }
             catch (Exception ex)
             {
@@ -253,13 +275,16 @@ namespace OpenMedia.Platform
         /// Seeks to the specified position.
         /// </summary>
         /// <param name="position">The target position.</param>
-        public Task SeekAsync(TimeSpan position)
+        public async Task SeekAsync(TimeSpan position)
         {
             ThrowIfDisposed();
             Position = position;
-            // IPC seek command would be sent here when the server supports it
+            if (_pipelineCreated)
+            {
+                var payload = IPCCommandBuilder.SeekSource(_pipelineId, _sourceId, (ulong)Math.Max(0, position.TotalMilliseconds));
+                await OpenMediaRuntime.SendCommandAsync(CommandType.SeekSource, payload);
+            }
             RaiseEvent(() => PositionChanged?.Invoke(this, position));
-            return Task.CompletedTask;
         }
 
         // ─── Preview Binding ────────────────────────────────────────
@@ -407,11 +432,15 @@ namespace OpenMedia.Platform
             {
                 try
                 {
-                    var payload = IPCCommandBuilder.PipelineControl(_pipelineId);
-                    OpenMediaRuntime.SendCommandAsync(CommandType.DestroyPipeline, payload)
-                        .GetAwaiter().GetResult();
+                    if (OpenMediaRuntime.IsConnected)
+                    {
+                        var payload = IPCCommandBuilder.PipelineControl(_pipelineId);
+                        var task = OpenMediaRuntime.SendCommandAsync(CommandType.DestroyPipeline, payload);
+                        task.Wait(300);
+                    }
                 }
                 catch { }
+                _pipelineCreated = false;
             }
 
             _state = PlaybackState.Idle;

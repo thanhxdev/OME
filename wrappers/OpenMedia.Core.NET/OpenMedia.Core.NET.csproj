@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -12,5 +12,27 @@
     <PackageReference Include="Vortice.DXGI" Version="3.8.3" />
     <PackageReference Include="Vortice.Mathematics" Version="2.1.1" />
   </ItemGroup>
+
+  <Target Name="GatherNativeOpenMediaBinaries" BeforeTargets="GetCopyToOutputDirectoryItems;AssignTargetPaths;Build">
+    <PropertyGroup>
+      <_OMEConfig>$(Configuration)</_OMEConfig>
+      <_OMECandidateDir>$(MSBuildThisFileDirectory)..\..\build\bin\$(_OMEConfig)</_OMECandidateDir>
+      <_OMESourceDir Condition="Exists('$(_OMECandidateDir)\OpenMediaServer.exe')">$(_OMECandidateDir)</_OMESourceDir>
+      <_OMESourceDir Condition="'$(_OMESourceDir)' == '' and Exists('$(MSBuildThisFileDirectory)..\..\build\bin\Debug\OpenMediaServer.exe')">$(MSBuildThisFileDirectory)..\..\build\bin\Debug</_OMESourceDir>
+      <_OMESourceDir Condition="'$(_OMESourceDir)' == '' and Exists('$(MSBuildThisFileDirectory)..\..\build\bin\Release\OpenMediaServer.exe')">$(MSBuildThisFileDirectory)..\..\build\bin\Release</_OMESourceDir>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(_OMESourceDir)' != ''">
+      <_OMENativeItems Include="$(_OMESourceDir)\*.dll" />
+      <_OMENativeItems Include="$(_OMESourceDir)\*.exe" />
+      <_OMENativeItems Include="$(_OMESourceDir)\*.pak" />
+      <_OMENativeItems Include="$(_OMESourceDir)\*.bin" />
+      <_OMENativeItems Include="$(_OMESourceDir)\*.json" />
+      <Content Include="@(_OMENativeItems)">
+        <Link>%(Filename)%(Extension)</Link>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <Visible>false</Visible>
+      </Content>
+    </ItemGroup>
+  </Target>
 
 </Project>

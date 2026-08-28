@@ -98,14 +98,6 @@ core::VoidResult AudioPlayer::PlayFrame(std::shared_ptr<core::MediaFrame> frame)
     size_t dataSize = frame->GetAudioBufferSize();
     if (!dataPtr || dataSize == 0) return {};
 
-    // Limit queued buffers to prevent infinite lag/memory growth
-    XAUDIO2_VOICE_STATE state;
-    m_sourceVoice->GetState(&state);
-    if (state.BuffersQueued > 4) {
-        // Simple drop logic if the queue is too full
-        return {};
-    }
-
     // Copy data to a dynamic array that the callback will free
     uint8_t* pData = new uint8_t[dataSize];
     std::memcpy(pData, dataPtr, dataSize);
@@ -142,6 +134,30 @@ void AudioPlayer::Stop() {
     m_initialized = false;
 }
 
+void AudioPlayer::Pause() {
+    if (m_sourceVoice) {
+        m_sourceVoice->Stop();
+    }
+}
+
+void AudioPlayer::Resume() {
+    if (m_sourceVoice) {
+        m_sourceVoice->Start(0);
+    }
+}
+
+void AudioPlayer::SetVolume(float volume) {
+    if (m_sourceVoice) {
+        m_sourceVoice->SetVolume(volume);
+    }
+}
+
+void AudioPlayer::SetMuted(bool muted) {
+    if (m_sourceVoice) {
+        m_sourceVoice->SetVolume(muted ? 0.0f : 1.0f);
+    }
+}
+
 double AudioPlayer::GetPlaybackPositionSeconds() const {
     if (!m_initialized || !m_sourceVoice || m_sampleRate == 0) return 0.0;
 
@@ -156,6 +172,14 @@ uint32_t AudioPlayer::GetQueuedBufferCount() const {
     XAUDIO2_VOICE_STATE state;
     m_sourceVoice->GetState(&state, XAUDIO2_VOICE_NOSAMPLESPLAYED);
     return state.BuffersQueued;
+}
+
+double AudioPlayer::GetQueuedDurationSeconds() const {
+    if (!m_initialized || !m_sourceVoice || m_sampleRate == 0) return 0.0;
+
+    XAUDIO2_VOICE_STATE state;
+    m_sourceVoice->GetState(&state, XAUDIO2_VOICE_NOSAMPLESPLAYED);
+    return static_cast<double>(state.BuffersQueued * 1024) / m_sampleRate;
 }
 
 } // namespace openmedia::audio

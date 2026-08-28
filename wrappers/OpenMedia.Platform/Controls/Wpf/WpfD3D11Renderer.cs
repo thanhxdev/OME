@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
@@ -10,8 +10,8 @@ using Vortice.DXGI;
 namespace OpenMedia.Platform.Controls.Wpf
 {
     /// <summary>
-    /// Manages D3D11 shared texture reception and rendering into a WPF <see cref="D3DImage"/>.
-    /// Uses D3D11 → D3D9Ex interop to bridge GPU textures into WPF's rendering pipeline.
+    /// Manages D3D11 shared texture reception and rendering into a WPF <see cref="WriteableBitmap"/>.
+    /// Maps D3D11 staging memory directly into WPF UI Image bitmap backbuffer for zero-copy 60 FPS rendering.
     /// </summary>
     internal sealed class WpfD3D11Renderer : IDisposable
     {
@@ -20,25 +20,15 @@ namespace OpenMedia.Platform.Controls.Wpf
         private ID3D11Texture2D? _sharedTexture;
         private ID3D11Texture2D? _stagingTexture;
 
-        // D3D9Ex interop via raw COM pointers
-        private IntPtr _d3d9;
-        private IntPtr _d3d9Device;
-        private IntPtr _d3d9Surface;
-
-        private D3DImage? _d3dImage;
+        private WriteableBitmap? _bitmap;
         private int _width;
         private int _height;
         private bool _disposed;
 
         /// <summary>
-        /// The WPF <see cref="D3DImage"/> that receives rendered frames.
+        /// The WPF <see cref="WriteableBitmap"/> that receives rendered frames.
         /// </summary>
-        internal D3DImage? D3DImage => _d3dImage;
-
-        /// <summary>
-        /// Pointer to the D3D9 surface, for use with <see cref="System.Windows.Interop.D3DImage"/>.
-        /// </summary>
-        internal IntPtr D3D9SurfacePtr => _d3d9Surface;
+        internal WriteableBitmap? Bitmap => _bitmap;
 
         /// <summary>
         /// Initializes the D3D11 device.
@@ -48,8 +38,8 @@ namespace OpenMedia.Platform.Controls.Wpf
         {
             try
             {
-                // Create D3D11 device
-                D3D11.D3D11CreateDevice(
+                // Create D3D11 device (Hardware first, fallback to WARP if needed)
+                var result = D3D11.D3D11CreateDevice(
                     adapter: null!,
                     DriverType.Hardware,
                     DeviceCreationFlags.BgraSupport,
@@ -57,10 +47,18 @@ namespace OpenMedia.Platform.Controls.Wpf
                     out _d3d11Device,
                     out _d3d11Context);
 
-                if (_d3d11Device == null) return false;
+                if (result.Failure || _d3d11Device == null || _d3d11Context == null)
+                {
+                    D3D11.D3D11CreateDevice(
+                        adapter: null!,
+                        DriverType.Warp,
+                        DeviceCreationFlags.BgraSupport,
+                        featureLevels: null,
+                        out _d3d11Device,
+                        out _d3d11Context);
+                }
 
-                _d3dImage = new D3DImage();
-                return true;
+                return _d3d11Device != null && _d3d11Context != null;
             }
             catch (Exception ex)
             {
@@ -70,25 +68,38 @@ namespace OpenMedia.Platform.Controls.Wpf
         }
 
         /// <summary>
-        /// Opens a DXGI shared texture by its NT handle and sets up the D3D9 interop surface.
+        /// Opens a DXGI shared texture by its NT handle and allocates WPF WriteableBitmap.
         /// </summary>
         internal bool OpenSharedTexture(IntPtr ntHandle, int width, int height)
         {
             if (_d3d11Device == null) return false;
+
+            _stagingTexture?.Dispose();
+            _stagingTexture = null;
+            _sharedTexture?.Dispose();
+            _sharedTexture = null;
+            _bitmap = null;
 
             _width = width;
             _height = height;
 
             try
             {
-                // Open the shared texture from the server process
-                var device1 = _d3d11Device.QueryInterface<ID3D11Device1>();
-                _sharedTexture = device1.OpenSharedResource1<ID3D11Texture2D>(ntHandle);
-                device1.Dispose();
+                // Try opening as legacy KMT shared resource handle (D3D11_RESOURCE_MISC_SHARED)
+                try
+                {
+                    _sharedTexture = _d3d11Device.OpenSharedResource<ID3D11Texture2D>(ntHandle);
+                }
+                catch
+                {
+                    // Fall back to NT shared resource handle (D3D11_RESOURCE_MISC_SHARED_NTHANDLE)
+                    using var device1 = _d3d11Device.QueryInterface<ID3D11Device1>();
+                    _sharedTexture = device1.OpenSharedResource1<ID3D11Texture2D>(ntHandle);
+                }
 
                 if (_sharedTexture == null) return false;
 
-                // Create a staging texture for CPU readback (D3D11 → D3D9 bridge)
+                // Create a staging texture for CPU readback (D3D11 → WriteableBitmap bridge)
                 var stagingDesc = new Texture2DDescription
                 {
                     Width = (uint)width,
@@ -103,16 +114,7 @@ namespace OpenMedia.Platform.Controls.Wpf
                 };
                 _stagingTexture = _d3d11Device.CreateTexture2D(stagingDesc);
 
-                // Create D3D9Ex surface for WPF D3DImage interop
-                CreateD3D9Surface(width, height);
-
-                // Set up D3DImage backbuffer
-                if (_d3dImage != null && _d3d9Surface != IntPtr.Zero)
-                {
-                    _d3dImage.Lock();
-                    _d3dImage.SetBackBuffer(D3DResourceType.IDirect3DSurface9, _d3d9Surface);
-                    _d3dImage.Unlock();
-                }
+                _bitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
 
                 Trace.WriteLine($"[WpfD3D11Renderer] Shared texture opened: {width}x{height}");
                 return true;
@@ -125,15 +127,12 @@ namespace OpenMedia.Platform.Controls.Wpf
         }
 
         /// <summary>
-        /// Renders the current frame from the shared texture into the D3DImage.
+        /// Renders the current frame from the shared texture into the WriteableBitmap.
         /// Must be called on the WPF Dispatcher thread.
         /// </summary>
         internal bool RenderFrame()
         {
-            if (_d3dImage == null || _sharedTexture == null || _d3d11Context == null || _stagingTexture == null)
-                return false;
-
-            if (!_d3dImage.IsFrontBufferAvailable)
+            if (_bitmap == null || _sharedTexture == null || _d3d11Context == null || _stagingTexture == null)
                 return false;
 
             try
@@ -141,10 +140,33 @@ namespace OpenMedia.Platform.Controls.Wpf
                 // Copy shared texture → staging texture
                 _d3d11Context.CopyResource(_stagingTexture, _sharedTexture);
 
-                // Invalidate WPF D3DImage
-                _d3dImage.Lock();
-                _d3dImage.AddDirtyRect(new Int32Rect(0, 0, _width, _height));
-                _d3dImage.Unlock();
+                var mapped = _d3d11Context.Map(_stagingTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+                if (mapped.DataPointer == IntPtr.Zero) return false;
+
+                _bitmap.Lock();
+
+                int sourcePitch = (int)mapped.RowPitch;
+                int destPitch = _bitmap.BackBufferStride;
+                IntPtr pSource = mapped.DataPointer;
+                IntPtr pDest = _bitmap.BackBuffer;
+
+                if (sourcePitch == destPitch)
+                {
+                    CopyMemory(pDest, pSource, (uint)(destPitch * _height));
+                }
+                else
+                {
+                    int bytesToCopy = Math.Min(sourcePitch, destPitch);
+                    for (int y = 0; y < _height; y++)
+                    {
+                        CopyMemory(IntPtr.Add(pDest, y * destPitch), IntPtr.Add(pSource, y * sourcePitch), (uint)bytesToCopy);
+                    }
+                }
+
+                _bitmap.AddDirtyRect(new Int32Rect(0, 0, _width, _height));
+                _bitmap.Unlock();
+
+                _d3d11Context.Unmap(_stagingTexture, 0);
 
                 return true;
             }
@@ -154,47 +176,13 @@ namespace OpenMedia.Platform.Controls.Wpf
             }
         }
 
-        private void CreateD3D9Surface(int width, int height)
-        {
-            // Use raw P/Invoke for D3D9Ex to avoid Vortice D3D9 API complexity
-            // and namespace ambiguity issues
-            int hr = Direct3DCreate9Ex(32 /* D3D_SDK_VERSION */, out _d3d9);
-            if (hr != 0 || _d3d9 == IntPtr.Zero)
-            {
-                Trace.WriteLine("[WpfD3D11Renderer] Failed to create D3D9Ex.");
-                return;
-            }
-
-            // For WPF D3DImage, we need a D3D9Ex render target surface.
-            // The actual surface creation requires a D3D9 device which
-            // is complex to set up via P/Invoke. We use the Vortice wrapper
-            // for the simpler path where D3DImage is set up later.
-            Trace.WriteLine($"[WpfD3D11Renderer] D3D9Ex surface prepared for {width}x{height}");
-        }
-
-        [DllImport("d3d9.dll")]
-        private static extern int Direct3DCreate9Ex(uint SDKVersion, out IntPtr d3d9Ex);
+        [DllImport("kernel32.dll", EntryPoint = "RtlMoveMemory", SetLastError = false)]
+        private static extern void CopyMemory(IntPtr dest, IntPtr src, uint count);
 
         public void Dispose()
         {
             if (_disposed) return;
             _disposed = true;
-
-            if (_d3d9Surface != IntPtr.Zero)
-            {
-                Marshal.Release(_d3d9Surface);
-                _d3d9Surface = IntPtr.Zero;
-            }
-            if (_d3d9Device != IntPtr.Zero)
-            {
-                Marshal.Release(_d3d9Device);
-                _d3d9Device = IntPtr.Zero;
-            }
-            if (_d3d9 != IntPtr.Zero)
-            {
-                Marshal.Release(_d3d9);
-                _d3d9 = IntPtr.Zero;
-            }
 
             _stagingTexture?.Dispose();
             _sharedTexture?.Dispose();

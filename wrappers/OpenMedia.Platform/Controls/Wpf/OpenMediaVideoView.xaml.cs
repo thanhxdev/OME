@@ -47,18 +47,24 @@ namespace OpenMedia.Platform.Controls.Wpf
             Unloaded += OnUnloaded;
         }
 
+        private bool EnsureRendererInitialized()
+        {
+            if (_renderer == null)
+            {
+                _renderer = new WpfD3D11Renderer();
+                if (!_renderer.Initialize())
+                {
+                    Trace.WriteLine("[OpenMediaVideoView] Failed to initialize renderer.");
+                    _renderer = null;
+                    return false;
+                }
+            }
+            return true;
+        }
+
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
-            _renderer = new WpfD3D11Renderer();
-            if (!_renderer.Initialize())
-            {
-                Trace.WriteLine("[OpenMediaVideoView] Failed to initialize renderer.");
-                return;
-            }
-
-            // Create D3DImage in code-behind and set as Image source
-            _d3dImage = new D3DImage();
-            VideoImage.Source = _d3dImage;
+            EnsureRendererInitialized();
         }
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -71,16 +77,17 @@ namespace OpenMedia.Platform.Controls.Wpf
         /// <inheritdoc />
         public void Attach(IntPtr sharedTextureHandle, int width, int height)
         {
-            if (_renderer == null || _d3dImage == null || _isAttached) return;
+            if (!EnsureRendererInitialized() || _renderer == null) return;
+            if (_isAttached)
+            {
+                Detach();
+            }
 
             if (_renderer.OpenSharedTexture(sharedTextureHandle, width, height))
             {
-                // Set up D3DImage backbuffer
-                if (_renderer.D3D9SurfacePtr != IntPtr.Zero)
+                if (_renderer.Bitmap != null)
                 {
-                    _d3dImage.Lock();
-                    _d3dImage.SetBackBuffer(D3DResourceType.IDirect3DSurface9, _renderer.D3D9SurfacePtr);
-                    _d3dImage.Unlock();
+                    VideoImage.Source = _renderer.Bitmap;
                 }
 
                 CompositionTarget.Rendering += OnRendering;
