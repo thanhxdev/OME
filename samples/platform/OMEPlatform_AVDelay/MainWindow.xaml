@@ -41,6 +41,8 @@
             
             <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10" Background="#80000000">
                 <TextBlock x:Name="StatusOverlay" Text="Status: Initializing..." Padding="5" Foreground="#00FF00" FontFamily="Consolas" FontWeight="Bold"/>
+                <TextBlock x:Name="AudioTimecodeOverlay" Text="Audio TC: 00:00:00.000" Padding="5" Foreground="#00AAFF" FontFamily="Consolas" FontWeight="Bold"/>
+                <TextBlock x:Name="VideoTimecodeOverlay" Text="Video TC: 00:00:00.000" Padding="5" Foreground="#FFAA00" FontFamily="Consolas" FontWeight="Bold"/>
             </StackPanel>
         </Grid>
 

@@ -176,6 +176,17 @@ namespace OMEPlatform_AVDelay
                         DurationText.Text = _player.Duration.ToString(@"hh\:mm\:ss\.fff");
                         SeekSlider.Value = (position.TotalMilliseconds / _player.Duration.TotalMilliseconds) * 100.0;
                     }
+
+                    if (_player != null)
+                    {
+                        var audioPos = position.Add(TimeSpan.FromMilliseconds(_player.AudioDelayMs + _player.MasterDelayMs));
+                        if (audioPos < TimeSpan.Zero) audioPos = TimeSpan.Zero;
+                        AudioTimecodeOverlay.Text = $"Audio TC: {audioPos:hh\\:mm\\:ss\\.fff}";
+
+                        var videoPos = position.Add(TimeSpan.FromMilliseconds(_player.VideoDelayMs + _player.MasterDelayMs));
+                        if (videoPos < TimeSpan.Zero) videoPos = TimeSpan.Zero;
+                        VideoTimecodeOverlay.Text = $"Video TC: {videoPos:hh\\:mm\\:ss\\.fff}";
+                    }
                 });
             }
         }
