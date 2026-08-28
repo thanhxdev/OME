@@ -203,5 +203,18 @@ namespace OpenMedia.Platform.Internal
             b.WriteF64(volume);
             return b.ToArray();
         }
+
+        /// <summary>
+        /// Builds a SetAVDelay command payload.
+        /// </summary>
+        internal static byte[] SetAVDelay(uint pipelineId, int videoDelayMs, int audioDelayMs, int masterDelayMs)
+        {
+            var b = new MessageBuilder();
+            b.WriteU32(pipelineId);
+            b.WriteI32(videoDelayMs);
+            b.WriteI32(audioDelayMs);
+            b.WriteI32(masterDelayMs);
+            return b.ToArray();
+        }
     }
 }

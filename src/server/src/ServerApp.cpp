@@ -73,6 +73,11 @@ struct ServerApp::Impl {
     std::atomic<float> audioVolume{1.0f};
     std::atomic<double> currentPlaybackPositionSec{0.0};
 
+    // Delay parameters
+    std::atomic<int32_t> videoDelayMs{0};
+    std::atomic<int32_t> audioDelayMs{0};
+    std::atomic<int32_t> masterDelayMs{0};
+
     ~Impl() {
         if (pipelineRunning.exchange(false)) {
             if (renderThread.joinable()) {
@@ -586,6 +591,30 @@ void ServerApp::RegisterBuiltinHandlers() {
 
             core::Logger::SInfo("ServerApp", "SetLayerProperties: pipeline {} layer {} muted={} volume={}",
                 pipelineId, layerIndex, muted, m_impl->audioVolume.load());
+            return std::vector<uint8_t>{};
+        });
+
+    // Pipeline: SetAVDelay
+    dispatcher.Register(ipc::CommandType::SetAVDelay,
+        [this](uint32_t, const std::vector<uint8_t>& payload)
+            -> core::Result<std::vector<uint8_t>> {
+            ipc::MessageReader reader(payload);
+            uint32_t pipelineId = reader.ReadU32();
+            int32_t videoDelay = reader.ReadI32();
+            int32_t audioDelay = reader.ReadI32();
+            int32_t masterDelay = reader.ReadI32();
+            
+            if (reader.HasError()) {
+                return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload for SetAVDelay"});
+            }
+
+            m_impl->videoDelayMs.store(videoDelay);
+            m_impl->audioDelayMs.store(audioDelay);
+            m_impl->masterDelayMs.store(masterDelay);
+
+            core::Logger::SInfo("ServerApp", "SetAVDelay: pipeline {} v={}ms a={}ms m={}ms",
+                pipelineId, videoDelay, audioDelay, masterDelay);
+            
             return std::vector<uint8_t>{};
         });
 

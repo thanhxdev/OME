@@ -31,6 +31,7 @@ enum class CommandType : uint32_t {
     ResumePipeline = 0x0105,
     GetPipelineState = 0x0106,
     GetPipelineInfo = 0x0107,
+    SetAVDelay = 0x0108,
 
     // Source commands (0x0200-0x02FF)
     OpenSource = 0x0200,
@@ -144,6 +145,7 @@ struct ResponseHeader {
         case CommandType::ResumePipeline:   return "ResumePipeline";
         case CommandType::GetPipelineState: return "GetPipelineState";
         case CommandType::GetPipelineInfo:  return "GetPipelineInfo";
+        case CommandType::SetAVDelay:       return "SetAVDelay";
         
         // Source
         case CommandType::OpenSource:       return "OpenSource";

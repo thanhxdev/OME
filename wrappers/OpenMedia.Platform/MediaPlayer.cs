@@ -103,6 +103,69 @@ namespace OpenMedia.Platform
             }
         }
 
+        private int _videoDelayMs = 0;
+        private int _audioDelayMs = 0;
+        private int _masterDelayMs = 0;
+
+        /// <summary>
+        /// Current Video Delay in milliseconds.
+        /// </summary>
+        public int VideoDelayMs => _videoDelayMs;
+
+        public void SetVideoDelayMs(int delayMs)
+        {
+            if (_videoDelayMs != delayMs)
+            {
+                _videoDelayMs = delayMs;
+                _ = UpdateServerDelayAsync();
+            }
+        }
+
+        /// <summary>
+        /// Current Audio Delay in milliseconds.
+        /// </summary>
+        public int AudioDelayMs => _audioDelayMs;
+
+        public void SetAudioDelayMs(int delayMs)
+        {
+            if (_audioDelayMs != delayMs)
+            {
+                _audioDelayMs = delayMs;
+                _ = UpdateServerDelayAsync();
+            }
+        }
+
+        /// <summary>
+        /// Current Master Delay (A/V) in milliseconds.
+        /// </summary>
+        public int MasterDelayMs => _masterDelayMs;
+
+        public void SetMasterDelayMs(int delayMs)
+        {
+            if (_masterDelayMs != delayMs)
+            {
+                _masterDelayMs = delayMs;
+                _ = UpdateServerDelayAsync();
+            }
+        }
+
+        private async Task UpdateServerDelayAsync()
+        {
+            if (!_pipelineCreated || !OpenMediaRuntime.IsConnected) return;
+
+            try
+            {
+                var payload = IPCCommandBuilder.SetAVDelay(_pipelineId, _videoDelayMs, _audioDelayMs, _masterDelayMs);
+                await OpenMediaRuntime.SendCommandAsync(CommandType.SetAVDelay, payload);
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"[MediaPlayer] Failed to update AV Delay: {ex.Message}");
+            }
+        }
+
+
+
         /// <summary>
         /// Current playback state.
         /// </summary>
