@@ -1,0 +1,1091 @@
+<Window x:Class="SRT_ENCODE.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:om="clr-namespace:OpenMedia.Platform.Controls.Wpf;assembly=OpenMedia.Platform"
+        xmlns:local="clr-namespace:SRT_ENCODE"
+        mc:Ignorable="d"
+        Title="OME Broadcast Live Encoder - SRT Professional Transmitter"
+        Height="860" Width="1380"
+        MinHeight="720" MinWidth="1100"
+        WindowStartupLocation="CenterScreen"
+        Background="#121212"
+        Foreground="#E0E0E0">
+
+    <Window.Resources>
+        <!-- Custom Styles -->
+        <Style x:Key="HeaderLabelStyle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="#9E9E9E"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+
+        <Style x:Key="ValueLabelStyle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+        </Style>
+
+        <Style x:Key="DarkCardBorderStyle" TargetType="Border">
+            <Setter Property="Background" Value="#1E1E1E"/>
+            <Setter Property="BorderBrush" Value="#2D2D30"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="12"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+
+        <!-- Toggle Switch CheckBox Style -->
+        <Style x:Key="ToggleSwitchStyle" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#E0E0E0"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Grid Width="44" Height="22" Margin="0,0,10,0">
+                                <Border x:Name="Track" Background="#3A3A3C" CornerRadius="11" />
+                                <Ellipse x:Name="Thumb" Width="16" Height="16" Fill="#E0E0E0" HorizontalAlignment="Left" Margin="3,0,0,0" />
+                            </Grid>
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="#007ACC"/>
+                                <Setter TargetName="Thumb" Property="Fill" Value="#FFFFFF"/>
+                                <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
+                                <Setter TargetName="Thumb" Property="Margin" Value="0,0,3,0"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ComboBoxItem Dark Style -->
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Background" Value="#252526"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3E3E42"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#007ACC"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsSelected" Value="True"/>
+                                    <Condition Property="IsHighlighted" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Bd" Property="Background" Value="#1C97EA"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </MultiTrigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#666666"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ComboBox ToggleButton Style -->
+        <ControlTemplate x:Key="ComboBoxToggleButtonTemplate" TargetType="ToggleButton">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition />
+                    <ColumnDefinition Width="24" />
+                </Grid.ColumnDefinitions>
+                <Border x:Name="Border"
+                        Grid.ColumnSpan="2"
+                        CornerRadius="4"
+                        Background="#252526"
+                        BorderBrush="#3F3F46"
+                        BorderThickness="1" />
+                <Path x:Name="Arrow"
+                      Grid.Column="1"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center"
+                      Data="M 0 0 L 4 4 L 8 0 Z"
+                      Fill="#CCCCCC" />
+            </Grid>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Border" Property="Background" Value="#2D2D30" />
+                    <Setter TargetName="Border" Property="BorderBrush" Value="#007ACC" />
+                    <Setter TargetName="Arrow" Property="Fill" Value="#FFFFFF" />
+                </Trigger>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter TargetName="Border" Property="Background" Value="#2D2D30" />
+                    <Setter TargetName="Border" Property="BorderBrush" Value="#007ACC" />
+                    <Setter TargetName="Arrow" Property="Fill" Value="#007ACC" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter TargetName="Border" Property="Background" Value="#1E1E1E" />
+                    <Setter TargetName="Border" Property="BorderBrush" Value="#2D2D30" />
+                    <Setter TargetName="Arrow" Property="Fill" Value="#555555" />
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <!-- Modern Dark ComboBox Style with Dark Popup Dropdown -->
+        <Style TargetType="ComboBox">
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="ScrollViewer.CanContentScroll" Value="True"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="ToggleButton"
+                                          Template="{StaticResource ComboBoxToggleButtonTemplate}"
+                                          Focusable="false"
+                                          IsChecked="{Binding Path=IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                          ClickMode="Press"/>
+                            <ContentPresenter x:Name="ContentSite"
+                                              IsHitTestVisible="False"
+                                              Content="{TemplateBinding SelectionBoxItem}"
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                              Margin="8,3,28,3"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="Left">
+                                <ContentPresenter.Resources>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="#FFFFFF"/>
+                                    </Style>
+                                </ContentPresenter.Resources>
+                            </ContentPresenter>
+                            <Popup x:Name="Popup"
+                                   Placement="Bottom"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   PopupAnimation="Slide">
+                                <Grid x:Name="DropDown"
+                                      SnapsToDevicePixels="True"
+                                      MinWidth="{TemplateBinding ActualWidth}"
+                                      MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                    <Border x:Name="DropDownBorder"
+                                            Background="#1E1E1E"
+                                            BorderThickness="1"
+                                            BorderBrush="#007ACC"
+                                            CornerRadius="4"
+                                            Margin="0,2,0,4">
+                                        <ScrollViewer Margin="2" SnapsToDevicePixels="True">
+                                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained" />
+                                        </ScrollViewer>
+                                    </Border>
+                                </Grid>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="HasItems" Value="false">
+                                <Setter TargetName="DropDownBorder" Property="MinHeight" Value="30"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="false">
+                                <Setter Property="Foreground" Value="#666666"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Modern Dark TextBox -->
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#252526"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="CaretBrush" Value="#007ACC"/>
+            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <!-- Modern Button Style -->
+        <Style x:Key="ActionButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#2D2D30"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#3E3E42"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="btnBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="btnBorder" Property="Background" Value="#3E3E42"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="btnBorder" Property="Background" Value="#007ACC"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- 0: Header & Status Bar -->
+            <RowDefinition Height="Auto"/>
+            <!-- 1: Main Content (2 Columns) -->
+            <RowDefinition Height="*"/>
+            <!-- 2: Master Control Bar -->
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             TOP HEADER & MASTER STATUS BAR
+             ════════════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="0" Background="#181818" BorderBrush="#2D2D30" BorderThickness="0,0,0,1" Padding="14,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Brand / App Title -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="#007ACC" CornerRadius="4" Padding="6,3" Margin="0,0,10,0">
+                        <TextBlock Text="SRT LIVE" FontWeight="Bold" FontSize="12" Foreground="White"/>
+                    </Border>
+                    <TextBlock Text="OME Broadcast Live Encoder" FontSize="17" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center"/>
+                    <Border Background="#2A2A2E" CornerRadius="3" Padding="5,2" Margin="10,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="PRO v1.0" FontSize="10" FontWeight="SemiBold" Foreground="#4EC9B0"/>
+                    </Border>
+                </StackPanel>
+
+                <!-- Center: Engine & Transmission Status Chips -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <!-- Engine Connection Status -->
+                    <Border Background="#252526" CornerRadius="12" Padding="10,4" Margin="0,0,12,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse x:Name="LedEngineStatus" Width="9" Height="9" Fill="#F44336" Margin="0,0,6,0"/>
+                            <TextBlock x:Name="TxtEngineStatus" Text="Engine: Disconnected" FontSize="12" Foreground="#CCCCCC"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- SRT State Indicator -->
+                    <Border Background="#252526" CornerRadius="12" Padding="10,4" Margin="0,0,12,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse x:Name="LedSrtStatus" Width="9" Height="9" Fill="#9E9E9E" Margin="0,0,6,0"/>
+                            <TextBlock x:Name="TxtSrtStatus" Text="SRT: Idle" FontSize="12" FontWeight="SemiBold" Foreground="#CCCCCC"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Low Latency Badge -->
+                    <Border x:Name="BadgeLowLatency" Background="#1E3A2F" BorderBrush="#2E7D32" BorderThickness="1" CornerRadius="12" Padding="8,4" Margin="0,0,12,0" Visibility="Visible">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⚡" Margin="0,0,4,0"/>
+                            <TextBlock Text="ULL ENABLED (B=0, GOP=1s)" FontSize="11" FontWeight="Bold" Foreground="#81C784"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- NTP Wall-Clock Sync Badge -->
+                    <Border x:Name="BadgeNtpSync" Background="#372D1E" BorderBrush="#F57C00" BorderThickness="1" CornerRadius="12" Padding="8,4" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="🕒" Margin="0,0,4,0"/>
+                            <TextBlock Text="NTP WALL-CLOCK SYNC" FontSize="11" FontWeight="Bold" Foreground="#FFB74D"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Right: Master UTC Clock -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="UTC TIMECODE:" FontSize="11" Foreground="#9E9E9E" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <Border Background="#0A0A0A" BorderBrush="#333333" BorderThickness="1" CornerRadius="4" Padding="8,3">
+                        <TextBlock x:Name="TxtMasterUtcTime" Text="00:00:00.000" FontFamily="Consolas, Monospace" FontSize="14" FontWeight="Bold" Foreground="#00E676"/>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             MAIN CONTENT AREA (2 COLUMNS: LEFT PREVIEW/MCR, RIGHT TABS CONFIG)
+             ════════════════════════════════════════════════════════════════ -->
+        <Grid Grid.Row="1" Margin="10">
+            <Grid.ColumnDefinitions>
+                <!-- Left: Video Preview & VU Meters & Log (Approx 58%) -->
+                <ColumnDefinition Width="6.5*"/>
+                <ColumnDefinition Width="8"/>
+                <!-- Right: Configuration Tabs (Approx 42%) -->
+                <ColumnDefinition Width="4.5*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- ────────────────────────────────────────────────────────────
+                 LEFT COLUMN: PREVIEW SCREEN, AUDIO VU METERS, LOG CONSOLE
+                 ──────────────────────────────────────────────────────────── -->
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <!-- Video Preview Screen & HUD -->
+                    <RowDefinition Height="3.2*"/>
+                    <!-- Audio VU Meter Bar -->
+                    <RowDefinition Height="Auto"/>
+                    <!-- Preview Toggles & Monitoring Bar -->
+                    <RowDefinition Height="Auto"/>
+                    <!-- Activity Log Console -->
+                    <RowDefinition Height="1.2*"/>
+                </Grid.RowDefinitions>
+
+                <!-- 1. Video Display Area with DirectX11 Zero-Copy View & Overlay HUD -->
+                <Border Grid.Row="0" Background="#000000" BorderBrush="#2D2D30" BorderThickness="1" CornerRadius="6" Margin="0,0,0,6" ClipToBounds="True">
+                    <Grid>
+                        <!-- DirectX 11 Hardware Render View -->
+                        <om:OpenMediaVideoView x:Name="ReviewView" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+
+                        <!-- Preview Disabled Placeholder Screen -->
+                        <Grid x:Name="PnlPreviewDisabled" Background="#111111" Visibility="Collapsed">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock Text="📺" FontSize="42" HorizontalAlignment="Center" Margin="0,0,0,8" Opacity="0.5"/>
+                                <TextBlock Text="VIDEO PREVIEW MUTED (SAVING GPU)" FontSize="13" FontWeight="SemiBold" Foreground="#888888" HorizontalAlignment="Center"/>
+                                <TextBlock Text="Encoder &amp; SRT Transmission are still actively running." FontSize="11" Foreground="#555555" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Source Watermark Badge (Top Left) -->
+                        <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12,12,0,0" Background="#90000000" CornerRadius="4" Padding="8,4">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse x:Name="LedLiveInput" Width="8" Height="8" Fill="#00E676" Margin="0,0,6,0"/>
+                                <TextBlock x:Name="TxtActiveSourceBadge" Text="INPUT: SDI 1 (1080p59.94)" FontSize="11" FontWeight="Bold" Foreground="#FFFFFF"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Telemetry HUD Overlay (Semi-transparent overlay over video) -->
+                        <Border x:Name="OverlayTelemetry" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,12,0" Background="#B0121214" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="6" Padding="10,8" Visibility="Visible">
+                            <StackPanel Width="230">
+                                <TextBlock Text="REAL-TIME SRT TELEMETRY" FontSize="10" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,0,6"/>
+
+                                <!-- RTT -->
+                                <Grid Margin="0,2">
+                                    <TextBlock Text="⏱️ RTT (Latency):" FontSize="11" Foreground="#CCCCCC"/>
+                                    <TextBlock x:Name="TxtHudRtt" Text="0 ms" HorizontalAlignment="Right" FontSize="12" FontWeight="Bold" Foreground="#00E676"/>
+                                </Grid>
+
+                                <!-- Packet Loss -->
+                                <Grid Margin="0,2">
+                                    <TextBlock Text="📉 Packet Loss:" FontSize="11" Foreground="#CCCCCC"/>
+                                    <TextBlock x:Name="TxtHudLoss" Text="0.0 %" HorizontalAlignment="Right" FontSize="12" FontWeight="Bold" Foreground="#00E676"/>
+                                </Grid>
+
+                                <!-- Live Bitrate -->
+                                <Grid Margin="0,2">
+                                    <TextBlock Text="🚀 Live Bitrate:" FontSize="11" Foreground="#CCCCCC"/>
+                                    <TextBlock x:Name="TxtHudBitrate" Text="0 kbps" HorizontalAlignment="Right" FontSize="12" FontWeight="Bold" Foreground="#00E676"/>
+                                </Grid>
+
+                                <!-- Encoder FPS / Drop -->
+                                <Grid Margin="0,2">
+                                    <TextBlock Text="🎞️ FPS / Drop:" FontSize="11" Foreground="#CCCCCC"/>
+                                    <TextBlock x:Name="TxtHudFps" Text="60.0 FPS (Drop: 0)" HorizontalAlignment="Right" FontSize="11" FontWeight="SemiBold" Foreground="#FFFFFF"/>
+                                </Grid>
+
+                                <!-- Timecode PTS -->
+                                <Grid Margin="0,2">
+                                    <TextBlock Text="🕒 Master PTS:" FontSize="11" Foreground="#CCCCCC"/>
+                                    <TextBlock x:Name="TxtHudPts" Text="00:00:00.000" FontFamily="Consolas, Monospace" HorizontalAlignment="Right" FontSize="11" FontWeight="Bold" Foreground="#FFD54F"/>
+                                </Grid>
+
+                                <Separator Background="#333333" Margin="0,4"/>
+
+                                <!-- SRT Security Status -->
+                                <Grid Margin="0,1">
+                                    <TextBlock Text="🔒 Encryption:" FontSize="10" Foreground="#888888"/>
+                                    <TextBlock x:Name="TxtHudEncryption" Text="None" HorizontalAlignment="Right" FontSize="10" FontWeight="SemiBold" Foreground="#888888"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- 2. Audio VU Meter Multi-Channel Bar -->
+                <Border Grid.Row="1" Style="{StaticResource DarkCardBorderStyle}" Margin="0,0,0,6" Padding="10,6">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Header & Channel Selector -->
+                        <Grid Grid.Row="0" Margin="0,0,0,4">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="AUDIO VU METERS" FontWeight="Bold" FontSize="11" Foreground="#9E9E9E" Margin="0,0,10,0"/>
+                                <TextBlock x:Name="TxtAudioPeakSummary" Text="Peak: L -18.2 dB | R -18.0 dB" FontSize="11" Foreground="#4EC9B0"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <TextBlock Text="Scale: -inf to 0 dBFS" FontSize="10" Foreground="#666666" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- VU Channels Grid (4 Channels Stereo + Aux) -->
+                        <Grid Grid.Row="1">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Channel 1 (Left) -->
+                            <Grid Grid.Row="0" Margin="0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="35"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="55"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="CH 1 (L)" FontSize="10" FontWeight="SemiBold" Foreground="#AAAAAA" VerticalAlignment="Center"/>
+                                <ProgressBar x:Name="VuBarCh1" Grid.Column="1" Height="10" Minimum="-60" Maximum="0" Value="-18" Foreground="#4CAF50" Background="#222222" BorderThickness="0"/>
+                                <TextBlock x:Name="TxtVuCh1" Grid.Column="2" Text="-18.2 dB" FontSize="10" Foreground="#00E676" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <!-- Channel 2 (Right) -->
+                            <Grid Grid.Row="1" Margin="0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="35"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="55"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="CH 2 (R)" FontSize="10" FontWeight="SemiBold" Foreground="#AAAAAA" VerticalAlignment="Center"/>
+                                <ProgressBar x:Name="VuBarCh2" Grid.Column="1" Height="10" Minimum="-60" Maximum="0" Value="-18" Foreground="#4CAF50" Background="#222222" BorderThickness="0"/>
+                                <TextBlock x:Name="TxtVuCh2" Grid.Column="2" Text="-18.0 dB" FontSize="10" Foreground="#00E676" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <!-- Channel 3 (Aux 1) -->
+                            <Grid Grid.Row="2" Margin="0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="35"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="55"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="CH 3" FontSize="10" FontWeight="SemiBold" Foreground="#AAAAAA" VerticalAlignment="Center"/>
+                                <ProgressBar x:Name="VuBarCh3" Grid.Column="1" Height="8" Minimum="-60" Maximum="0" Value="-32" Foreground="#4CAF50" Background="#222222" BorderThickness="0"/>
+                                <TextBlock x:Name="TxtVuCh3" Grid.Column="2" Text="-32.5 dB" FontSize="10" Foreground="#888888" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <!-- Channel 4 (Aux 2) -->
+                            <Grid Grid.Row="3" Margin="0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="35"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="55"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="CH 4" FontSize="10" FontWeight="SemiBold" Foreground="#AAAAAA" VerticalAlignment="Center"/>
+                                <ProgressBar x:Name="VuBarCh4" Grid.Column="1" Height="8" Minimum="-60" Maximum="0" Value="-32" Foreground="#4CAF50" Background="#222222" BorderThickness="0"/>
+                                <TextBlock x:Name="TxtVuCh4" Grid.Column="2" Text="-32.5 dB" FontSize="10" Foreground="#888888" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <!-- 3. Preview & Monitoring Toggles -->
+                <Border Grid.Row="2" Style="{StaticResource DarkCardBorderStyle}" Margin="0,0,0,6" Padding="10,6">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Toggle Video Preview -->
+                        <CheckBox x:Name="ChkEnableVideoPreview" Grid.Column="0" Content="Enable Video Preview" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkEnableVideoPreview_Changed" Unchecked="ChkEnableVideoPreview_Changed" Margin="0,0,16,0"/>
+
+                        <!-- Toggle Audio Monitor -->
+                        <CheckBox x:Name="ChkEnableAudioMonitor" Grid.Column="1" Content="Enable Audio Monitor" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkEnableAudioMonitor_Changed" Unchecked="ChkEnableAudioMonitor_Changed" Margin="0,0,16,0"/>
+
+                        <!-- Toggle Telemetry HUD -->
+                        <CheckBox x:Name="ChkShowTelemetry" Grid.Column="2" Content="Show Telemetry Overlay" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkShowTelemetry_Changed" Unchecked="ChkShowTelemetry_Changed" Margin="0,0,16,0"/>
+
+                        <!-- Volume Slider -->
+                        <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="🔈 Monitor Vol:" FontSize="11" Foreground="#9E9E9E" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <Slider x:Name="SldMonitorVolume" Width="80" Minimum="0" Maximum="1" Value="0.8" ValueChanged="SldMonitorVolume_ValueChanged" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtMonitorVolumeVal" Text="80%" FontSize="11" Foreground="#FFFFFF" Width="30" TextAlignment="Right" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- 4. Activity Log Console -->
+                <Border Grid.Row="3" Background="#181818" BorderBrush="#2D2D30" BorderThickness="1" CornerRadius="6" Padding="10">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0" Margin="0,0,0,6">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="EVENT &amp; BROADCAST LOG CONSOLE" FontWeight="Bold" FontSize="11" Foreground="#9E9E9E"/>
+                            </StackPanel>
+                            <Button Content="Clear Logs" Style="{StaticResource ActionButtonStyle}" HorizontalAlignment="Right" Padding="8,2" FontSize="11" Click="BtnClearLog_Click"/>
+                        </Grid>
+
+                        <ScrollViewer x:Name="ScrollerLogs" Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                            <TextBox x:Name="TxtLogConsole" Background="Transparent" Foreground="#D4D4D4" BorderThickness="0" FontFamily="Consolas, Monospace" FontSize="11" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"/>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Splitter Line -->
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Center" Background="#2D2D30"/>
+
+            <!-- ────────────────────────────────────────────────────────────
+                 RIGHT COLUMN: CONFIGURATION TABS
+                 ──────────────────────────────────────────────────────────── -->
+            <Grid Grid.Column="2">
+                <TabControl Background="#1E1E1E" BorderBrush="#2D2D30" Foreground="#E0E0E0">
+                    <!-- Tab Style Customization -->
+                    <TabControl.Resources>
+                        <Style TargetType="TabItem">
+                            <Setter Property="Background" Value="#252526"/>
+                            <Setter Property="Foreground" Value="#CCCCCC"/>
+                            <Setter Property="BorderBrush" Value="#2D2D30"/>
+                            <Setter Property="Padding" Value="12,8"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                            <Setter Property="FontSize" Value="12"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="TabItem">
+                                        <Border x:Name="Border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1,1,1,0" CornerRadius="4,4,0,0" Margin="0,0,2,0" Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="Border" Property="Background" Value="#1E1E1E"/>
+                                                <Setter Property="Foreground" Value="#007ACC"/>
+                                                <Setter TargetName="Border" Property="BorderBrush" Value="#007ACC"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </TabControl.Resources>
+
+                    <!-- ════════════════════════════════════════════════════
+                         TAB 1: INPUT SOURCE SELECTION (DEFAULT: SDI)
+                         ════════════════════════════════════════════════════ -->
+                    <TabItem Header="📡 1. Input Source">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="SELECT BROADCAST VIDEO SOURCE" FontWeight="Bold" FontSize="14" Foreground="#FFFFFF" Margin="0,0,0,4"/>
+                                <TextBlock Text="Choose your capture device, live IP feed, media file or SMPTE pattern." FontSize="11" Foreground="#888888" Margin="0,0,0,12"/>
+
+                                <!-- Source Option 1: SDI Input (Default) -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <StackPanel>
+                                        <RadioButton x:Name="RadSourceSdi" GroupName="InputSourceGroup" IsChecked="True" Checked="InputSource_SelectionChanged">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="📡 SDI Input (Blackmagic DeckLink / AJA)" FontWeight="Bold" FontSize="13" Foreground="#FFFFFF"/>
+                                                <Border Background="#007ACC" CornerRadius="3" Padding="4,1" Margin="8,0,0,0">
+                                                    <TextBlock Text="DEFAULT" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                                                </Border>
+                                            </StackPanel>
+                                        </RadioButton>
+
+                                        <StackPanel x:Name="PnlSdiConfig" Margin="24,10,0,0">
+                                            <TextBlock Text="Capture Card Device:" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <ComboBox x:Name="CmbSdiDevices" Grid.Column="0" Margin="0,0,8,0"/>
+                                                <Button Grid.Column="1" Content="🔄 Scan Cards" Style="{StaticResource ActionButtonStyle}" Click="BtnScanSdi_Click"/>
+                                            </Grid>
+
+                                            <Grid Margin="0,8,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                                    <TextBlock Text="Video Mode:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                    <ComboBox x:Name="CmbSdiVideoMode">
+                                                        <ComboBoxItem Content="1080p 59.94 fps" IsSelected="True"/>
+                                                        <ComboBoxItem Content="1080p 50 fps"/>
+                                                        <ComboBoxItem Content="1080p 29.97 fps"/>
+                                                        <ComboBoxItem Content="1080i 59.94 fps"/>
+                                                        <ComboBoxItem Content="2160p 59.94 fps (4K)"/>
+                                                    </ComboBox>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                                                    <TextBlock Text="Audio Channels:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                    <ComboBox x:Name="CmbSdiAudioCh">
+                                                        <ComboBoxItem Content="Stereo (2 Ch)" IsSelected="True"/>
+                                                        <ComboBoxItem Content="4 Channels"/>
+                                                        <ComboBoxItem Content="8 Channels (SDI Embedded)"/>
+                                                        <ComboBoxItem Content="16 Channels"/>
+                                                    </ComboBox>
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Source Option 2: NDI Input -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <StackPanel>
+                                        <RadioButton x:Name="RadSourceNdi" GroupName="InputSourceGroup" Checked="InputSource_SelectionChanged">
+                                            <TextBlock Text="🌐 NDI Input (Network Live Source)" FontWeight="Bold" FontSize="13" Foreground="#FFFFFF"/>
+                                        </RadioButton>
+
+                                        <StackPanel x:Name="PnlNdiConfig" Margin="24,10,0,0" IsEnabled="False">
+                                            <TextBlock Text="Discovered NDI Sources on LAN:" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <ComboBox x:Name="CmbNdiSources" Grid.Column="0" Margin="0,0,8,0"/>
+                                                <Button Grid.Column="1" Content="🔄 Find NDI" Style="{StaticResource ActionButtonStyle}" Click="BtnScanNdi_Click"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Source Option 3: File Input -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <StackPanel>
+                                        <RadioButton x:Name="RadSourceFile" GroupName="InputSourceGroup" Checked="InputSource_SelectionChanged">
+                                            <TextBlock Text="📁 File Input (.mp4, .mov, .mkv, .ts)" FontWeight="Bold" FontSize="13" Foreground="#FFFFFF"/>
+                                        </RadioButton>
+
+                                        <StackPanel x:Name="PnlFileConfig" Margin="24,10,0,0" IsEnabled="False">
+                                            <TextBlock Text="Media File Path:" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox x:Name="TxtFilePath" Grid.Column="0" Margin="0,0,8,0" Text=""/>
+                                                <Button Grid.Column="1" Content="📂 Browse..." Style="{StaticResource ActionButtonStyle}" Click="BtnBrowseFile_Click"/>
+                                            </Grid>
+
+                                            <CheckBox x:Name="ChkLoopFile" Content="Auto Loop Playback" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Margin="0,8,0,0"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Source Option 4: Colorbar & 1kHz Voice with Time UTC -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <StackPanel>
+                                        <RadioButton x:Name="RadSourceColorbar" GroupName="InputSourceGroup" Checked="InputSource_SelectionChanged">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="🎨 Colorbar &amp; 1kHz Tone with Time UTC" FontWeight="Bold" FontSize="13" Foreground="#FFFFFF"/>
+                                                <Border Background="#388E3C" CornerRadius="3" Padding="4,1" Margin="8,0,0,0">
+                                                    <TextBlock Text="SMPTE PATTERN" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                                                </Border>
+                                            </StackPanel>
+                                        </RadioButton>
+
+                                        <StackPanel x:Name="PnlColorbarConfig" Margin="24,10,0,0" IsEnabled="False">
+                                            <TextBlock Text="Test Signal Parameters:" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                                    <TextBlock Text="Pattern Type:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                    <ComboBox x:Name="CmbColorbarPattern">
+                                                        <ComboBoxItem Content="SMPTE RP 219 Color Bars" IsSelected="True"/>
+                                                        <ComboBoxItem Content="EBU 100% Color Bars"/>
+                                                        <ComboBoxItem Content="Grid Alignment Pattern"/>
+                                                    </ComboBox>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                                                    <TextBlock Text="Audio Test Tone:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                    <ComboBox x:Name="CmbAudioTone">
+                                                        <ComboBoxItem Content="1 kHz Sine (-18 dBFS)" IsSelected="True"/>
+                                                        <ComboBoxItem Content="1 kHz Sine (-20 dBFS)"/>
+                                                        <ComboBoxItem Content="400 Hz Tone (GLITS)"/>
+                                                        <ComboBoxItem Content="EBU Tone Ident"/>
+                                                    </ComboBox>
+                                                </StackPanel>
+                                            </Grid>
+                                            <TextBlock Text="* Live UTC Timecode is automatically burnt directly onto frame." FontSize="11" Foreground="#4EC9B0" Margin="0,6,0,0"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- ════════════════════════════════════════════════════
+                         TAB 2: SRT TRANSMISSION PROTOCOL CONFIG
+                         ════════════════════════════════════════════════════ -->
+                    <TabItem Header="🌐 2. SRT Config">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="SRT TRANSMISSION PROTOCOL SETTINGS" FontWeight="Bold" FontSize="14" Foreground="#FFFFFF" Margin="0,0,0,4"/>
+                                <TextBlock Text="Configure transport mode, destination endpoint, auto latency and AES encryption." FontSize="11" Foreground="#888888" Margin="0,0,0,12"/>
+
+                                <!-- SRT Mode & Compression -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                            <TextBlock Text="SRT Connection Mode:" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <ComboBox x:Name="CmbSrtMode">
+                                                <ComboBoxItem Content="Caller (Connect to Studio)" IsSelected="True"/>
+                                                <ComboBoxItem Content="Listener (Wait for Incoming)"/>
+                                                <ComboBoxItem Content="Rendezvous (P2P Firewall Traversal)"/>
+                                            </ComboBox>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                            <TextBlock Text="Video Compression Codec:" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <ComboBox x:Name="CmbVideoCodec">
+                                                <ComboBoxItem Content="H.264 / AVC (Default)" IsSelected="True"/>
+                                                <ComboBoxItem Content="H.265 / HEVC (Ultra High Efficiency)"/>
+                                            </ComboBox>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Target Network Endpoint & Stream ID -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2.5*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                <TextBlock Text="IP Address / Host:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <TextBox x:Name="TxtSrtIp" Text="127.0.0.1"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                <TextBlock Text="Port (UDP):" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <TextBox x:Name="TxtSrtPort" Text="9000"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <StackPanel Margin="0,10,0,0">
+                                            <TextBlock Text="SRT Stream ID (Optional for Caller Routing):" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <TextBox x:Name="TxtSrtStreamId" Text="live/cam1/feed"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Latency Management (Auto Latency 3xRTT) -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="LATENCY CONTROL" FontWeight="Bold" FontSize="12" Foreground="#007ACC" Margin="0,0,0,8"/>
+
+                                        <CheckBox x:Name="ChkAutoLatency" Content="Auto Latency (3 x RTT) [Recommended]" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkAutoLatency_Changed" Unchecked="ChkAutoLatency_Changed"/>
+
+                                        <TextBlock Text="Automatically calculates buffer latency based on real-time network RTT (Minimum 120ms)." FontSize="11" Foreground="#888888" Margin="0,4,0,10"/>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                <TextBlock Text="Configured Latency (ms):" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <TextBox x:Name="TxtManualLatency" Text="120" IsEnabled="False"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                <TextBlock Text="Calculated Auto Latency:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <Border Background="#252526" BorderBrush="#3F3F46" BorderThickness="1" Height="30" Padding="8,4">
+                                                    <TextBlock x:Name="TxtCalculatedLatency" Text="120 ms (3 x 40ms RTT)" FontSize="12" FontWeight="SemiBold" Foreground="#00E676" VerticalAlignment="Center"/>
+                                                </Border>
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- SRT Security & Encryption -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,8">
+                                            <TextBlock Text="SRT ENCRYPTION (AES SECURITY)" FontWeight="Bold" FontSize="12" Foreground="#007ACC" VerticalAlignment="Center"/>
+                                            <CheckBox x:Name="ChkEnableEncryption" Content="Enable Encryption" Style="{StaticResource ToggleSwitchStyle}" IsChecked="False" HorizontalAlignment="Right" Checked="ChkEnableEncryption_Changed" Unchecked="ChkEnableEncryption_Changed"/>
+                                        </Grid>
+
+                                        <StackPanel x:Name="PnlEncryptionConfig" Visibility="Collapsed">
+                                            <Grid Margin="0,4,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="2*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                    <TextBlock Text="Passphrase (10 - 79 characters):" Style="{StaticResource HeaderLabelStyle}"/>
+                                                    <PasswordBox x:Name="TxtSrtPassphrase" Password="BroadcastKey2026!" Background="#252526" Foreground="White" BorderBrush="#3F3F46" Height="30" Padding="6,4" VerticalContentAlignment="Center"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                    <TextBlock Text="Key Length:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                    <ComboBox x:Name="CmbKeyLength">
+                                                        <ComboBoxItem Content="128-bit / 16 bytes"/>
+                                                        <ComboBoxItem Content="192-bit / 24 bytes"/>
+                                                        <ComboBoxItem Content="256-bit / 32 bytes (Top Secret)" IsSelected="True"/>
+                                                    </ComboBox>
+                                                </StackPanel>
+                                            </Grid>
+                                            <TextBlock Text="* Both Sender and Receiver must share the exact same passphrase and key length." FontSize="10" Foreground="#FFA726" Margin="0,6,0,0"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- ════════════════════════════════════════════════════
+                         TAB 3: ULTRA LOW-LATENCY ENGINE PRESET
+                         ════════════════════════════════════════════════════ -->
+                    <TabItem Header="⚡ 3. Low-Latency">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="ULTRA LOW-LATENCY ENGINE PRESET" FontWeight="Bold" FontSize="14" Foreground="#FFFFFF" Margin="0,0,0,4"/>
+                                <TextBlock Text="Optimizes encoding pipeline for sub-second broadcast contribution." FontSize="11" Foreground="#888888" Margin="0,0,0,12"/>
+
+                                <!-- Master ULL Toggle -->
+                                <Border Background="#1A271E" BorderBrush="#2E7D32" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,12">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Bật Cấu Hình Độ Trễ Tối Thiểu (Ultra Low-Latency)" FontWeight="Bold" FontSize="13" Foreground="#81C784"/>
+                                            <TextBlock Text="Forces zero B-frames, zerolatency tuning, 1-second GOP, and strict CBR." FontSize="11" Foreground="#A5D6A7" Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="ChkUltraLowLatency" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkUltraLowLatency_Changed" Unchecked="ChkUltraLowLatency_Changed" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Enforcement Parameters Card -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="ENCODER ENGINE PARAMETERS" FontWeight="Bold" FontSize="12" Foreground="#007ACC" Margin="0,0,0,10"/>
+
+                                        <!-- B-Frames = 0 -->
+                                        <Grid Margin="0,4">
+                                            <TextBlock Text="B-Frames Count:" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                <TextBlock x:Name="TxtBframesVal" Text="0 (FORCED OFF - NO DELAY)" FontWeight="Bold" FontSize="12" Foreground="#00E676"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <!-- Preset Zerolatency -->
+                                        <Grid Margin="0,6">
+                                            <TextBlock Text="Encoder Tuning Preset:" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <ComboBox x:Name="CmbEncoderPreset" Width="220" HorizontalAlignment="Right">
+                                                <ComboBoxItem Content="Low-Latency / Zerolatency (P1)" IsSelected="True"/>
+                                                <ComboBoxItem Content="Fast Low-Latency (P2)"/>
+                                                <ComboBoxItem Content="Medium Quality (P4)"/>
+                                            </ComboBox>
+                                        </Grid>
+
+                                        <!-- GOP Interval = 1s -->
+                                        <Grid Margin="0,6">
+                                            <TextBlock Text="Keyframe Interval (GOP):" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                <TextBlock x:Name="TxtGopVal" Text="1.0 Second (60 Frames @ 60fps)" FontWeight="Bold" FontSize="12" Foreground="#00E676"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <!-- Rate Control = CBR -->
+                                        <Grid Margin="0,6">
+                                            <TextBlock Text="Rate Control Mode:" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <ComboBox x:Name="CmbRateControl" Width="220" HorizontalAlignment="Right">
+                                                <ComboBoxItem Content="CBR (Constant Bitrate - Default)" IsSelected="True"/>
+                                                <ComboBoxItem Content="VBR (Variable Bitrate)"/>
+                                                <ComboBoxItem Content="CQP (Constant Quantization)"/>
+                                            </ComboBox>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Bitrate & Hardware Acceleration Card -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="BITRATE &amp; HARDWARE ENCODER" FontWeight="Bold" FontSize="12" Foreground="#007ACC" Margin="0,0,0,10"/>
+
+                                        <Grid Margin="0,4">
+                                            <TextBlock Text="Target Bitrate:" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <TextBlock x:Name="TxtBitrateDisplay" Text="6,000 kbps (6.0 Mbps)" HorizontalAlignment="Right" FontWeight="Bold" Foreground="#FFFFFF"/>
+                                        </Grid>
+                                        <Slider x:Name="SldTargetBitrate" Minimum="1000" Maximum="25000" Value="6000" SmallChange="500" LargeChange="1000" ValueChanged="SldTargetBitrate_ValueChanged" Margin="0,4,0,10"/>
+
+                                        <TextBlock Text="Hardware Acceleration Engine:" Style="{StaticResource HeaderLabelStyle}"/>
+                                        <ComboBox x:Name="CmbHardwareEncoder">
+                                            <ComboBoxItem Content="NVIDIA NVENC (NVENC Gen 8 / Ada Lovelace / Ampere)" IsSelected="True"/>
+                                            <ComboBoxItem Content="Intel QuickSync Video (QSV)"/>
+                                            <ComboBoxItem Content="AMD AMF Video Engine"/>
+                                            <ComboBoxItem Content="Software (x264 Zerolatency CPU)"/>
+                                        </ComboBox>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- ════════════════════════════════════════════════════
+                         TAB 4: NTP & MULTI-CAMERA WALL-CLOCK SYNC
+                         ════════════════════════════════════════════════════ -->
+                    <TabItem Header="⏱️ 4. NTP Sync">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="MULTI-CAMERA NTP &amp; WALL-CLOCK SYNCHRONIZATION" FontWeight="Bold" FontSize="14" Foreground="#FFFFFF" Margin="0,0,0,4"/>
+                                <TextBlock Text="Embed real-time NTP Wall-Clock timestamps into SEI metadata &amp; SRT PTS for 100% multi-camera frame-accurate sync." FontSize="11" Foreground="#888888" Margin="0,0,0,12"/>
+
+                                <!-- Master NTP Sync Toggle -->
+                                <Border Background="#261E14" BorderBrush="#F57C00" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,12">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Multi-Camera NTP Synchronization" FontWeight="Bold" FontSize="13" Foreground="#FFB74D"/>
+                                            <TextBlock Text="Activates SyncToWallClock = true flag &amp; injects SEI metadata timestamps." FontSize="11" Foreground="#FFE0B2" Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="ChkNtpSync" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="False" Checked="ChkNtpSync_Changed" Unchecked="ChkNtpSync_Changed" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- NTP Parameters -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="NTP SERVER CONFIGURATION" FontWeight="Bold" FontSize="12" Foreground="#007ACC" Margin="0,0,0,10"/>
+
+                                        <TextBlock Text="NTP Time Server Host:" Style="{StaticResource HeaderLabelStyle}"/>
+                                        <Grid Margin="0,0,0,10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="TxtNtpServer" Grid.Column="0" Text="time.google.com" Margin="0,0,8,0"/>
+                                            <Button Grid.Column="1" Content="📡 Sync Now" Style="{StaticResource ActionButtonStyle}" Click="BtnSyncNtp_Click"/>
+                                        </Grid>
+
+                                        <Grid Margin="0,4">
+                                            <TextBlock Text="NTP Wall-Clock Offset:" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <TextBlock x:Name="TxtNtpOffset" Text="+0.14 ms (Stratum 1 Locked)" HorizontalAlignment="Right" FontWeight="Bold" Foreground="#00E676"/>
+                                        </Grid>
+
+                                        <Grid Margin="0,4">
+                                            <TextBlock Text="SEI Metadata Embedding:" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <TextBlock x:Name="TxtSeiStatus" Text="SMPTE 12M / MISB 0601 Timecode" HorizontalAlignment="Right" FontWeight="Bold" Foreground="#4EC9B0"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </Grid>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             BOTTOM MASTER ACTION & CONTROL BAR
+             ════════════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="2" Background="#161616" BorderBrush="#2D2D30" BorderThickness="0,1,0,0" Padding="14,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <!-- Left: Stream Destination Summary -->
+                    <ColumnDefinition Width="Auto"/>
+                    <!-- Center: Metrics & Counters -->
+                    <ColumnDefinition Width="*"/>
+                    <!-- Right: Master Start / Stop Buttons -->
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Left Summary -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="#222222" CornerRadius="4" Padding="10,6" Margin="0,0,10,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="TARGET: " FontWeight="Bold" FontSize="11" Foreground="#888888"/>
+                            <TextBlock x:Name="TxtTargetSummary" Text="SRT Caller -> 127.0.0.1:9000" FontSize="11" FontWeight="Bold" Foreground="#00E676"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Background="#222222" CornerRadius="4" Padding="10,6">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="CODEC: " FontWeight="Bold" FontSize="11" Foreground="#888888"/>
+                            <TextBlock x:Name="TxtCodecSummary" Text="H.264 @ 6000 kbps (ULL B=0)" FontSize="11" FontWeight="Bold" Foreground="#4EC9B0"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Center Counters -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="SESSION DURATION:" FontSize="11" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <TextBlock x:Name="TxtSessionDuration" Text="00:00:00" FontFamily="Consolas, Monospace" FontSize="14" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center" Margin="0,0,16,0"/>
+
+                    <TextBlock Text="DATA SENT:" FontSize="11" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <TextBlock x:Name="TxtTotalBytesSent" Text="0.00 MB" FontFamily="Consolas, Monospace" FontSize="13" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Right Action Buttons -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- START SRT TRANSMISSION -->
+                    <Button x:Name="BtnStartStreaming" Content="🚀 START TRANSMISSION (SRT)" Background="#2E7D32" Foreground="#FFFFFF" FontWeight="Bold" FontSize="13" Padding="16,8" Margin="0,0,10,0" Cursor="Hand" Click="BtnStartStreaming_Click">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="4"/>
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+
+                    <!-- STOP TRANSMISSION -->
+                    <Button x:Name="BtnStopStreaming" Content="⏹ STOP" Background="#C62828" Foreground="#FFFFFF" FontWeight="Bold" FontSize="13" Padding="16,8" Cursor="Hand" IsEnabled="False" Click="BtnStopStreaming_Click">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="4"/>
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

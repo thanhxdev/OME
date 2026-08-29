@@ -1,5 +1,4 @@
 using System;
-using OpenMedia.Core;
 
 namespace OpenMedia.NDI
 {
