@@ -46,6 +46,13 @@ namespace SRT_ENCODE
         // ─── Logging Buffer & Init Guard ───────────────────────────
         private readonly List<string> _pendingLogs = new();
         private bool _isInitialized = false;
+        private readonly ColorbarEngine _colorbarEngine = new();
+
+        // ─── 16-Channel Audio Meter Elements ───────────────────────
+        private ProgressBar[] _vuBars = Array.Empty<ProgressBar>();
+        private StackPanel[] _vuCols = Array.Empty<StackPanel>();
+        private TextBlock[] _vuLabels = Array.Empty<TextBlock>();
+        private readonly double[] _channelLevels16 = new double[16];
 
         public MainWindow()
         {
@@ -61,6 +68,11 @@ namespace SRT_ENCODE
         {
             try
             {
+                // Initialize 16-Channel VU Meter Arrays
+                _vuBars = new[] { VuBar1, VuBar2, VuBar3, VuBar4, VuBar5, VuBar6, VuBar7, VuBar8, VuBar9, VuBar10, VuBar11, VuBar12, VuBar13, VuBar14, VuBar15, VuBar16 };
+                _vuCols = new[] { ColVu1, ColVu2, ColVu3, ColVu4, ColVu5, ColVu6, ColVu7, ColVu8, ColVu9, ColVu10, ColVu11, ColVu12, ColVu13, ColVu14, ColVu15, ColVu16 };
+                _vuLabels = new[] { LblVu1, LblVu2, LblVu3, LblVu4, LblVu5, LblVu6, LblVu7, LblVu8, LblVu9, LblVu10, LblVu11, LblVu12, LblVu13, LblVu14, LblVu15, LblVu16 };
+
                 // Flush any early pending logs
                 if (_pendingLogs.Count > 0 && TxtLogConsole != null)
                 {
@@ -197,6 +209,10 @@ namespace SRT_ENCODE
                 string utcStr = nowUtc.ToString("HH:mm:ss.fff");
                 TxtMasterUtcTime.Text = utcStr;
                 TxtHudPts.Text = utcStr;
+                if (TxtColorbarUtcTime != null)
+                {
+                    TxtColorbarUtcTime.Text = utcStr;
+                }
 
                 if (_isStreaming && _streamStartTime != DateTime.MinValue)
                 {
@@ -314,55 +330,90 @@ namespace SRT_ENCODE
 
         private void UpdateAudioVuLevels()
         {
-            if (ChkEnableAudioMonitor.IsChecked != true && !_isStreaming)
+            if (_vuBars.Length == 0) return;
+
+            if (ChkEnableAudioMonitor?.IsChecked != true && !_isStreaming)
             {
-                // Idle low levels
-                VuBarCh1.Value = -60;
-                VuBarCh2.Value = -60;
-                VuBarCh3.Value = -60;
-                VuBarCh4.Value = -60;
-                TxtVuCh1.Text = "-inf dB";
-                TxtVuCh2.Text = "-inf dB";
-                TxtVuCh3.Text = "-inf dB";
-                TxtVuCh4.Text = "-inf dB";
+                // Idle low levels: Disable / Dim all 16 channels
+                for (int i = 0; i < 16; i++)
+                {
+                    UpdateChannelVu16(i, -60.0);
+                }
+                if (TxtAudioPeakSummary != null)
+                {
+                    TxtAudioPeakSummary.Text = "Peak: MUTE";
+                }
                 return;
             }
 
-            // Calculate realistic audio amplitude based on selected input
-            double baseDb = -18.0; // Standard broadcast reference level (-18 dBFS / -20 dBFS)
-            if (RadSourceColorbar.IsChecked == true)
+            for (int i = 0; i < 16; i++)
             {
-                // Pure 1kHz Tone at exactly -18 dBFS with slight natural fluctuation
-                baseDb = -18.0 + (_random.NextDouble() * 0.4 - 0.2);
+                _channelLevels16[i] = -60.0;
+            }
+
+            if (RadSourceColorbar?.IsChecked == true)
+            {
+                // Retrieve exact test tone levels from ColorbarEngine
+                _colorbarEngine.GetAudioToneLevels16(_channelLevels16);
+                if (_channelLevels16[0] > -50) _channelLevels16[0] += (_random.NextDouble() * 0.2 - 0.1);
+                if (_channelLevels16[1] > -50) _channelLevels16[1] += (_random.NextDouble() * 0.2 - 0.1);
             }
             else
             {
-                // Dynamic live speech / audio modulation
-                baseDb = -18.0 + (_random.NextDouble() * 12.0 - 6.0);
+                // Dynamic live speech / audio modulation for Channels
+                double baseDb = -18.0 + (_random.NextDouble() * 12.0 - 6.0);
+                _channelLevels16[0] = Math.Clamp(baseDb + (_random.NextDouble() * 1.5 - 0.75), -60.0, 0.0);
+                _channelLevels16[1] = Math.Clamp(baseDb + (_random.NextDouble() * 1.5 - 0.75), -60.0, 0.0);
+
+                string sdiCh = (CmbSdiAudioCh?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Stereo (2 Ch)";
+                int activeCount = 2;
+                if (sdiCh.Contains("4 Channels")) activeCount = 4;
+                else if (sdiCh.Contains("8 Channels")) activeCount = 8;
+                else if (sdiCh.Contains("16 Channels")) activeCount = 16;
+
+                for (int i = 2; i < activeCount; i++)
+                {
+                    _channelLevels16[i] = Math.Clamp(baseDb - 6.0 - (i * 2.0) + (_random.NextDouble() * 3.0 - 1.5), -60.0, 0.0);
+                }
             }
 
-            double ch1Db = Math.Clamp(baseDb + (_random.NextDouble() * 1.5 - 0.75), -60.0, 0.0);
-            double ch2Db = Math.Clamp(baseDb + (_random.NextDouble() * 1.5 - 0.75), -60.0, 0.0);
-            double ch3Db = Math.Clamp(baseDb - 12.0 + (_random.NextDouble() * 3.0 - 1.5), -60.0, 0.0);
-            double ch4Db = Math.Clamp(baseDb - 12.0 + (_random.NextDouble() * 3.0 - 1.5), -60.0, 0.0);
+            for (int i = 0; i < 16; i++)
+            {
+                UpdateChannelVu16(i, _channelLevels16[i]);
+            }
 
-            VuBarCh1.Value = ch1Db;
-            VuBarCh2.Value = ch2Db;
-            VuBarCh3.Value = ch3Db;
-            VuBarCh4.Value = ch4Db;
+            if (TxtAudioPeakSummary != null)
+            {
+                string lStr = _channelLevels16[0] > -50 ? $"{_channelLevels16[0]:F1} dB" : "OFF";
+                string rStr = _channelLevels16[1] > -50 ? $"{_channelLevels16[1]:F1} dB" : "OFF";
+                TxtAudioPeakSummary.Text = $"Peak: L {lStr} | R {rStr}";
+            }
+        }
 
-            // Color coding: Green (-inf to -18dB) -> Yellow (-18 to -3dB) -> Red (>= -3dB Clipping)
-            VuBarCh1.Foreground = GetVuMeterColorBrush(ch1Db);
-            VuBarCh2.Foreground = GetVuMeterColorBrush(ch2Db);
-            VuBarCh3.Foreground = GetVuMeterColorBrush(ch3Db);
-            VuBarCh4.Foreground = GetVuMeterColorBrush(ch4Db);
+        private void UpdateChannelVu16(int index, double dbValue)
+        {
+            if (index < 0 || index >= _vuBars.Length || index >= _vuCols.Length || index >= _vuLabels.Length) return;
 
-            TxtVuCh1.Text = $"{ch1Db:F1} dB";
-            TxtVuCh2.Text = $"{ch2Db:F1} dB";
-            TxtVuCh3.Text = $"{ch3Db:F1} dB";
-            TxtVuCh4.Text = $"{ch4Db:F1} dB";
+            const double NoiseFloorCutoff = -50.0;
+            bool hasSignal = dbValue > NoiseFloorCutoff;
 
-            TxtAudioPeakSummary.Text = $"Peak: L {ch1Db:F1} dB | R {ch2Db:F1} dB";
+            if (!hasSignal)
+            {
+                // Inactive / Disabled channel: dim and mute
+                _vuCols[index].Opacity = 0.2;
+                _vuBars[index].Value = -60.0;
+                _vuBars[index].Foreground = new SolidColorBrush(Color.FromRgb(40, 40, 40));
+                _vuLabels[index].Foreground = new SolidColorBrush(Color.FromRgb(80, 80, 80));
+            }
+            else
+            {
+                // Active channel with signal: bright & lively
+                _vuCols[index].Opacity = 1.0;
+                _vuBars[index].Value = dbValue;
+                var colorBrush = GetVuMeterColorBrush(dbValue);
+                _vuBars[index].Foreground = colorBrush;
+                _vuLabels[index].Foreground = new SolidColorBrush(Color.FromRgb(240, 240, 240));
+            }
         }
 
         private static SolidColorBrush GetVuMeterColorBrush(double db)
@@ -474,6 +525,19 @@ namespace SRT_ENCODE
             PnlFileConfig.IsEnabled = RadSourceFile.IsChecked == true;
             PnlColorbarConfig.IsEnabled = RadSourceColorbar.IsChecked == true;
 
+            bool isColorbar = RadSourceColorbar.IsChecked == true;
+            bool isPreviewEnabled = ChkEnableVideoPreview?.IsChecked == true;
+
+            if (ViewboxColorbar != null)
+            {
+                ViewboxColorbar.Visibility = (isColorbar && isPreviewEnabled) ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            if (ReviewView != null)
+            {
+                ReviewView.Visibility = (!isColorbar && isPreviewEnabled) ? Visibility.Visible : Visibility.Collapsed;
+            }
+
             if (RadSourceSdi.IsChecked == true)
             {
                 string dev = CmbSdiDevices.SelectedItem?.ToString() ?? "DeckLink SDI";
@@ -495,9 +559,72 @@ namespace SRT_ENCODE
             }
             else if (RadSourceColorbar.IsChecked == true)
             {
-                TxtActiveSourceBadge.Text = "INPUT: SMPTE COLORBAR & 1kHz (UTC EMBEDDED)";
-                LogEvent("[INFO]", "Đã chuyển nguồn đầu vào: SMPTE Colorbar + 1kHz Tone (Timecode UTC)");
+                UpdateColorbarDisplay();
+                string patternName = (CmbColorbarPattern?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "SMPTE RP 219";
+                TxtActiveSourceBadge.Text = $"INPUT: COLORBAR ({patternName.Split(' ')[0]})";
+                LogEvent("[INFO]", $"Đã chuyển nguồn đầu vào: Test Pattern [{patternName}] + [{_colorbarEngine.GetToneDescription()}]");
             }
+        }
+
+        private void UpdateColorbarDisplay()
+        {
+            if (PnlColorbarVisualHost != null)
+            {
+                _colorbarEngine.RenderPattern(PnlColorbarVisualHost);
+            }
+            if (TxtColorbarIdentTitle != null)
+            {
+                TxtColorbarIdentTitle.Text = _colorbarEngine.GetPatternTitle();
+            }
+            if (TxtColorbarIdentTone != null)
+            {
+                TxtColorbarIdentTone.Text = $"AUDIO: {_colorbarEngine.GetToneDescription()}";
+            }
+        }
+
+        private void CmbColorbarPattern_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            if (CmbColorbarPattern == null) return;
+
+            _colorbarEngine.CurrentPattern = CmbColorbarPattern.SelectedIndex switch
+            {
+                0 => ColorbarPatternType.SmpteRp219,
+                1 => ColorbarPatternType.Ebu100Percent,
+                2 => ColorbarPatternType.GridAlignment,
+                _ => ColorbarPatternType.SmpteRp219
+            };
+
+            if (RadSourceColorbar?.IsChecked == true)
+            {
+                UpdateColorbarDisplay();
+                string patternName = (CmbColorbarPattern.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "SMPTE RP 219";
+                TxtActiveSourceBadge.Text = $"INPUT: COLORBAR ({patternName.Split(' ')[0]})";
+                LogEvent("[INFO]", $"🎨 Đã áp dụng mẫu hình kiểm tra: {patternName}");
+            }
+        }
+
+        private void CmbAudioTone_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            if (CmbAudioTone == null) return;
+
+            _colorbarEngine.CurrentTone = CmbAudioTone.SelectedIndex switch
+            {
+                0 => AudioTestToneType.Sine1kHzMinus18dBFS,
+                1 => AudioTestToneType.Sine1kHzMinus20dBFS,
+                2 => AudioTestToneType.Glits400Hz,
+                3 => AudioTestToneType.EbuToneIdent,
+                _ => AudioTestToneType.Sine1kHzMinus18dBFS
+            };
+
+            if (RadSourceColorbar?.IsChecked == true)
+            {
+                UpdateColorbarDisplay();
+            }
+
+            string toneName = _colorbarEngine.GetToneDescription();
+            LogEvent("[INFO]", $"🔊 Đã áp dụng cấu hình âm thanh Test Tone: {toneName}");
         }
 
         #endregion
@@ -744,12 +871,24 @@ namespace SRT_ENCODE
         {
             if (!_isInitialized) return;
             bool isEnabled = ChkEnableVideoPreview.IsChecked == true;
-            if (ReviewView != null && PnlPreviewDisabled != null)
+            bool isColorbar = RadSourceColorbar?.IsChecked == true;
+
+            if (ViewboxColorbar != null)
             {
-                ReviewView.Visibility = isEnabled ? Visibility.Visible : Visibility.Collapsed;
-                PnlPreviewDisabled.Visibility = isEnabled ? Visibility.Collapsed : Visibility.Visible;
-                LogEvent("[INFO]", isEnabled ? "Bật Video Preview." : "Tắt Video Preview để tối ưu GPU.");
+                ViewboxColorbar.Visibility = (isColorbar && isEnabled) ? Visibility.Visible : Visibility.Collapsed;
             }
+
+            if (ReviewView != null)
+            {
+                ReviewView.Visibility = (!isColorbar && isEnabled) ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            if (PnlPreviewDisabled != null)
+            {
+                PnlPreviewDisabled.Visibility = isEnabled ? Visibility.Collapsed : Visibility.Visible;
+            }
+
+            LogEvent("[INFO]", isEnabled ? "Bật Video Preview." : "Tắt Video Preview để tối ưu GPU.");
         }
 
         private void ChkEnableAudioMonitor_Changed(object sender, RoutedEventArgs e)
@@ -760,7 +899,11 @@ namespace SRT_ENCODE
             {
                 _player.IsMuted = !isAudioMonitor;
             }
-            LogEvent("[INFO]", isAudioMonitor ? "Bật kiểm âm Audio Monitor tại chỗ." : "Mute âm thanh kiểm âm tại chỗ.");
+            if (OverlayAudioVu != null)
+            {
+                OverlayAudioVu.Visibility = isAudioMonitor ? Visibility.Visible : Visibility.Collapsed;
+            }
+            LogEvent("[INFO]", isAudioMonitor ? "Bật kiểm âm & Audio VU Meter 16 kênh." : "Mute âm thanh kiểm âm & ẩn VU Meter.");
         }
 
         private void ChkShowTelemetry_Changed(object sender, RoutedEventArgs e)
@@ -782,6 +925,51 @@ namespace SRT_ENCODE
             if (_player != null)
             {
                 _player.Volume = e.NewValue;
+            }
+        }
+
+        private int _aspectModeIndex = 0; // 0: Aspect Fit (Uniform), 1: Aspect Scale (UniformToFill)
+
+        private void BtnAspectMode_Click(object sender, RoutedEventArgs e)
+        {
+            _aspectModeIndex = (_aspectModeIndex + 1) % 2;
+            UpdateAspectMode();
+        }
+
+        private void UpdateAspectMode()
+        {
+            if (BtnAspectMode == null) return;
+
+            Stretch currentStretch = _aspectModeIndex switch
+            {
+                0 => Stretch.Uniform,         // Aspect Fit: Giữ nguyên tỉ lệ khung hình gốc (không méo hình)
+                1 => Stretch.UniformToFill,   // Aspect Scale: Phóng to đồng đều tỉ lệ lấp đầy toàn bộ khung xem trước (không méo hình)
+                _ => Stretch.Uniform
+            };
+
+            if (ReviewView != null)
+            {
+                ReviewView.Stretch = currentStretch;
+            }
+
+            if (ViewboxColorbar != null)
+            {
+                ViewboxColorbar.Stretch = currentStretch;
+            }
+
+            switch (_aspectModeIndex)
+            {
+                case 0:
+                    BtnAspectMode.Content = "📐 Aspect: Fit";
+                    BtnAspectMode.Foreground = new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76));
+                    LogEvent("[DISPLAY]", "Chuyển tỉ lệ hiển thị: ASPECT FIT (Giữ đúng tỉ lệ gốc khung hình).");
+                    break;
+
+                case 1:
+                    BtnAspectMode.Content = "📐 Aspect: Scale";
+                    BtnAspectMode.Foreground = new SolidColorBrush(Color.FromRgb(0x4E, 0xC9, 0xB0));
+                    LogEvent("[DISPLAY]", "Chuyển tỉ lệ hiển thị: ASPECT SCALE (Lấp đầy toàn bộ khung hình, giữ đúng tỉ lệ).");
+                    break;
             }
         }
 

@@ -7,8 +7,10 @@
         xmlns:local="clr-namespace:SRT_ENCODE"
         mc:Ignorable="d"
         Title="OME Broadcast Live Encoder - SRT Professional Transmitter"
-        Height="860" Width="1380"
-        MinHeight="720" MinWidth="1100"
+        Height="540" Width="960"
+        MinHeight="400" MinWidth="750"
+        WindowState="Normal"
+        ResizeMode="CanResizeWithGrip"
         WindowStartupLocation="CenterScreen"
         Background="#121212"
         Foreground="#E0E0E0">
@@ -344,37 +346,60 @@
         </Border>
 
         <!-- ════════════════════════════════════════════════════════════════
-             MAIN CONTENT AREA (2 COLUMNS: LEFT PREVIEW/MCR, RIGHT TABS CONFIG)
+             MAIN CONTENT AREA (RESPONSIVE AUTO SCALE 2-COLUMN GRID)
              ════════════════════════════════════════════════════════════════ -->
-        <Grid Grid.Row="1" Margin="10">
+        <Grid Grid.Row="1" Margin="8">
             <Grid.ColumnDefinitions>
                 <!-- Left: Video Preview & VU Meters & Log (Approx 58%) -->
-                <ColumnDefinition Width="6.5*"/>
-                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="6.2*" MinWidth="400"/>
+                <ColumnDefinition Width="6"/>
                 <!-- Right: Configuration Tabs (Approx 42%) -->
-                <ColumnDefinition Width="4.5*"/>
+                <ColumnDefinition Width="4.8*" MinWidth="350"/>
             </Grid.ColumnDefinitions>
 
-            <!-- ────────────────────────────────────────────────────────────
-                 LEFT COLUMN: PREVIEW SCREEN, AUDIO VU METERS, LOG CONSOLE
-                 ──────────────────────────────────────────────────────────── -->
-            <Grid Grid.Column="0">
-                <Grid.RowDefinitions>
-                    <!-- Video Preview Screen & HUD -->
-                    <RowDefinition Height="3.2*"/>
-                    <!-- Audio VU Meter Bar -->
-                    <RowDefinition Height="Auto"/>
-                    <!-- Preview Toggles & Monitoring Bar -->
-                    <RowDefinition Height="Auto"/>
-                    <!-- Activity Log Console -->
-                    <RowDefinition Height="1.2*"/>
-                </Grid.RowDefinitions>
+                <!-- ────────────────────────────────────────────────────────────
+                     LEFT COLUMN: PREVIEW SCREEN, AUDIO VU METERS, LOG CONSOLE
+                     ──────────────────────────────────────────────────────────── -->
+                <Grid Grid.Column="0">
+                    <Grid.RowDefinitions>
+                        <!-- Video Preview Screen & HUD & Audio Overlay -->
+                        <RowDefinition Height="3.8*" MinHeight="220"/>
+                        <!-- Preview Toggles & Monitoring Bar -->
+                        <RowDefinition Height="Auto"/>
+                        <!-- Activity Log Console -->
+                        <RowDefinition Height="1.2*" MinHeight="100"/>
+                    </Grid.RowDefinitions>
 
                 <!-- 1. Video Display Area with DirectX11 Zero-Copy View & Overlay HUD -->
                 <Border Grid.Row="0" Background="#000000" BorderBrush="#2D2D30" BorderThickness="1" CornerRadius="6" Margin="0,0,0,6" ClipToBounds="True">
-                    <Grid>
+                    <Grid ClipToBounds="True">
                         <!-- DirectX 11 Hardware Render View -->
                         <om:OpenMediaVideoView x:Name="ReviewView" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+
+                        <!-- SMPTE RP 219 / EBU / Grid Pattern View (Active when Colorbar source is selected) -->
+                        <Viewbox x:Name="ViewboxColorbar" Stretch="Uniform" Visibility="Collapsed" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ClipToBounds="True">
+                            <Grid x:Name="PnlColorbarPattern" Width="1920" Height="1080">
+                                <!-- Visual Background Pattern (Rendered by ColorbarEngine) -->
+                                <Grid x:Name="PnlColorbarVisualHost" Width="1920" Height="1080"/>
+
+                                <!-- Live Burn-in UTC Timecode & Ident Badge (Center Fixed in XAML) -->
+                                <Border HorizontalAlignment="Center" VerticalAlignment="Center" Background="#D00A0A0E" BorderBrush="#007ACC" BorderThickness="2" CornerRadius="12" Padding="28,16">
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock x:Name="TxtColorbarIdentTitle" Text="SMPTE RP 219 COLORBAR PATTERN" FontWeight="Bold" FontSize="20" Foreground="#FFFFFF" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                                        <TextBlock x:Name="TxtColorbarIdentTone" Text="AUDIO: 1 kHz Sinewave @ -18 dBFS (EBU Standard)" FontWeight="SemiBold" FontSize="15" Foreground="#4EC9B0" HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                                        
+                                        <Border Background="#000000" BorderBrush="#333333" BorderThickness="1" CornerRadius="6" Padding="18,6" HorizontalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                <TextBlock Text="UTC TIME: " FontSize="16" Foreground="#888888" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="TxtColorbarUtcTime" Text="00:00:00.000" FontFamily="Consolas, Monospace" FontSize="24" FontWeight="Bold" Foreground="#00E676" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <TextBlock Text="1080p 59.94 fps • ITU-R BT.709 Broadcast Standard" FontSize="13" Foreground="#888888" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Viewbox>
 
                         <!-- Preview Disabled Placeholder Screen -->
                         <Grid x:Name="PnlPreviewDisabled" Background="#111111" Visibility="Collapsed">
@@ -437,92 +462,111 @@
                                 </Grid>
                             </StackPanel>
                         </Border>
+
+                        <!-- 16-Channel Audio VU Meter Overlay (Bottom-Left of Video Screen) -->
+                        <Border x:Name="OverlayAudioVu" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="12,0,0,12" Background="#D5101014" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="6" Padding="8,6" Visibility="Visible">
+                            <StackPanel>
+                                <!-- Header & Peak Summary -->
+                                <Grid Margin="0,0,0,4">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="🔊 AUDIO VU" FontSize="10" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,4,0"/>
+                                        <TextBlock Text="(16-CH)" FontSize="9" FontWeight="SemiBold" Foreground="#888888"/>
+                                    </StackPanel>
+                                    <TextBlock x:Name="TxtAudioPeakSummary" Text="Peak: L -18.0 | R -18.0" HorizontalAlignment="Right" FontSize="9" FontWeight="SemiBold" Foreground="#4EC9B0"/>
+                                </Grid>
+
+                                <!-- 16 Channel Strips in 8 Pairs -->
+                                <StackPanel Orientation="Horizontal">
+                                    <!-- Pair 1-2 -->
+                                    <StackPanel x:Name="ColVu1" Width="12" Margin="0,0,1,0">
+                                        <ProgressBar x:Name="VuBar1" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                        <TextBlock x:Name="LblVu1" Text="1" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <StackPanel x:Name="ColVu2" Width="12" Margin="0,0,4,0">
+                                        <ProgressBar x:Name="VuBar2" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                        <TextBlock x:Name="LblVu2" Text="2" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                    </StackPanel>
+
+                                    <!-- Pair 3-4 -->
+                                    <StackPanel x:Name="ColVu3" Width="12" Margin="0,0,1,0">
+                                        <ProgressBar x:Name="VuBar3" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                        <TextBlock x:Name="LblVu3" Text="3" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <StackPanel x:Name="ColVu4" Width="12" Margin="0,0,4,0">
+                                        <ProgressBar x:Name="VuBar4" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                        <TextBlock x:Name="LblVu4" Text="4" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                    </StackPanel>
+
+                                    <!-- Pair 5-6 -->
+                                    <StackPanel x:Name="ColVu5" Width="12" Margin="0,0,1,0">
+                                        <ProgressBar x:Name="VuBar5" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                        <TextBlock x:Name="LblVu5" Text="5" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <StackPanel x:Name="ColVu6" Width="12" Margin="0,0,4,0">
+                                        <ProgressBar x:Name="VuBar6" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                        <TextBlock x:Name="LblVu6" Text="6" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                    </StackPanel>
+
+                                    <!-- Pair 7-8 -->
+                                    <StackPanel x:Name="ColVu7" Width="12" Margin="0,0,1,0">
+                                        <ProgressBar x:Name="VuBar7" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                        <TextBlock x:Name="LblVu7" Text="7" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <StackPanel x:Name="ColVu8" Width="12" Margin="0,0,4,0">
+                                        <ProgressBar x:Name="VuBar8" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                        <TextBlock x:Name="LblVu8" Text="8" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                    </StackPanel>
+
+                                    <!-- Pair 9-10 -->
+                                    <StackPanel x:Name="ColVu9" Width="12" Margin="0,0,1,0">
+                                        <ProgressBar x:Name="VuBar9" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                        <TextBlock x:Name="LblVu9" Text="9" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <StackPanel x:Name="ColVu10" Width="12" Margin="0,0,4,0">
+                                        <ProgressBar x:Name="VuBar10" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                        <TextBlock x:Name="LblVu10" Text="10" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                    </StackPanel>
+
+                                    <!-- Pair 11-12 -->
+                                    <StackPanel x:Name="ColVu11" Width="12" Margin="0,0,1,0">
+                                        <ProgressBar x:Name="VuBar11" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                        <TextBlock x:Name="LblVu11" Text="11" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <StackPanel x:Name="ColVu12" Width="12" Margin="0,0,4,0">
+                                        <ProgressBar x:Name="VuBar12" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                        <TextBlock x:Name="LblVu12" Text="12" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                    </StackPanel>
+
+                                    <!-- Pair 13-14 -->
+                                    <StackPanel x:Name="ColVu13" Width="12" Margin="0,0,1,0">
+                                        <ProgressBar x:Name="VuBar13" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                        <TextBlock x:Name="LblVu13" Text="13" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <StackPanel x:Name="ColVu14" Width="12" Margin="0,0,4,0">
+                                        <ProgressBar x:Name="VuBar14" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                        <TextBlock x:Name="LblVu14" Text="14" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                    </StackPanel>
+
+                                    <!-- Pair 15-16 -->
+                                    <StackPanel x:Name="ColVu15" Width="12" Margin="0,0,1,0">
+                                        <ProgressBar x:Name="VuBar15" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                        <TextBlock x:Name="LblVu15" Text="15" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <StackPanel x:Name="ColVu16" Width="12">
+                                        <ProgressBar x:Name="VuBar16" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                        <TextBlock x:Name="LblVu16" Text="16" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
                     </Grid>
                 </Border>
 
-                <!-- 2. Audio VU Meter Multi-Channel Bar -->
+                <!-- 2. Preview & Monitoring Toggles -->
                 <Border Grid.Row="1" Style="{StaticResource DarkCardBorderStyle}" Margin="0,0,0,6" Padding="10,6">
                     <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-
-                        <!-- Header & Channel Selector -->
-                        <Grid Grid.Row="0" Margin="0,0,0,4">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="AUDIO VU METERS" FontWeight="Bold" FontSize="11" Foreground="#9E9E9E" Margin="0,0,10,0"/>
-                                <TextBlock x:Name="TxtAudioPeakSummary" Text="Peak: L -18.2 dB | R -18.0 dB" FontSize="11" Foreground="#4EC9B0"/>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                <TextBlock Text="Scale: -inf to 0 dBFS" FontSize="10" Foreground="#666666" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Grid>
-
-                        <!-- VU Channels Grid (4 Channels Stereo + Aux) -->
-                        <Grid Grid.Row="1">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-
-                            <!-- Channel 1 (Left) -->
-                            <Grid Grid.Row="0" Margin="0,2">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="35"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="55"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="CH 1 (L)" FontSize="10" FontWeight="SemiBold" Foreground="#AAAAAA" VerticalAlignment="Center"/>
-                                <ProgressBar x:Name="VuBarCh1" Grid.Column="1" Height="10" Minimum="-60" Maximum="0" Value="-18" Foreground="#4CAF50" Background="#222222" BorderThickness="0"/>
-                                <TextBlock x:Name="TxtVuCh1" Grid.Column="2" Text="-18.2 dB" FontSize="10" Foreground="#00E676" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                            </Grid>
-
-                            <!-- Channel 2 (Right) -->
-                            <Grid Grid.Row="1" Margin="0,2">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="35"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="55"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="CH 2 (R)" FontSize="10" FontWeight="SemiBold" Foreground="#AAAAAA" VerticalAlignment="Center"/>
-                                <ProgressBar x:Name="VuBarCh2" Grid.Column="1" Height="10" Minimum="-60" Maximum="0" Value="-18" Foreground="#4CAF50" Background="#222222" BorderThickness="0"/>
-                                <TextBlock x:Name="TxtVuCh2" Grid.Column="2" Text="-18.0 dB" FontSize="10" Foreground="#00E676" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                            </Grid>
-
-                            <!-- Channel 3 (Aux 1) -->
-                            <Grid Grid.Row="2" Margin="0,2">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="35"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="55"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="CH 3" FontSize="10" FontWeight="SemiBold" Foreground="#AAAAAA" VerticalAlignment="Center"/>
-                                <ProgressBar x:Name="VuBarCh3" Grid.Column="1" Height="8" Minimum="-60" Maximum="0" Value="-32" Foreground="#4CAF50" Background="#222222" BorderThickness="0"/>
-                                <TextBlock x:Name="TxtVuCh3" Grid.Column="2" Text="-32.5 dB" FontSize="10" Foreground="#888888" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                            </Grid>
-
-                            <!-- Channel 4 (Aux 2) -->
-                            <Grid Grid.Row="3" Margin="0,2">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="35"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="55"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="CH 4" FontSize="10" FontWeight="SemiBold" Foreground="#AAAAAA" VerticalAlignment="Center"/>
-                                <ProgressBar x:Name="VuBarCh4" Grid.Column="1" Height="8" Minimum="-60" Maximum="0" Value="-32" Foreground="#4CAF50" Background="#222222" BorderThickness="0"/>
-                                <TextBlock x:Name="TxtVuCh4" Grid.Column="2" Text="-32.5 dB" FontSize="10" Foreground="#888888" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                            </Grid>
-                        </Grid>
-                    </Grid>
-                </Border>
-
-                <!-- 3. Preview & Monitoring Toggles -->
-                <Border Grid.Row="2" Style="{StaticResource DarkCardBorderStyle}" Margin="0,0,0,6" Padding="10,6">
-                    <Grid>
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
@@ -531,25 +575,34 @@
                         </Grid.ColumnDefinitions>
 
                         <!-- Toggle Video Preview -->
-                        <CheckBox x:Name="ChkEnableVideoPreview" Grid.Column="0" Content="Enable Video Preview" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkEnableVideoPreview_Changed" Unchecked="ChkEnableVideoPreview_Changed" Margin="0,0,16,0"/>
+                        <CheckBox x:Name="ChkEnableVideoPreview" Grid.Column="0" Content="Video Preview" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkEnableVideoPreview_Changed" Unchecked="ChkEnableVideoPreview_Changed" Margin="0,0,12,0"/>
 
                         <!-- Toggle Audio Monitor -->
-                        <CheckBox x:Name="ChkEnableAudioMonitor" Grid.Column="1" Content="Enable Audio Monitor" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkEnableAudioMonitor_Changed" Unchecked="ChkEnableAudioMonitor_Changed" Margin="0,0,16,0"/>
+                        <CheckBox x:Name="ChkEnableAudioMonitor" Grid.Column="1" Content="Audio Monitor" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkEnableAudioMonitor_Changed" Unchecked="ChkEnableAudioMonitor_Changed" Margin="0,0,12,0"/>
 
                         <!-- Toggle Telemetry HUD -->
-                        <CheckBox x:Name="ChkShowTelemetry" Grid.Column="2" Content="Show Telemetry Overlay" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkShowTelemetry_Changed" Unchecked="ChkShowTelemetry_Changed" Margin="0,0,16,0"/>
+                        <CheckBox x:Name="ChkShowTelemetry" Grid.Column="2" Content="Telemetry HUD" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkShowTelemetry_Changed" Unchecked="ChkShowTelemetry_Changed" Margin="0,0,12,0"/>
+
+                        <!-- Aspect Ratio Scaling Button (Aspect Fit / Aspect Scale) -->
+                        <Button x:Name="BtnAspectMode" Grid.Column="3" Content="📐 Aspect: Fit" Background="#252526" Foreground="#00E676" BorderBrush="#007ACC" BorderThickness="1" Padding="8,2" FontSize="11" FontWeight="SemiBold" Height="24" Cursor="Hand" Click="BtnAspectMode_Click" ToolTip="Click để chuyển đổi: Aspect Fit (Giữ đúng tỉ lệ) / Aspect Scale (Lấp đầy toàn bộ khung)" Margin="0,0,8,0">
+                            <Button.Resources>
+                                <Style TargetType="Border">
+                                    <Setter Property="CornerRadius" Value="3"/>
+                                </Style>
+                            </Button.Resources>
+                        </Button>
 
                         <!-- Volume Slider -->
-                        <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="🔈 Monitor Vol:" FontSize="11" Foreground="#9E9E9E" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                            <Slider x:Name="SldMonitorVolume" Width="80" Minimum="0" Maximum="1" Value="0.8" ValueChanged="SldMonitorVolume_ValueChanged" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="TxtMonitorVolumeVal" Text="80%" FontSize="11" Foreground="#FFFFFF" Width="30" TextAlignment="Right" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                        <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="🔈 Vol:" FontSize="11" Foreground="#9E9E9E" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <Slider x:Name="SldMonitorVolume" Width="70" Minimum="0" Maximum="1" Value="0.8" ValueChanged="SldMonitorVolume_ValueChanged" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtMonitorVolumeVal" Text="80%" FontSize="11" Foreground="#FFFFFF" Width="28" TextAlignment="Right" VerticalAlignment="Center" Margin="2,0,0,0"/>
                         </StackPanel>
                     </Grid>
                 </Border>
 
-                <!-- 4. Activity Log Console -->
-                <Border Grid.Row="3" Background="#181818" BorderBrush="#2D2D30" BorderThickness="1" CornerRadius="6" Padding="10">
+                <!-- 3. Activity Log Console -->
+                <Border Grid.Row="2" Background="#181818" BorderBrush="#2D2D30" BorderThickness="1" CornerRadius="6" Padding="10">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -732,7 +785,7 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel Grid.Column="0" Margin="0,0,6,0">
                                                     <TextBlock Text="Pattern Type:" Style="{StaticResource HeaderLabelStyle}"/>
-                                                    <ComboBox x:Name="CmbColorbarPattern">
+                                                    <ComboBox x:Name="CmbColorbarPattern" SelectionChanged="CmbColorbarPattern_SelectionChanged">
                                                         <ComboBoxItem Content="SMPTE RP 219 Color Bars" IsSelected="True"/>
                                                         <ComboBoxItem Content="EBU 100% Color Bars"/>
                                                         <ComboBoxItem Content="Grid Alignment Pattern"/>
@@ -740,7 +793,7 @@
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1" Margin="6,0,0,0">
                                                     <TextBlock Text="Audio Test Tone:" Style="{StaticResource HeaderLabelStyle}"/>
-                                                    <ComboBox x:Name="CmbAudioTone">
+                                                    <ComboBox x:Name="CmbAudioTone" SelectionChanged="CmbAudioTone_SelectionChanged">
                                                         <ComboBoxItem Content="1 kHz Sine (-18 dBFS)" IsSelected="True"/>
                                                         <ComboBoxItem Content="1 kHz Sine (-20 dBFS)"/>
                                                         <ComboBoxItem Content="400 Hz Tone (GLITS)"/>
@@ -1029,63 +1082,65 @@
         <!-- ════════════════════════════════════════════════════════════════
              BOTTOM MASTER ACTION & CONTROL BAR
              ════════════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="2" Background="#161616" BorderBrush="#2D2D30" BorderThickness="0,1,0,0" Padding="14,10">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <!-- Left: Stream Destination Summary -->
-                    <ColumnDefinition Width="Auto"/>
-                    <!-- Center: Metrics & Counters -->
-                    <ColumnDefinition Width="*"/>
-                    <!-- Right: Master Start / Stop Buttons -->
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
+        <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Focusable="False">
+            <Border Background="#161616" BorderBrush="#2D2D30" BorderThickness="0,1,0,0" Padding="12,8" MinWidth="920">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <!-- Left: Stream Destination Summary -->
+                        <ColumnDefinition Width="Auto"/>
+                        <!-- Center: Metrics & Counters -->
+                        <ColumnDefinition Width="*"/>
+                        <!-- Right: Master Start / Stop Buttons -->
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
 
-                <!-- Left Summary -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Background="#222222" CornerRadius="4" Padding="10,6" Margin="0,0,10,0">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="TARGET: " FontWeight="Bold" FontSize="11" Foreground="#888888"/>
-                            <TextBlock x:Name="TxtTargetSummary" Text="SRT Caller -> 127.0.0.1:9000" FontSize="11" FontWeight="Bold" Foreground="#00E676"/>
-                        </StackPanel>
-                    </Border>
-                    <Border Background="#222222" CornerRadius="4" Padding="10,6">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="CODEC: " FontWeight="Bold" FontSize="11" Foreground="#888888"/>
-                            <TextBlock x:Name="TxtCodecSummary" Text="H.264 @ 6000 kbps (ULL B=0)" FontSize="11" FontWeight="Bold" Foreground="#4EC9B0"/>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
+                    <!-- Left Summary -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Background="#222222" CornerRadius="4" Padding="8,4" Margin="0,0,8,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="TARGET: " FontWeight="Bold" FontSize="11" Foreground="#888888"/>
+                                <TextBlock x:Name="TxtTargetSummary" Text="SRT Caller -> 127.0.0.1:9000" FontSize="11" FontWeight="Bold" Foreground="#00E676"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Background="#222222" CornerRadius="4" Padding="8,4">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="CODEC: " FontWeight="Bold" FontSize="11" Foreground="#888888"/>
+                                <TextBlock x:Name="TxtCodecSummary" Text="H.264 @ 6000 kbps (ULL B=0)" FontSize="11" FontWeight="Bold" Foreground="#4EC9B0"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
 
-                <!-- Center Counters -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock Text="SESSION DURATION:" FontSize="11" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <TextBlock x:Name="TxtSessionDuration" Text="00:00:00" FontFamily="Consolas, Monospace" FontSize="14" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                    <!-- Center Counters -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="DURATION:" FontSize="11" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBlock x:Name="TxtSessionDuration" Text="00:00:00" FontFamily="Consolas, Monospace" FontSize="13" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center" Margin="0,0,12,0"/>
 
-                    <TextBlock Text="DATA SENT:" FontSize="11" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                    <TextBlock x:Name="TxtTotalBytesSent" Text="0.00 MB" FontFamily="Consolas, Monospace" FontSize="13" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center"/>
-                </StackPanel>
+                        <TextBlock Text="SENT:" FontSize="11" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBlock x:Name="TxtTotalBytesSent" Text="0.00 MB" FontFamily="Consolas, Monospace" FontSize="13" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center"/>
+                    </StackPanel>
 
-                <!-- Right Action Buttons -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <!-- START SRT TRANSMISSION -->
-                    <Button x:Name="BtnStartStreaming" Content="🚀 START TRANSMISSION (SRT)" Background="#2E7D32" Foreground="#FFFFFF" FontWeight="Bold" FontSize="13" Padding="16,8" Margin="0,0,10,0" Cursor="Hand" Click="BtnStartStreaming_Click">
-                        <Button.Resources>
-                            <Style TargetType="Border">
-                                <Setter Property="CornerRadius" Value="4"/>
-                            </Style>
-                        </Button.Resources>
-                    </Button>
+                    <!-- Right Action Buttons -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- START SRT TRANSMISSION -->
+                        <Button x:Name="BtnStartStreaming" Content="🚀 START TRANSMISSION (SRT)" Background="#2E7D32" Foreground="#FFFFFF" FontWeight="Bold" FontSize="12" Padding="14,6" Margin="0,0,8,0" Cursor="Hand" Click="BtnStartStreaming_Click">
+                            <Button.Resources>
+                                <Style TargetType="Border">
+                                    <Setter Property="CornerRadius" Value="4"/>
+                                </Style>
+                            </Button.Resources>
+                        </Button>
 
-                    <!-- STOP TRANSMISSION -->
-                    <Button x:Name="BtnStopStreaming" Content="⏹ STOP" Background="#C62828" Foreground="#FFFFFF" FontWeight="Bold" FontSize="13" Padding="16,8" Cursor="Hand" IsEnabled="False" Click="BtnStopStreaming_Click">
-                        <Button.Resources>
-                            <Style TargetType="Border">
-                                <Setter Property="CornerRadius" Value="4"/>
-                            </Style>
-                        </Button.Resources>
-                    </Button>
-                </StackPanel>
-            </Grid>
-        </Border>
+                        <!-- STOP TRANSMISSION -->
+                        <Button x:Name="BtnStopStreaming" Content="⏹ STOP" Background="#C62828" Foreground="#FFFFFF" FontWeight="Bold" FontSize="12" Padding="14,6" Cursor="Hand" IsEnabled="False" Click="BtnStopStreaming_Click">
+                            <Button.Resources>
+                                <Style TargetType="Border">
+                                    <Setter Property="CornerRadius" Value="4"/>
+                                </Style>
+                            </Button.Resources>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </ScrollViewer>
     </Grid>
 </Window>

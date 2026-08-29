@@ -22,6 +22,28 @@ namespace OpenMedia.Platform.Controls.Wpf
         private bool _isAttached;
 
         /// <summary>
+        /// Gets or sets the stretch mode for video display (Uniform / UniformToFill / Fill).
+        /// </summary>
+        public static readonly DependencyProperty StretchProperty =
+            DependencyProperty.Register(nameof(Stretch), typeof(Stretch), typeof(OpenMediaVideoView),
+                new PropertyMetadata(Stretch.Uniform, (d, e) =>
+                {
+                    if (d is OpenMediaVideoView view && view.VideoImage != null)
+                    {
+                        view.VideoImage.Stretch = (Stretch)e.NewValue;
+                    }
+                }));
+
+        /// <summary>
+        /// Gets or sets the stretch mode for the video display image.
+        /// </summary>
+        public Stretch Stretch
+        {
+            get => (Stretch)GetValue(StretchProperty);
+            set => SetValue(StretchProperty, value);
+        }
+
+        /// <summary>
         /// Indicates whether a video source is currently attached and rendering.
         /// </summary>
         public static readonly DependencyProperty IsPlayingProperty =
