@@ -466,7 +466,7 @@
                         </Border>
 
                         <!-- 16-Channel Audio VU Meter Overlay (Bottom-Left of Video Screen) -->
-                        <Border x:Name="OverlayAudioVu" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="12,0,0,12" Background="#D5101014" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="6" Padding="8,6" Visibility="Visible">
+                        <Border x:Name="OverlayAudioVu" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="12,0,0,12" Background="#D5101014" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="6" Padding="8,6" Visibility="Collapsed">
                             <StackPanel>
                                 <!-- Header & Peak Summary -->
                                 <Grid Margin="0,0,0,4">
@@ -580,7 +580,7 @@
                         <CheckBox x:Name="ChkEnableVideoPreview" Grid.Column="0" Content="Video Preview" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkEnableVideoPreview_Changed" Unchecked="ChkEnableVideoPreview_Changed" Margin="0,0,12,0"/>
 
                         <!-- Toggle Audio Monitor -->
-                        <CheckBox x:Name="ChkEnableAudioMonitor" Grid.Column="1" Content="Audio Monitor" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkEnableAudioMonitor_Changed" Unchecked="ChkEnableAudioMonitor_Changed" Margin="0,0,12,0"/>
+                        <CheckBox x:Name="ChkEnableAudioMonitor" Grid.Column="1" Content="Audio Monitor" Style="{StaticResource ToggleSwitchStyle}" IsChecked="False" Checked="ChkEnableAudioMonitor_Changed" Unchecked="ChkEnableAudioMonitor_Changed" Margin="0,0,12,0"/>
 
                         <!-- Toggle Telemetry HUD -->
                         <CheckBox x:Name="ChkShowTelemetry" Grid.Column="2" Content="Telemetry HUD" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkShowTelemetry_Changed" Unchecked="ChkShowTelemetry_Changed" Margin="0,0,12,0"/>
@@ -597,8 +597,8 @@
                         <!-- Volume Slider -->
                         <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock Text="🔈 Vol:" FontSize="11" Foreground="#9E9E9E" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                            <Slider x:Name="SldMonitorVolume" Width="70" Minimum="0" Maximum="1" Value="0.8" ValueChanged="SldMonitorVolume_ValueChanged" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="TxtMonitorVolumeVal" Text="80%" FontSize="11" Foreground="#FFFFFF" Width="28" TextAlignment="Right" VerticalAlignment="Center" Margin="2,0,0,0"/>
+                            <Slider x:Name="SldMonitorVolume" Width="70" Minimum="0" Maximum="1" Value="0.4" ValueChanged="SldMonitorVolume_ValueChanged" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtMonitorVolumeVal" Text="40%" FontSize="11" Foreground="#FFFFFF" Width="28" TextAlignment="Right" VerticalAlignment="Center" Margin="2,0,0,0"/>
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -872,7 +872,7 @@
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
-                                                <ComboBox x:Name="CmbSdiDevices" Grid.Column="0" Margin="0,0,8,0"/>
+                                                <ComboBox x:Name="CmbSdiDevices" Grid.Column="0" Margin="0,0,8,0" SelectionChanged="CmbSdiDevices_SelectionChanged"/>
                                                 <Button Grid.Column="1" Content="🔄 Scan Cards" Style="{StaticResource ActionButtonStyle}" Click="BtnScanSdi_Click"/>
                                             </Grid>
 
@@ -883,7 +883,7 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel Grid.Column="0" Margin="0,0,6,0">
                                                     <TextBlock Text="Video Mode:" Style="{StaticResource HeaderLabelStyle}"/>
-                                                    <ComboBox x:Name="CmbSdiVideoMode">
+                                                    <ComboBox x:Name="CmbSdiVideoMode" SelectionChanged="CmbSdiVideoMode_SelectionChanged">
                                                         <ComboBoxItem Content="1080p 59.94 fps" IsSelected="True"/>
                                                         <ComboBoxItem Content="1080p 50 fps"/>
                                                         <ComboBoxItem Content="1080p 29.97 fps"/>
@@ -893,7 +893,7 @@
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1" Margin="6,0,0,0">
                                                     <TextBlock Text="Audio Channels:" Style="{StaticResource HeaderLabelStyle}"/>
-                                                    <ComboBox x:Name="CmbSdiAudioCh">
+                                                    <ComboBox x:Name="CmbSdiAudioCh" SelectionChanged="CmbSdiAudioCh_SelectionChanged">
                                                         <ComboBoxItem Content="Stereo (2 Ch)" IsSelected="True"/>
                                                         <ComboBoxItem Content="4 Channels"/>
                                                         <ComboBoxItem Content="8 Channels (SDI Embedded)"/>
@@ -925,7 +925,7 @@
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
-                                                <ComboBox x:Name="CmbNdiSources" Grid.Column="0" Margin="0,0,8,0"/>
+                                                <ComboBox x:Name="CmbNdiSources" Grid.Column="0" Margin="0,0,8,0" SelectionChanged="CmbNdiSources_SelectionChanged"/>
                                                 <Button Grid.Column="1" Content="🔄 Find NDI" Style="{StaticResource ActionButtonStyle}" Click="BtnScanNdi_Click"/>
                                             </Grid>
                                             <TextBlock Text="* Tự động nhận diện các luồng NDI Full Bandwidth và NDI|HX trên mạng nội bộ qua mDNS." FontSize="10.5" Foreground="#888888" Margin="0,8,0,0"/>
@@ -1001,6 +1001,73 @@
                                             </Grid>
                                             <TextBlock Text="* Live UTC Timecode is automatically burnt directly onto frame &amp; tone phase aligned." FontSize="11" Foreground="#4EC9B0" Margin="0,8,0,0"/>
                                         </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- ════════════════════════════════════════════════════════════
+                                     SIMPLIFIED REALTIME SOURCE STREAM TELEMETRY (FIXED AT BOTTOM)
+                                     ════════════════════════════════════════════════════════════ -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}" BorderBrush="#2D3139" Background="#14181D" Padding="14,12" Margin="0,12,0,0">
+                                    <StackPanel>
+                                        <!-- Header Line -->
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,8">
+                                            <TextBlock Text="📊 ACTIVE SOURCE TELEMETRY" FontWeight="SemiBold" FontSize="11.5" Foreground="#00E676"/>
+                                            <Border x:Name="BadgeSourceLockStatus" Background="#1B5E20" CornerRadius="3" Padding="6,1" Margin="8,0,0,0">
+                                                <TextBlock x:Name="TxtSourceSignalStatus" Text="● SIGNAL LOCKED" FontSize="9" FontWeight="Normal" Foreground="#69F0AE"/>
+                                            </Border>
+                                        </StackPanel>
+
+                                        <!-- Active Source Name (New Line at Start) -->
+                                        <StackPanel Margin="0,0,0,10">
+                                            <TextBlock Text="Source Name:" FontSize="10.5" FontWeight="Normal" Foreground="#888888"/>
+                                            <TextBlock x:Name="TxtSourceActiveName" Text="SMPTE RP 219 Colorbar" FontSize="12.5" FontWeight="Normal" Foreground="#FFFFFF" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                        </StackPanel>
+
+                                        <!-- Simple Unboxed Key-Value Grid (Light Typography) -->
+                                        <Grid Margin="2,0,2,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+
+                                            <!-- Row 0: Resolution & Frame Rate -->
+                                            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,12,8">
+                                                <TextBlock Text="Resolution &amp; Aspect:" FontSize="10.5" FontWeight="Normal" Foreground="#888888"/>
+                                                <TextBlock x:Name="TxtSourceResolution" Text="1920 x 1080 (16:9 Full HD)" FontSize="12" FontWeight="Normal" Foreground="#F0F0F0" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,8">
+                                                <TextBlock Text="Frame Rate (FPS):" FontSize="10.5" FontWeight="Normal" Foreground="#888888"/>
+                                                <TextBlock x:Name="TxtSourceFps" Text="59.94 FPS (Progressive)" FontSize="12" FontWeight="Normal" Foreground="#00E676" Margin="0,2,0,0"/>
+                                            </StackPanel>
+
+                                            <!-- Row 1: Video Codec & Color Space -->
+                                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,12,8">
+                                                <TextBlock Text="Video Codec / Format:" FontSize="10.5" FontWeight="Normal" Foreground="#888888"/>
+                                                <TextBlock x:Name="TxtSourceVideoCodec" Text="RAW Vector 10-bit RGBA" FontSize="12" FontWeight="Normal" Foreground="#4EC9B0" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,8">
+                                                <TextBlock Text="Color Space &amp; Sampling:" FontSize="10.5" FontWeight="Normal" Foreground="#888888"/>
+                                                <TextBlock x:Name="TxtSourceColorSpace" Text="ITU-R BT.709 (4:2:2 Full Range)" FontSize="12" FontWeight="Normal" Foreground="#D0D0D0" Margin="0,2,0,0"/>
+                                            </StackPanel>
+
+                                            <!-- Row 2: Audio Stream -->
+                                            <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Margin="0,0,0,2">
+                                                <TextBlock Text="Audio Configuration:" FontSize="10.5" FontWeight="Normal" Foreground="#888888"/>
+                                                <TextBlock x:Name="TxtSourceAudioInfo" Text="16 Ch @ 48.0 kHz 24-bit PCM" FontSize="12" FontWeight="Normal" Foreground="#D0D0D0" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <!-- Pipeline Detail Summary -->
+                                        <Separator Background="#262B33" Margin="0,4,0,6"/>
+                                        <Grid Margin="2,0,2,0">
+                                            <TextBlock Text="Pipeline:" FontSize="10.5" FontWeight="Normal" Foreground="#777777" VerticalAlignment="Center"/>
+                                            <TextBlock x:Name="TxtSourcePipelineDetails" Text="OpenMedia Direct Frame Capture • HW Sync Locked" FontSize="11" FontWeight="Light" Foreground="#81D4FA" HorizontalAlignment="Right" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="380"/>
+                                        </Grid>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>

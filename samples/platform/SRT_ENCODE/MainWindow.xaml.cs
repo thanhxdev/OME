@@ -23,12 +23,15 @@ namespace SRT_ENCODE
     public partial class MainWindow : Window
     {
         // ─── Engine & Playback State ────────────────────────────────
-        private PlatformMediaPlayer? _player;
         private VideoMixer? _mixer;
         private StreamOutput? _srtOutput;
         private bool _isStreaming = false;
         private DateTime _streamStartTime = DateTime.MinValue;
         private ulong _totalBytesTransferred = 0;
+
+        // ─── Video Source Management & Colorbar Engine ──────────────
+        private readonly ColorbarEngine _colorbarEngine = new();
+        private readonly VideoSourceManager _sourceManager;
 
         // ─── Timers ─────────────────────────────────────────────────
         private DispatcherTimer? _utcClockTimer;
@@ -46,7 +49,6 @@ namespace SRT_ENCODE
         // ─── Logging Buffer & Init Guard ───────────────────────────
         private readonly List<string> _pendingLogs = new();
         private bool _isInitialized = false;
-        private readonly ColorbarEngine _colorbarEngine = new();
 
         // ─── 16-Channel Audio Meter Elements ───────────────────────
         private ProgressBar[] _vuBars = Array.Empty<ProgressBar>();
@@ -57,6 +59,9 @@ namespace SRT_ENCODE
         public MainWindow()
         {
             InitializeComponent();
+            _sourceManager = new VideoSourceManager(_colorbarEngine);
+            _sourceManager.LogRequested += (tag, msg) => LogEvent(tag, msg);
+            _sourceManager.TelemetryUpdated += UpdateSourceTelemetryUI;
             _isInitialized = true;
             Loaded += MainWindow_Loaded;
             Closing += MainWindow_Closing;
@@ -127,7 +132,9 @@ namespace SRT_ENCODE
                 await ScanSdiDevicesAsync();
                 await ScanNdiSourcesAsync();
 
-                // Setup Initial Preview Player
+                // Setup VideoSourceManager & Initial Preview Player
+                _sourceManager.SetAudioMonitor(ChkEnableAudioMonitor?.IsChecked == true, SldMonitorVolume?.Value ?? 1.0);
+                await _sourceManager.InitializeAsync(ReviewView, ViewboxColorbar, PnlColorbarVisualHost, TxtActiveSourceBadge, TxtActiveSourceTypeBadge);
                 await InitializePreviewPlayerAsync();
 
                 // Apply initial UI states
@@ -148,24 +155,16 @@ namespace SRT_ENCODE
         {
             try
             {
-                _player?.Dispose();
-                _player = new PlatformMediaPlayer();
-                _player.AttachPreview(ReviewView);
-                _player.Volume = SldMonitorVolume.Value;
-                _player.IsMuted = ChkEnableAudioMonitor.IsChecked != true;
-
-                // Default to SDI Input or SMPTE pattern preview
-                if (CmbInputSource?.SelectedIndex == 0 && CmbSdiDevices.SelectedItem != null)
+                int initialIndex = CmbInputSource?.SelectedIndex ?? 3;
+                string? initialParam = initialIndex switch
                 {
-                    string devName = CmbSdiDevices.SelectedItem.ToString() ?? "DeckLink SDI (1)";
-                    TxtActiveSourceBadge.Text = $"INPUT: {devName.ToUpper()}";
-                }
-                else if (CmbInputSource?.SelectedIndex == 3)
-                {
-                    TxtActiveSourceBadge.Text = "INPUT: SMPTE COLORBAR & 1kHz (UTC EMBEDDED)";
-                }
+                    0 => CmbSdiDevices?.SelectedItem?.ToString(),
+                    1 => CmbNdiSources?.SelectedItem?.ToString(),
+                    2 => TxtFilePath?.Text,
+                    _ => null
+                };
 
-                await Task.CompletedTask;
+                await _sourceManager.SwitchSourceAsync((InputSourceType)initialIndex, initialParam);
             }
             catch (Exception ex)
             {
@@ -183,8 +182,7 @@ namespace SRT_ENCODE
                 _telemetryTimer?.Stop();
                 _vuMeterTimer?.Stop();
 
-                _player?.Dispose();
-                _player = null;
+                _sourceManager.Dispose();
 
                 _mixer?.Dispose();
                 _mixer = null;
@@ -504,7 +502,7 @@ namespace SRT_ENCODE
             }
         }
 
-        private void BtnBrowseFile_Click(object sender, RoutedEventArgs e)
+        private async void BtnBrowseFile_Click(object sender, RoutedEventArgs e)
         {
             var dlg = new OpenFileDialog
             {
@@ -516,10 +514,11 @@ namespace SRT_ENCODE
             {
                 TxtFilePath.Text = dlg.FileName;
                 LogEvent("[INFO]", $"Đã chọn video tập tin: {Path.GetFileName(dlg.FileName)}");
+                await _sourceManager.HandleFileSourceAsync(dlg.FileName);
             }
         }
 
-        private void CmbInputSource_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private async void CmbInputSource_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (!_isInitialized) return;
             if (CardSdiConfig == null || CardNdiConfig == null || CardFileConfig == null || CardColorbarConfig == null) return;
@@ -532,59 +531,101 @@ namespace SRT_ENCODE
             CardFileConfig.Visibility = (selected == 2) ? Visibility.Visible : Visibility.Collapsed;
             CardColorbarConfig.Visibility = (selected == 3) ? Visibility.Visible : Visibility.Collapsed;
 
-            bool isColorbar = (selected == 3);
-            bool isPreviewEnabled = ChkEnableVideoPreview?.IsChecked == true;
-
-            if (ViewboxColorbar != null)
+            string? param = selected switch
             {
-                ViewboxColorbar.Visibility = (isColorbar && isPreviewEnabled) ? Visibility.Visible : Visibility.Collapsed;
+                0 => CmbSdiDevices?.SelectedItem?.ToString() ?? "Blackmagic DeckLink 8K Pro (SDI 1 - 1080p59.94)",
+                1 => CmbNdiSources?.SelectedItem?.ToString() ?? "STUDIO-MCR-01 (Main Program Feed)",
+                2 => TxtFilePath?.Text ?? string.Empty,
+                _ => null
+            };
+
+            string? mode = (CmbSdiVideoMode?.SelectedItem as ComboBoxItem)?.Content?.ToString();
+            string? ch = (CmbSdiAudioCh?.SelectedItem as ComboBoxItem)?.Content?.ToString();
+
+            await _sourceManager.SwitchSourceAsync((InputSourceType)selected, param, mode, ch);
+        }
+
+        private async void CmbSdiDevices_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized || CmbInputSource?.SelectedIndex != 0) return;
+            string? dev = CmbSdiDevices.SelectedItem?.ToString();
+            string? mode = (CmbSdiVideoMode?.SelectedItem as ComboBoxItem)?.Content?.ToString();
+            string? ch = (CmbSdiAudioCh?.SelectedItem as ComboBoxItem)?.Content?.ToString();
+            if (!string.IsNullOrEmpty(dev))
+            {
+                await _sourceManager.HandleSdiSourceAsync(dev, mode, ch);
+            }
+        }
+
+        private async void CmbSdiVideoMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized || CmbInputSource?.SelectedIndex != 0) return;
+            string? dev = CmbSdiDevices?.SelectedItem?.ToString() ?? "Blackmagic DeckLink 8K Pro (SDI 1 - 1080p59.94)";
+            string? mode = (CmbSdiVideoMode?.SelectedItem as ComboBoxItem)?.Content?.ToString();
+            string? ch = (CmbSdiAudioCh?.SelectedItem as ComboBoxItem)?.Content?.ToString();
+            if (!string.IsNullOrEmpty(dev))
+            {
+                await _sourceManager.HandleSdiSourceAsync(dev, mode, ch);
+            }
+        }
+
+        private async void CmbSdiAudioCh_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized || CmbInputSource?.SelectedIndex != 0) return;
+            string? dev = CmbSdiDevices?.SelectedItem?.ToString() ?? "Blackmagic DeckLink 8K Pro (SDI 1 - 1080p59.94)";
+            string? mode = (CmbSdiVideoMode?.SelectedItem as ComboBoxItem)?.Content?.ToString();
+            string? ch = (CmbSdiAudioCh?.SelectedItem as ComboBoxItem)?.Content?.ToString();
+            if (!string.IsNullOrEmpty(dev))
+            {
+                await _sourceManager.HandleSdiSourceAsync(dev, mode, ch);
+            }
+        }
+
+        private async void CmbNdiSources_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized || CmbInputSource?.SelectedIndex != 1) return;
+            string? ndi = CmbNdiSources.SelectedItem?.ToString();
+            if (!string.IsNullOrEmpty(ndi))
+            {
+                await _sourceManager.HandleNdiSourceAsync(ndi);
+            }
+        }
+
+        private void UpdateSourceTelemetryUI(VideoSourceTelemetry telem)
+        {
+            if (telem == null) return;
+
+            void Apply()
+            {
+                if (TxtSourceActiveName != null) TxtSourceActiveName.Text = telem.SourceName;
+                if (TxtSourceSignalStatus != null) TxtSourceSignalStatus.Text = telem.Status;
+                if (BadgeSourceLockStatus != null)
+                {
+                    BadgeSourceLockStatus.Background = telem.IsLocked
+                        ? new SolidColorBrush(Color.FromRgb(0x1B, 0x5E, 0x20))
+                        : new SolidColorBrush(Color.FromRgb(0xB7, 0x1C, 0x1C));
+                }
+                if (TxtSourceResolution != null) TxtSourceResolution.Text = telem.Resolution;
+                if (TxtSourceFps != null) TxtSourceFps.Text = telem.FrameRate;
+                if (TxtSourceVideoCodec != null) TxtSourceVideoCodec.Text = telem.VideoCodec;
+                if (TxtSourceAudioInfo != null) TxtSourceAudioInfo.Text = telem.AudioFormat;
+                if (TxtSourceColorSpace != null) TxtSourceColorSpace.Text = telem.ColorSpace;
+                if (TxtSourcePipelineDetails != null) TxtSourcePipelineDetails.Text = telem.PipelineDetails;
             }
 
-            if (ReviewView != null)
+            if (Dispatcher.CheckAccess())
             {
-                ReviewView.Visibility = (!isColorbar && isPreviewEnabled) ? Visibility.Visible : Visibility.Collapsed;
+                Apply();
             }
-
-            switch (selected)
+            else
             {
-                case 0: // SDI
-                    if (TxtActiveSourceTypeBadge != null) TxtActiveSourceTypeBadge.Text = "📡 SDI INPUT ACTIVE";
-                    string dev = CmbSdiDevices.SelectedItem?.ToString() ?? "DeckLink SDI";
-                    TxtActiveSourceBadge.Text = $"INPUT: SDI ({dev})";
-                    LogEvent("[INFO]", $"Đã chuyển nguồn đầu vào: SDI Input [{dev}]");
-                    break;
-
-                case 1: // NDI
-                    if (TxtActiveSourceTypeBadge != null) TxtActiveSourceTypeBadge.Text = "🌐 NDI INPUT ACTIVE";
-                    string ndi = CmbNdiSources.SelectedItem?.ToString() ?? "NDI Source";
-                    TxtActiveSourceBadge.Text = $"INPUT: NDI ({ndi})";
-                    LogEvent("[INFO]", $"Đã chuyển nguồn đầu vào: NDI Input [{ndi}]");
-                    break;
-
-                case 2: // File
-                    if (TxtActiveSourceTypeBadge != null) TxtActiveSourceTypeBadge.Text = "📁 FILE INPUT ACTIVE";
-                    string fn = Path.GetFileName(TxtFilePath.Text);
-                    if (string.IsNullOrEmpty(fn)) fn = "No File Selected";
-                    TxtActiveSourceBadge.Text = $"INPUT: FILE ({fn})";
-                    LogEvent("[INFO]", $"Đã chuyển nguồn đầu vào: File Video [{fn}]");
-                    break;
-
-                case 3: // Colorbar
-                    if (TxtActiveSourceTypeBadge != null) TxtActiveSourceTypeBadge.Text = "🎨 COLORBAR ACTIVE";
-                    UpdateColorbarDisplay();
-                    string patternName = (CmbColorbarPattern?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "SMPTE RP 219";
-                    TxtActiveSourceBadge.Text = $"INPUT: COLORBAR ({patternName.Split(' ')[0]})";
-                    LogEvent("[INFO]", $"Đã chuyển nguồn đầu vào: Test Pattern [{patternName}] + [{_colorbarEngine.GetToneDescription()}]");
-                    break;
+                Dispatcher.Invoke(Apply);
             }
         }
 
         private void UpdateColorbarDisplay()
         {
-            if (PnlColorbarVisualHost != null)
-            {
-                _colorbarEngine.RenderPattern(PnlColorbarVisualHost);
-            }
+            _sourceManager.UpdateColorbarDisplay();
             if (TxtColorbarIdentTitle != null)
             {
                 TxtColorbarIdentTitle.Text = _colorbarEngine.GetPatternTitle();
@@ -1146,17 +1187,7 @@ namespace SRT_ENCODE
         {
             if (!_isInitialized) return;
             bool isEnabled = ChkEnableVideoPreview.IsChecked == true;
-            bool isColorbar = CmbInputSource?.SelectedIndex == 3;
-
-            if (ViewboxColorbar != null)
-            {
-                ViewboxColorbar.Visibility = (isColorbar && isEnabled) ? Visibility.Visible : Visibility.Collapsed;
-            }
-
-            if (ReviewView != null)
-            {
-                ReviewView.Visibility = (!isColorbar && isEnabled) ? Visibility.Visible : Visibility.Collapsed;
-            }
+            _sourceManager.SetPreviewEnabled(isEnabled);
 
             if (PnlPreviewDisabled != null)
             {
@@ -1170,10 +1201,8 @@ namespace SRT_ENCODE
         {
             if (!_isInitialized) return;
             bool isAudioMonitor = ChkEnableAudioMonitor.IsChecked == true;
-            if (_player != null)
-            {
-                _player.IsMuted = !isAudioMonitor;
-            }
+            _sourceManager.SetAudioMonitor(isAudioMonitor, SldMonitorVolume.Value);
+
             if (OverlayAudioVu != null)
             {
                 OverlayAudioVu.Visibility = isAudioMonitor ? Visibility.Visible : Visibility.Collapsed;
@@ -1197,10 +1226,7 @@ namespace SRT_ENCODE
             {
                 TxtMonitorVolumeVal.Text = $"{(int)(e.NewValue * 100)}%";
             }
-            if (_player != null)
-            {
-                _player.Volume = e.NewValue;
-            }
+            _sourceManager.SetVolume(e.NewValue);
         }
 
         private int _aspectModeIndex = 0; // 0: Aspect Fit (Uniform), 1: Aspect Scale (UniformToFill)
@@ -1222,15 +1248,7 @@ namespace SRT_ENCODE
                 _ => Stretch.Uniform
             };
 
-            if (ReviewView != null)
-            {
-                ReviewView.Stretch = currentStretch;
-            }
-
-            if (ViewboxColorbar != null)
-            {
-                ViewboxColorbar.Stretch = currentStretch;
-            }
+            _sourceManager.SetAspectRatio(currentStretch);
 
             switch (_aspectModeIndex)
             {
