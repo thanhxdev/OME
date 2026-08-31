@@ -1,3 +1,5 @@
+using OpenMedia.Platform.Models;
+
 namespace OpenMedia.Platform.Tests
 {
     public class StreamOutputTests
@@ -26,7 +28,7 @@ namespace OpenMedia.Platform.Tests
 
             Assert.Equal("192.168.1.1", output.Configuration["host"]);
             Assert.Equal(9000, output.Configuration["port"]);
-            Assert.Equal(SRTMode.Listener, output.Configuration["mode"]);
+            Assert.Equal("Listener", output.Configuration["mode"]);
         }
 
         [Fact]
@@ -34,8 +36,102 @@ namespace OpenMedia.Platform.Tests
         {
             var output = StreamOutput.SRT("192.168.1.1", 9000);
 
-            Assert.Equal(SRTMode.Caller, output.Configuration["mode"]);
+            Assert.Equal("Caller", output.Configuration["mode"]);
         }
+
+        [Fact]
+        public void SRT_WithFullConfig_SerializesAllParameters()
+        {
+            var config = new SRTStreamConfig
+            {
+                Host = "10.0.0.50",
+                Port = 9800,
+                Mode = SRTMode.Caller,
+                StreamId = "live/program/cam1",
+                LatencyMs = 200,
+                AutoLatency = false,
+                EncryptionEnabled = true,
+                Passphrase = "SecretPassphrase123",
+                KeyLength = 32,
+                VideoCodec = "H.265 / HEVC",
+                BitrateKbps = 15000,
+                HardwareEncoder = "NVIDIA NVENC",
+                RateControl = "CBR",
+                EncoderPreset = "Low-Latency",
+                UltraLowLatency = true,
+                GopSeconds = 1.0,
+                BFrames = 0,
+                NtpSyncEnabled = true,
+                NtpServer = "time.cloudflare.com",
+                AudioChannels = 16,
+                AudioSampleRate = 48000,
+                AudioBitrateKbps = 384
+            };
+
+            var output = StreamOutput.SRT(config);
+
+            Assert.Equal("10.0.0.50", output.Configuration["host"]);
+            Assert.Equal(9800, output.Configuration["port"]);
+            Assert.Equal("Caller", output.Configuration["mode"]);
+            Assert.Equal("live/program/cam1", output.Configuration["streamId"]);
+            Assert.Equal(200, output.Configuration["latency"]);
+            Assert.Equal(true, output.Configuration["encryption"]);
+            Assert.Equal("SecretPassphrase123", output.Configuration["passphrase"]);
+            Assert.Equal(32, output.Configuration["pbkeylen"]);
+            Assert.Equal("H.265 / HEVC", output.Configuration["videoCodec"]);
+            Assert.Equal(15000, output.Configuration["bitrateKbps"]);
+            Assert.Equal(true, output.Configuration["ultraLowLatency"]);
+            Assert.Equal(true, output.Configuration["ntpSync"]);
+            Assert.Equal(16, output.Configuration["audioChannels"]);
+        }
+
+        [Fact]
+        public void SRTStreamConfig_ToSrtUri_GeneratesValidUri()
+        {
+            var config = new SRTStreamConfig
+            {
+                Host = "192.168.1.100",
+                Port = 9000,
+                Mode = SRTMode.Caller,
+                LatencyMs = 150,
+                EncryptionEnabled = true,
+                Passphrase = "testpassphrase",
+                KeyLength = 32,
+                StreamId = "stream/cam1"
+            };
+
+            string uri = config.ToSrtUri();
+
+            Assert.StartsWith("srt://192.168.1.100:9000?mode=caller", uri);
+            Assert.Contains("latency=150", uri);
+            Assert.Contains("passphrase=testpassphrase", uri);
+            Assert.Contains("pbkeylen=32", uri);
+            Assert.Contains("streamid=stream%2Fcam1", uri);
+        }
+
+        [Fact]
+        public async Task SRTStreamSession_StartAndStop_LifecycleWorks()
+        {
+            var config = new SRTStreamConfig
+            {
+                Host = "127.0.0.1",
+                Port = 9000,
+                Mode = SRTMode.Caller
+            };
+
+            using var session = new SRTStreamSession(config);
+            Assert.False(session.IsRunning);
+
+            bool started = await session.StartTransmissionAsync();
+            Assert.True(started);
+            Assert.True(session.IsRunning);
+            Assert.True(session.Statistics.IsConnected);
+
+            await session.StopAsync();
+            Assert.False(session.IsRunning);
+            Assert.False(session.Statistics.IsConnected);
+        }
+
 
         [Fact]
         public void NDI_CreatesCorrectConfiguration()
@@ -89,3 +185,4 @@ namespace OpenMedia.Platform.Tests
         }
     }
 }
+

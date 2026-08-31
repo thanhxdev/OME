@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\OpenMedia.Core.NET\OpenMedia.Core.NET.csproj" />
+    <InternalsVisibleTo Include="OpenMedia.Platform.Tests" />
   </ItemGroup>
 
   <ItemGroup>

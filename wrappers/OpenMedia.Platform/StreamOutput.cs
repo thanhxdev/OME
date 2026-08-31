@@ -1,3 +1,5 @@
+using OpenMedia.Platform.Models;
+
 namespace OpenMedia.Platform
 {
     /// <summary>
@@ -49,20 +51,45 @@ namespace OpenMedia.Platform
         }
 
         /// <summary>
-        /// Creates an SRT streaming output.
+        /// Creates an SRT streaming output with full configuration parameters.
+        /// </summary>
+        /// <param name="config">Comprehensive SRT stream configuration.</param>
+        /// <returns>A configured <see cref="StreamOutput"/>.</returns>
+        public static StreamOutput SRT(SRTStreamConfig config)
+        {
+            ArgumentNullException.ThrowIfNull(config);
+            return new StreamOutput(StreamOutputType.SRT, config.ToDictionary());
+        }
+
+        /// <summary>
+        /// Creates an SRT streaming output with individual parameters.
         /// </summary>
         /// <param name="host">SRT host address.</param>
         /// <param name="port">SRT port.</param>
         /// <param name="mode">SRT connection mode. Default: <see cref="SRTMode.Caller"/>.</param>
+        /// <param name="streamId">Optional Stream ID / channel identifier.</param>
+        /// <param name="latencyMs">SRT buffer latency in milliseconds.</param>
+        /// <param name="passphrase">Optional passphrase for AES encryption.</param>
         /// <returns>A configured <see cref="StreamOutput"/>.</returns>
-        public static StreamOutput SRT(string host, int port, SRTMode mode = SRTMode.Caller)
+        public static StreamOutput SRT(
+            string host, 
+            int port, 
+            SRTMode mode = SRTMode.Caller,
+            string? streamId = null,
+            int latencyMs = 120,
+            string? passphrase = null)
         {
-            return new StreamOutput(StreamOutputType.SRT, new Dictionary<string, object>
+            var config = new SRTStreamConfig
             {
-                ["host"] = host,
-                ["port"] = port,
-                ["mode"] = mode
-            });
+                Host = host,
+                Port = port,
+                Mode = mode,
+                StreamId = streamId ?? string.Empty,
+                LatencyMs = latencyMs,
+                EncryptionEnabled = !string.IsNullOrEmpty(passphrase),
+                Passphrase = passphrase ?? string.Empty
+            };
+            return SRT(config);
         }
 
         /// <summary>

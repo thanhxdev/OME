@@ -76,6 +76,20 @@ namespace OpenMedia.SDK
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern void ome_clock_overlay_set_format(IntPtr overlay, string format);
 
+        [StructLayout(LayoutKind.Sequential)]
+        public struct SRTNativeStats
+        {
+            public long msRTT;
+            public int pktLossTotal;
+            public int mbpsBandwidth;
+            public int pktRetransmitTotal;
+            public int pktSentTotal;
+            public int pktRecvTotal;
+            public int pktDropTotal;
+            public ulong bytesSentTotal;
+            public ulong bytesRecvTotal;
+        }
+
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr ome_srt_engine_create();
 
@@ -84,6 +98,47 @@ namespace OpenMedia.SDK
 
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         public static extern bool ome_srt_engine_init(IntPtr engine);
+
+        // SRT Source API
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr ome_srt_source_create();
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void ome_srt_source_destroy(IntPtr source);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern bool ome_srt_source_connect(IntPtr source, string uri);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void ome_srt_source_disconnect(IntPtr source);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int ome_srt_source_receive(IntPtr source, byte[] buffer, int size);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern bool ome_srt_source_is_connected(IntPtr source);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern bool ome_srt_source_get_stats(IntPtr source, out SRTNativeStats stats);
+
+        // SRT Output API
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr ome_srt_output_create();
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern bool ome_srt_output_open(IntPtr output, string uri);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void ome_srt_output_close(IntPtr output);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern bool ome_srt_output_send(IntPtr output, byte[] data, int size);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern bool ome_srt_output_is_connected(IntPtr output);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern bool ome_srt_output_get_stats(IntPtr output, out SRTNativeStats stats);
 
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr ome_ndi_engine_create();

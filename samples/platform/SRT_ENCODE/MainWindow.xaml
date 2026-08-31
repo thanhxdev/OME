@@ -72,6 +72,38 @@
             </Setter>
         </Style>
 
+        <!-- Segmented Radio Button Style for Pipeline Mode Switch -->
+        <Style x:Key="SegmentedRadioButtonStyle" TargetType="RadioButton">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#AAAAAA"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="4,2">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#333338"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#007ACC"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                <Setter Property="FontWeight" Value="Bold"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- ComboBoxItem Dark Style -->
         <Style TargetType="ComboBoxItem">
             <Setter Property="SnapsToDevicePixels" Value="True"/>
@@ -670,7 +702,7 @@
                                 <TextBlock Text="SRT TRANSMISSION PROTOCOL SETTINGS" FontWeight="Bold" FontSize="14" Foreground="#FFFFFF" Margin="0,0,0,4"/>
                                 <TextBlock Text="Configure transport mode, destination endpoint, auto latency and AES encryption." FontSize="11" Foreground="#888888" Margin="0,0,0,12"/>
 
-                                <!-- SRT Mode & Compression -->
+                                <!-- SRT Mode & Video Pipeline / Compression -->
                                 <Border Style="{StaticResource DarkCardBorderStyle}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -686,11 +718,39 @@
                                             </ComboBox>
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                                            <TextBlock Text="Video Compression Codec:" Style="{StaticResource HeaderLabelStyle}"/>
-                                            <ComboBox x:Name="CmbVideoCodec" SelectionChanged="CmbVideoCodec_SelectionChanged">
-                                                <ComboBoxItem x:Name="CmbItemH264" Content="H.264 / AVC (Default)" IsSelected="True"/>
-                                                <ComboBoxItem x:Name="CmbItemH265" Content="H.265 / HEVC (Ultra High Efficiency)"/>
-                                            </ComboBox>
+                                            <!-- Video Pipeline Mode Switch: Encoder Pipe | Passthrough -->
+                                            <TextBlock Text="Video Pipeline Mode:" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <Border Background="#252526" BorderBrush="#3E3E42" BorderThickness="1" CornerRadius="4" Padding="2" Margin="0,0,0,8">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <RadioButton x:Name="RbEncoderPipe" Grid.Column="0" Content="🎛️ Encoder Pipe" GroupName="VideoPipelineMode" Style="{StaticResource SegmentedRadioButtonStyle}" IsChecked="True" Checked="VideoPipelineMode_Changed" Unchecked="VideoPipelineMode_Changed"/>
+                                                    <RadioButton x:Name="RbPassthrough" Grid.Column="1" Content="⚡ Passthrough" GroupName="VideoPipelineMode" Style="{StaticResource SegmentedRadioButtonStyle}" IsChecked="False" Checked="VideoPipelineMode_Changed" Unchecked="VideoPipelineMode_Changed"/>
+                                                </Grid>
+                                            </Border>
+
+                                            <!-- Video Compression Codec (Visible when Encoder Pipe is selected) -->
+                                            <StackPanel x:Name="PnlVideoCodecContainer" Visibility="Visible">
+                                                <TextBlock Text="Video Compression Codec:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <ComboBox x:Name="CmbVideoCodec" SelectionChanged="CmbVideoCodec_SelectionChanged">
+                                                    <ComboBoxItem x:Name="CmbItemH264" Content="H.264 / AVC (Broadcast Reference)" IsSelected="True"/>
+                                                    <ComboBoxItem x:Name="CmbItemH265" Content="H.265 / HEVC (Ultra High Efficiency)"/>
+                                                    <ComboBoxItem x:Name="CmbItemAV1" Content="AV1 (AOMedia Video 1 Next-Gen)"/>
+                                                </ComboBox>
+                                            </StackPanel>
+
+                                            <!-- Passthrough Information Notice (Visible when Passthrough is selected) -->
+                                            <Border x:Name="PnlPassthroughNotice" Visibility="Collapsed" Background="#14261C" BorderBrush="#2E7D32" BorderThickness="1" CornerRadius="4" Padding="8,6">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                                                        <TextBlock Text="⚡" Margin="0,0,4,0"/>
+                                                        <TextBlock Text="DIRECT BITSTREAM PASSTHROUGH" FontWeight="Bold" FontSize="10.5" Foreground="#00E676"/>
+                                                    </StackPanel>
+                                                    <TextBlock Text="Luồng video gốc từ File/Input được truyền trực tiếp qua SRT mà không cần chọn Codec hay nén lại." FontSize="10" Foreground="#A5D6A7" TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                            </Border>
                                         </StackPanel>
                                     </Grid>
                                 </Border>

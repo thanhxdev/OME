@@ -24,6 +24,10 @@ target_include_directories(OpenMedia.Core
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_BINARY_DIR}/generated
+        ${CMAKE_SOURCE_DIR}/src/protocols/srt/include
+        ${CMAKE_SOURCE_DIR}/src/mixer/include
+        ${CMAKE_SOURCE_DIR}/src/audio/include
+        ${CMAKE_SOURCE_DIR}/src/overlay/include
 )
 
 # Link dependencies (conditional on availability)
@@ -40,6 +44,18 @@ endif()
 
 if(fmt_FOUND)
     target_link_libraries(OpenMedia.Core PUBLIC fmt::fmt)
+endif()
+
+find_path(SRT_INCLUDE_DIR NAMES srt/srt.h)
+find_library(SRT_LIBRARY NAMES srt srt_static)
+if(SRT_INCLUDE_DIR AND SRT_LIBRARY)
+    target_sources(OpenMedia.Core PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/protocols/srt/src/SRTEngine.cpp
+        ${CMAKE_SOURCE_DIR}/src/protocols/srt/src/SRTSource.cpp
+        ${CMAKE_SOURCE_DIR}/src/protocols/srt/src/SRTOutput.cpp
+    )
+    target_include_directories(OpenMedia.Core PRIVATE ${SRT_INCLUDE_DIR})
+    target_link_libraries(OpenMedia.Core PRIVATE ${SRT_LIBRARY} ws2_32.lib)
 endif()
 
 target_compile_definitions(OpenMedia.Core

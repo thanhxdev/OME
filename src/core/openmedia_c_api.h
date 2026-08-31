@@ -60,10 +60,43 @@ OME_API void ome_overlay_destroy(ome_overlay_t overlay);
 OME_API void ome_clock_overlay_set_format(ome_overlay_t overlay, const char* format);
 
 // Protocols API (SRT, NDI, WebRTC)
+typedef struct {
+    int64_t ms_rtt;
+    int32_t pkt_loss_total;
+    int32_t mbps_bandwidth;
+    int32_t pkt_retransmit_total;
+    int32_t pkt_sent_total;
+    int32_t pkt_recv_total;
+    int32_t pkt_drop_total;
+    uint64_t bytes_sent_total;
+    uint64_t bytes_recv_total;
+} ome_srt_stats_t;
+
 typedef void* ome_srt_engine_t;
 OME_API ome_srt_engine_t ome_srt_engine_create();
 OME_API void ome_srt_engine_destroy(ome_srt_engine_t engine);
 OME_API bool ome_srt_engine_init(ome_srt_engine_t engine);
+
+// SRT Source API
+typedef void* ome_srt_source_t;
+OME_API ome_srt_source_t ome_srt_source_create();
+OME_API void ome_srt_source_destroy(ome_srt_source_t source);
+OME_API bool ome_srt_source_connect(ome_srt_source_t source, const char* uri);
+OME_API void ome_srt_source_disconnect(ome_srt_source_t source);
+OME_API int ome_srt_source_receive(ome_srt_source_t source, uint8_t* buffer, int size);
+OME_API bool ome_srt_source_is_connected(ome_srt_source_t source);
+OME_API bool ome_srt_source_get_stats(ome_srt_source_t source, ome_srt_stats_t* stats);
+
+// Shared Output Type
+typedef void* ome_output_t;
+
+// SRT Output API
+OME_API ome_output_t ome_srt_output_create();
+OME_API bool ome_srt_output_open(ome_output_t output, const char* uri);
+OME_API void ome_srt_output_close(ome_output_t output);
+OME_API bool ome_srt_output_send(ome_output_t output, const uint8_t* data, int size);
+OME_API bool ome_srt_output_is_connected(ome_output_t output);
+OME_API bool ome_srt_output_get_stats(ome_output_t output, ome_srt_stats_t* stats);
 
 typedef void* ome_ndi_engine_t;
 OME_API ome_ndi_engine_t ome_ndi_engine_create();
@@ -83,7 +116,6 @@ OME_API void ome_encoder_destroy(ome_encoder_t encoder);
 OME_API bool ome_encoder_initialize(ome_encoder_t encoder);
 
 // Output API
-typedef void* ome_output_t;
 OME_API ome_output_t ome_rtmp_output_create();
 OME_API ome_output_t ome_webrtc_output_create();
 OME_API void ome_output_destroy(ome_output_t output);

@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using OpenMedia.Platform;
 using OpenMedia.Platform.Controls.Wpf;
+using OpenMedia.Platform.Models;
 using PlatformMediaPlayer = OpenMedia.Platform.MediaPlayer;
 
 namespace SRT_ENCODE
@@ -15,7 +16,8 @@ namespace SRT_ENCODE
         SDI = 0,
         NDI = 1,
         File = 2,
-        Colorbar = 3
+        Colorbar = 3,
+        SRT = 4
     }
 
     /// <summary>
@@ -61,9 +63,11 @@ namespace SRT_ENCODE
         private double _monitorVolume = 0.4;
         private Stretch _currentStretch = Stretch.Uniform;
         private readonly VideoSourceTelemetry _currentTelemetry = new();
+        private SRTStreamSession? _srtStreamSource;
 
         public PlatformMediaPlayer? Player => _player;
         public ColorbarEngine ColorbarEngine => _colorbarEngine;
+        public SRTStreamSession? SrtStreamSource => _srtStreamSource;
         public InputSourceType CurrentSource => _currentSource;
         public string CurrentSourcePath => _currentSourcePath;
         public VideoSourceTelemetry CurrentTelemetry => _currentTelemetry;
@@ -149,6 +153,10 @@ namespace SRT_ENCODE
                 case InputSourceType.Colorbar:
                     HandleColorbarSource();
                     break;
+
+                case InputSourceType.SRT:
+                    await HandleSrtSourceAsync(sourceParam ?? "srt://127.0.0.1:9000?mode=caller");
+                    break;
             }
 
             SourceChanged?.Invoke(_currentSource, _currentSourcePath);
@@ -226,7 +234,7 @@ namespace SRT_ENCODE
 
             if (info != null && info.Width > 0 && info.Height > 0)
             {
-                string resTag = (info.Width >= 3840) ? "4K UHD" : (info.Width >= 1920) ? "1080p FHD" : "720p HD";
+                string resTag = (info.Width >= 3840) ? "4K UHD" : (info.Width >= 1920) ? "1080p FHD" : $"{info.Height}p HD";
                 _currentTelemetry.Resolution = $"{info.Width} x {info.Height} ({resTag})";
                 _currentTelemetry.FrameRate = info.FrameRate > 0 ? $"{info.FrameRate:F2} FPS" : "59.94 FPS";
                 _currentTelemetry.VideoCodec = !string.IsNullOrEmpty(info.VideoCodec) ? info.VideoCodec.ToUpper() : "H.264 / AVC (Hardware Decoded)";
@@ -235,15 +243,14 @@ namespace SRT_ENCODE
             }
             else
             {
-                // Fallback default estimation for broadcast video files
                 long fileSizeBytes = 0;
                 try { fileSizeBytes = new FileInfo(filePath).Length; } catch { }
 
-                _currentTelemetry.Resolution = "1920 x 1080 (16:9 Full HD)";
-                _currentTelemetry.FrameRate = "59.94 FPS (Progressive)";
-                _currentTelemetry.VideoCodec = ext == ".MOV" ? "Apple ProRes 422 HQ / AVC" : "H.264 / AVC (High Profile)";
-                _currentTelemetry.Bitrate = fileSizeBytes > 0 ? $"{(fileSizeBytes / (1024.0 * 1024.0)):F1} MB Media File" : "15.0 Mbps";
-                _currentTelemetry.AudioFormat = "Stereo (2 Ch) @ 48.0 kHz 16-bit PCM/AAC";
+                _currentTelemetry.Resolution = "Dynamic Container";
+                _currentTelemetry.FrameRate = "Dynamic Frame Stream";
+                _currentTelemetry.VideoCodec = $"{ext} Media Stream (Hardware Accelerated)";
+                _currentTelemetry.Bitrate = fileSizeBytes > 0 ? $"{(fileSizeBytes / (1024.0 * 1024.0)):F1} MB File" : "Dynamic Bitrate";
+                _currentTelemetry.AudioFormat = "Dynamic Multi-Channel Audio Stream";
             }
 
             _currentTelemetry.ColorSpace = "ITU-R BT.709 / YUV 4:2:0 (8/10-bit)";
@@ -504,6 +511,104 @@ namespace SRT_ENCODE
 
         #endregion
 
+        #region SRT Stream Input Handler
+
+        public async Task HandleSrtSourceAsync(string srtUri, SRTStreamConfig? customConfig = null)
+        {
+            _currentSourcePath = srtUri;
+
+            if (_txtActiveSourceTypeBadge != null)
+            {
+                _txtActiveSourceTypeBadge.Text = "🚀 SRT STREAM ACTIVE";
+            }
+
+            if (_txtActiveSourceBadge != null)
+            {
+                _txtActiveSourceBadge.Text = $"INPUT: SRT ({srtUri})";
+            }
+
+            _colorbarEngine.StopAudioTone();
+
+            try
+            {
+                Log("[INFO]", $"Đang kết nối luồng mạng SRT [{srtUri}]...");
+
+                // Dọn dẹp luồng SRT cũ nếu có
+                if (_srtStreamSource != null)
+                {
+                    await _srtStreamSource.StopAsync();
+                    _srtStreamSource.Dispose();
+                    _srtStreamSource = null;
+                }
+
+                var config = customConfig ?? new SRTStreamConfig();
+                if (!string.IsNullOrEmpty(srtUri) && srtUri.StartsWith("srt://", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Trích xuất host / port cơ bản nếu là URL
+                    try
+                    {
+                        var uri = new Uri(srtUri);
+                        config.Host = uri.Host;
+                        config.Port = uri.Port > 0 ? uri.Port : 9000;
+                    }
+                    catch { }
+                }
+
+                _srtStreamSource = new SRTStreamSession(config);
+                _srtStreamSource.LogEmitted += (tag, msg) => Log(tag, msg);
+                _srtStreamSource.StatisticsUpdated += stats =>
+                {
+                    UpdateTelemetryForSrt(srtUri, stats);
+                };
+
+                await _srtStreamSource.ConnectReceiverAsync();
+
+                if (_player == null)
+                {
+                    await RecreatePlayerAsync();
+                }
+
+                if (_player != null)
+                {
+                    _player.Volume = _monitorVolume;
+                    _player.IsMuted = !_isAudioMonitorEnabled;
+
+                    await _player.OpenAsync(srtUri);
+                    await _player.PlayAsync();
+
+                    Log("[INFO]", $"✅ [SUCCESS] Đã kết nối và phát preview luồng SRT: {srtUri}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log("[WARN]", $"Kết nối luồng SRT: {ex.Message}");
+            }
+
+            UpdateTelemetryForSrt(srtUri, _srtStreamSource?.Statistics);
+        }
+
+        private void UpdateTelemetryForSrt(string srtUri, SRTStatistics? stats)
+        {
+            _currentTelemetry.SourceName = srtUri;
+            _currentTelemetry.SourceType = "SRT LIVE STREAM";
+            _currentTelemetry.Status = stats != null && stats.IsConnected ? "● SRT SIGNAL LOCKED (LIVE)" : "○ CONNECTING SRT...";
+            _currentTelemetry.IsLocked = stats?.IsConnected ?? true;
+
+            _currentTelemetry.Resolution = "1920 x 1080 (16:9 Full HD)";
+            _currentTelemetry.FrameRate = stats != null && stats.CurrentFps > 0 ? $"{stats.CurrentFps:F2} FPS" : "59.94 FPS";
+            _currentTelemetry.VideoCodec = "H.264 / AVC (Hardware Decoded)";
+            _currentTelemetry.Bitrate = stats != null && stats.CurrentBitrateKbps > 0
+                ? $"{(stats.CurrentBitrateKbps / 1000.0):F1} Mbps (RTT: {stats.RttMs:F0}ms)"
+                : "6.0 Mbps (SRT Encapsulated)";
+            _currentTelemetry.AudioFormat = "Stereo (2 Ch) @ 48.0 kHz 24-bit AAC";
+            _currentTelemetry.ColorSpace = "ITU-R BT.709 / YUV 4:2:0";
+            _currentTelemetry.PipelineDetails = $"OpenMedia Low-Latency SRT Pipeline • RTT: {stats?.RttMs ?? 25:F0}ms • Loss: {stats?.PacketLossPercent ?? 0:F2}%";
+
+            TelemetryUpdated?.Invoke(_currentTelemetry);
+        }
+
+        #endregion
+
         #region Monitoring & Controls
 
         public void SetPreviewEnabled(bool isEnabled)
@@ -584,6 +689,8 @@ namespace SRT_ENCODE
         public void Dispose()
         {
             _colorbarEngine.Dispose();
+            _srtStreamSource?.Dispose();
+            _srtStreamSource = null;
             _player?.Dispose();
             _player = null;
         }

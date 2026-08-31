@@ -6,7 +6,7 @@
   <Project Path="OpenMedia.Platform.Tests/OpenMedia.Platform.Tests.csproj" />
   <Project Path="SampleCSharpPlugin/SampleCSharpPlugin.csproj" />
   <Project Path="SimplePlayer/SimplePlayer.csproj" />
-  <Project Path="../samples/dotnet/OME_review/OME_review.csproj" />
+  <Project Path="../samples/platform/SRT_ENCODE/SRT_ENCODE.csproj" />
   <Project Path="../samples/dotnet/WpfQuickPlayer/WpfQuickPlayer.csproj" />
   <Project Path="../samples/dotnet/VisionSwitcher/VisionSwitcher.csproj" />
   <Project Path="../samples/dotnet/LiveStreamer/LiveStreamer.csproj" />

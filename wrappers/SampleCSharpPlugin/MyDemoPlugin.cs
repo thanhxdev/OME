@@ -1,5 +1,5 @@
 using System;
-using OpenMedia.Core.NET;
+using OpenMedia.SDK;
 
 namespace SampleCSharpPlugin
 {

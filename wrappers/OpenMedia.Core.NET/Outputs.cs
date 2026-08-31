@@ -149,4 +149,99 @@ namespace OpenMedia.SDK
             Dispose(false);
         }
     }
+
+    public class SRTOutput : IDisposable
+    {
+        private IntPtr _handle;
+        private bool _disposed = false;
+        private string _openedUri = string.Empty;
+
+        public IntPtr Handle => _handle;
+        public string OpenedUri => _openedUri;
+        public bool IsOpen { get; private set; }
+
+        public SRTOutput()
+        {
+            _handle = NativeBridge.ome_srt_output_create();
+            if (_handle == IntPtr.Zero)
+                throw new InvalidOperationException("Failed to create SRTOutput.");
+        }
+
+        public SRTOutput(string uri) : this()
+        {
+            if (!string.IsNullOrEmpty(uri))
+            {
+                Open(uri);
+            }
+        }
+
+        public bool Open(string uri)
+        {
+            if (_handle == IntPtr.Zero || string.IsNullOrEmpty(uri)) return false;
+            bool success = NativeBridge.ome_srt_output_open(_handle, uri);
+            if (success)
+            {
+                _openedUri = uri;
+                IsOpen = true;
+            }
+            return success;
+        }
+
+        public void Close()
+        {
+            if (_handle != IntPtr.Zero && IsOpen)
+            {
+                NativeBridge.ome_srt_output_close(_handle);
+                IsOpen = false;
+            }
+        }
+
+        public bool IsConnected
+        {
+            get
+            {
+                if (_handle == IntPtr.Zero || !IsOpen) return false;
+                return NativeBridge.ome_srt_output_is_connected(_handle);
+            }
+        }
+
+        public bool Send(byte[] data)
+        {
+            if (_handle == IntPtr.Zero || !IsOpen || data == null || data.Length == 0) return false;
+            return NativeBridge.ome_srt_output_send(_handle, data, data.Length);
+        }
+
+        public bool GetStatistics(out NativeBridge.SRTNativeStats stats)
+        {
+            stats = default;
+            if (_handle == IntPtr.Zero || !IsOpen) return false;
+            return NativeBridge.ome_srt_output_get_stats(_handle, out stats);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed)
+            {
+                if (_handle != IntPtr.Zero)
+                {
+                    Close();
+                    NativeBridge.ome_output_destroy(_handle);
+                    _handle = IntPtr.Zero;
+                }
+                _disposed = true;
+            }
+        }
+
+        ~SRTOutput()
+        {
+            Dispose(false);
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+    }
 }
+

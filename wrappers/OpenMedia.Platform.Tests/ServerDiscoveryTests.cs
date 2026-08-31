@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using OpenMedia.Platform.Internal;
 
 namespace OpenMedia.Platform.Tests
