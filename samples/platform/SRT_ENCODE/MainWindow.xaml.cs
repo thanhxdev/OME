@@ -73,15 +73,17 @@ namespace SRT_ENCODE
                 _vuCols = new[] { ColVu1, ColVu2, ColVu3, ColVu4, ColVu5, ColVu6, ColVu7, ColVu8, ColVu9, ColVu10, ColVu11, ColVu12, ColVu13, ColVu14, ColVu15, ColVu16 };
                 _vuLabels = new[] { LblVu1, LblVu2, LblVu3, LblVu4, LblVu5, LblVu6, LblVu7, LblVu8, LblVu9, LblVu10, LblVu11, LblVu12, LblVu13, LblVu14, LblVu15, LblVu16 };
 
-                // Flush any early pending logs
+                // Flush any early pending logs (Newest on Top)
                 if (_pendingLogs.Count > 0 && TxtLogConsole != null)
                 {
+                    var sb = new StringBuilder();
                     foreach (var line in _pendingLogs)
                     {
-                        TxtLogConsole.AppendText(line);
+                        sb.Append(line);
                     }
+                    TxtLogConsole.Text = sb.ToString() + TxtLogConsole.Text;
                     _pendingLogs.Clear();
-                    ScrollerLogs?.ScrollToEnd();
+                    ScrollerLogs?.ScrollToHome();
                 }
 
                 LogEvent("[INFO]", "Ứng dụng OME Broadcast Live Encoder đang khởi chạy...");
@@ -120,7 +122,8 @@ namespace SRT_ENCODE
                     LogEvent("[WARN]", "OpenMediaServer nền chưa bật, ứng dụng chuyển sang chế độ Direct Engine Pipeline.");
                 }
 
-                // Initial scan for input devices
+                // Initial scan for hardware encoders & input devices
+                await ScanHardwareEncodersAsync();
                 await ScanSdiDevicesAsync();
                 await ScanNdiSourcesAsync();
 
@@ -128,6 +131,7 @@ namespace SRT_ENCODE
                 await InitializePreviewPlayerAsync();
 
                 // Apply initial UI states
+                UpdateCodecCapabilities();
                 UpdateTargetSummary();
                 UpdateUltraLowLatencyState();
                 UpdateEncryptionState();
@@ -736,14 +740,276 @@ namespace SRT_ENCODE
             UpdateTargetSummary();
         }
 
+        private bool _isUpdatingBitrate = false;
+
         private void SldTargetBitrate_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (!_isInitialized) return;
-            if (TxtBitrateDisplay != null)
+            if (!_isInitialized || _isUpdatingBitrate) return;
+            try
             {
-                TxtBitrateDisplay.Text = $"{e.NewValue:N0} kbps ({(e.NewValue / 1000.0):F1} Mbps)";
+                _isUpdatingBitrate = true;
+                int bitrateKbps = (int)e.NewValue;
+
+                if (TxtTargetBitrateInput != null && TxtTargetBitrateInput.Text != bitrateKbps.ToString())
+                {
+                    TxtTargetBitrateInput.Text = bitrateKbps.ToString();
+                }
+
+                if (TxtBitrateDisplay != null)
+                {
+                    TxtBitrateDisplay.Text = $"({(bitrateKbps / 1000.0):F1} Mbps)";
+                }
+
+                UpdateTargetSummary();
             }
+            finally
+            {
+                _isUpdatingBitrate = false;
+            }
+        }
+
+        private void TxtTargetBitrateInput_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (!_isInitialized || _isUpdatingBitrate) return;
+            if (TxtTargetBitrateInput == null || SldTargetBitrate == null) return;
+
+            string text = TxtTargetBitrateInput.Text.Trim();
+            if (int.TryParse(text, out int bitrateKbps))
+            {
+                try
+                {
+                    _isUpdatingBitrate = true;
+
+                    // Expand slider upper range dynamically if user enters high bitrate (e.g. up to 100 Mbps)
+                    if (bitrateKbps > SldTargetBitrate.Maximum)
+                    {
+                        SldTargetBitrate.Maximum = Math.Max(25000, bitrateKbps);
+                    }
+
+                    if (bitrateKbps >= SldTargetBitrate.Minimum && bitrateKbps <= SldTargetBitrate.Maximum)
+                    {
+                        if (Math.Abs(SldTargetBitrate.Value - bitrateKbps) > 0.5)
+                        {
+                            SldTargetBitrate.Value = bitrateKbps;
+                        }
+                    }
+
+                    if (TxtBitrateDisplay != null)
+                    {
+                        TxtBitrateDisplay.Text = $"({(bitrateKbps / 1000.0):F1} Mbps)";
+                    }
+
+                    UpdateTargetSummary();
+                }
+                finally
+                {
+                    _isUpdatingBitrate = false;
+                }
+            }
+        }
+
+        private void CmbHardwareEncoder_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            UpdateCodecCapabilities();
             UpdateTargetSummary();
+        }
+
+        private void CmbVideoCodec_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            UpdateTargetSummary();
+        }
+
+        private void UpdateCodecCapabilities()
+        {
+            if (CmbHardwareEncoder == null || CmbItemH265 == null || CmbVideoCodec == null) return;
+
+            string selectedEncoderText = CmbHardwareEncoder.SelectedItem?.ToString() ?? "";
+            bool supportsH265 = EvaluateH265Support(selectedEncoderText);
+
+            if (supportsH265)
+            {
+                CmbItemH265.IsEnabled = true;
+                CmbItemH265.Content = "H.265 / HEVC (Ultra High Efficiency - Hardware Supported)";
+                CmbItemH265.Foreground = new SolidColorBrush(Color.FromRgb(255, 255, 255));
+            }
+            else
+            {
+                CmbItemH265.IsEnabled = false;
+                CmbItemH265.Content = "H.265 / HEVC (Không hỗ trợ bởi Engine/GPU đã chọn)";
+                CmbItemH265.Foreground = new SolidColorBrush(Color.FromRgb(128, 128, 128));
+
+                // If H.265 was selected, automatically revert to H.264
+                if (CmbVideoCodec.SelectedIndex == 1)
+                {
+                    CmbVideoCodec.SelectedIndex = 0;
+                    LogEvent("[CODEC]", $"⚠️ {selectedEncoderText} không hỗ trợ mã hóa H.265. Tự động chuyển Video Codec về H.264 / AVC.");
+                }
+            }
+        }
+
+        private static bool EvaluateH265Support(string encoderText)
+        {
+            if (string.IsNullOrWhiteSpace(encoderText)) return true;
+
+            // 1. Software CPU (x264 zerolatency) is AVC H.264 only
+            if (encoderText.Contains("Software", StringComparison.OrdinalIgnoreCase) || encoderText.Contains("x264", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            // 2. NVIDIA NVENC
+            if (encoderText.Contains("NVENC", StringComparison.OrdinalIgnoreCase) || encoderText.Contains("NVIDIA", StringComparison.OrdinalIgnoreCase))
+            {
+                // GPUs without HEVC encode support: GT 1030, GT 710, GT 730, GTX 750, Kepler, Fermi
+                if (encoderText.Contains("GT 1030", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("GT 710", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("GT 730", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("GTX 750", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("GTX 745", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("GT 6", StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+                return true;
+            }
+
+            // 3. Intel QuickSync Video (QSV)
+            if (encoderText.Contains("QuickSync", StringComparison.OrdinalIgnoreCase) || encoderText.Contains("QSV", StringComparison.OrdinalIgnoreCase) || encoderText.Contains("Intel", StringComparison.OrdinalIgnoreCase))
+            {
+                // Legacy Intel GPUs without HEVC encode support: HD Graphics 4000, 4400, 4600, 2500, 3000, 2000
+                if (encoderText.Contains("HD Graphics 4", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("HD Graphics 3", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("HD Graphics 2", StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+                return true; // Skylake Gen 9+, Kaby Lake, Coffee Lake, Alder Lake, Arc (140T, A-Series) all support H.265
+            }
+
+            // 4. AMD AMF Video Engine
+            if (encoderText.Contains("AMD", StringComparison.OrdinalIgnoreCase) || encoderText.Contains("AMF", StringComparison.OrdinalIgnoreCase))
+            {
+                // Legacy AMD GPUs with VCE 1.0 (HD 7000, HD 8000, R7 240, R7 250) only support H.264
+                if (encoderText.Contains("HD 7", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("HD 8", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("R7 240", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("R7 250", StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+                return true;
+            }
+
+            return true;
+        }
+
+        private async void BtnScanHardwareEncoder_Click(object sender, RoutedEventArgs e)
+        {
+            await ScanHardwareEncodersAsync();
+        }
+
+        private async Task ScanHardwareEncodersAsync()
+        {
+            try
+            {
+                LogEvent("[HARDWARE]", "Đang quét phần cứng tăng tốc mã hóa (GPU Hardware Encoders)...");
+                if (CmbHardwareEncoder == null) return;
+
+                var gpus = await Task.Run(() => DetectGpuAdapters());
+                CmbHardwareEncoder.Items.Clear();
+
+                bool hasNvidia = gpus.Any(g => g.Contains("NVIDIA", StringComparison.OrdinalIgnoreCase) || g.Contains("GeForce", StringComparison.OrdinalIgnoreCase) || g.Contains("RTX", StringComparison.OrdinalIgnoreCase) || g.Contains("Quadro", StringComparison.OrdinalIgnoreCase) || g.Contains("Tesla", StringComparison.OrdinalIgnoreCase));
+                bool hasIntel = gpus.Any(g => g.Contains("Intel", StringComparison.OrdinalIgnoreCase) || g.Contains("Arc", StringComparison.OrdinalIgnoreCase) || g.Contains("Iris", StringComparison.OrdinalIgnoreCase) || g.Contains("UHD", StringComparison.OrdinalIgnoreCase) || g.Contains("HD Graphics", StringComparison.OrdinalIgnoreCase));
+                bool hasAmd = gpus.Any(g => g.Contains("AMD", StringComparison.OrdinalIgnoreCase) || g.Contains("Radeon", StringComparison.OrdinalIgnoreCase));
+
+                int preferredIndex = -1;
+
+                // 1. NVIDIA NVENC
+                string nvidiaDesc = gpus.FirstOrDefault(g => g.Contains("NVIDIA", StringComparison.OrdinalIgnoreCase) || g.Contains("RTX", StringComparison.OrdinalIgnoreCase) || g.Contains("GeForce", StringComparison.OrdinalIgnoreCase)) ?? "NVIDIA GPU";
+                string nvencLabel = hasNvidia 
+                    ? $"NVIDIA NVENC ({nvidiaDesc})" 
+                    : "NVIDIA NVENC (NVENC Gen 8 / Ada Lovelace / Ampere)";
+                CmbHardwareEncoder.Items.Add(nvencLabel);
+                if (hasNvidia && preferredIndex == -1) preferredIndex = CmbHardwareEncoder.Items.Count - 1;
+
+                // 2. Intel QuickSync Video (QSV)
+                string intelDesc = gpus.FirstOrDefault(g => g.Contains("Intel", StringComparison.OrdinalIgnoreCase) || g.Contains("Arc", StringComparison.OrdinalIgnoreCase) || g.Contains("Iris", StringComparison.OrdinalIgnoreCase)) ?? "Intel GPU";
+                string qsvLabel = hasIntel 
+                    ? $"Intel QuickSync Video (QSV - {intelDesc})" 
+                    : "Intel QuickSync Video (QSV)";
+                CmbHardwareEncoder.Items.Add(qsvLabel);
+                if (hasIntel && preferredIndex == -1) preferredIndex = CmbHardwareEncoder.Items.Count - 1;
+
+                // 3. AMD AMF Video Engine
+                string amdDesc = gpus.FirstOrDefault(g => g.Contains("AMD", StringComparison.OrdinalIgnoreCase) || g.Contains("Radeon", StringComparison.OrdinalIgnoreCase)) ?? "AMD GPU";
+                string amdLabel = hasAmd 
+                    ? $"AMD AMF Video Engine ({amdDesc})" 
+                    : "AMD AMF Video Engine";
+                CmbHardwareEncoder.Items.Add(amdLabel);
+                if (hasAmd && preferredIndex == -1) preferredIndex = CmbHardwareEncoder.Items.Count - 1;
+
+                // 4. Software CPU Fallback
+                CmbHardwareEncoder.Items.Add("Software (x264 Zerolatency CPU)");
+
+                // Select the first detected hardware engine
+                if (preferredIndex == -1)
+                {
+                    preferredIndex = 0;
+                }
+
+                CmbHardwareEncoder.SelectedIndex = preferredIndex;
+                UpdateCodecCapabilities();
+
+                string selectedEngine = CmbHardwareEncoder.SelectedItem?.ToString() ?? "";
+                if (gpus.Count > 0)
+                {
+                    LogEvent("[HARDWARE]", $"Phát hiện GPU: {string.Join(", ", gpus)}");
+                    LogEvent("[HARDWARE]", $"✅ Tự động chọn Hardware Engine ưu tiên: {selectedEngine}");
+                }
+                else
+                {
+                    LogEvent("[HARDWARE]", $"Đã nạp danh sách Hardware Encoders mặc định: {selectedEngine}");
+                }
+            }
+            catch (Exception ex)
+            {
+                LogEvent("[WARN]", $"Lỗi quét phần cứng encoder: {ex.Message}");
+            }
+        }
+
+        private static List<string> DetectGpuAdapters()
+        {
+            var gpuList = new List<string>();
+            try
+            {
+                using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}");
+                if (key != null)
+                {
+                    foreach (var subKeyName in key.GetSubKeyNames())
+                    {
+                        if (subKeyName.StartsWith("000"))
+                        {
+                            using var subKey = key.OpenSubKey(subKeyName);
+                            var driverDesc = subKey?.GetValue("DriverDesc") as string;
+                            if (!string.IsNullOrEmpty(driverDesc) && !driverDesc.Contains("Basic Display", StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (!gpuList.Contains(driverDesc))
+                                {
+                                    gpuList.Add(driverDesc);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback silently if registry access is restricted
+            }
+
+            return gpuList;
         }
 
         #endregion
@@ -982,32 +1248,34 @@ namespace SRT_ENCODE
             string timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
             string logLine = $"[{timestamp}] {tag} {message}\n";
 
-            if (Dispatcher.CheckAccess())
+            void PrependLog()
             {
                 if (TxtLogConsole != null)
                 {
-                    TxtLogConsole.AppendText(logLine);
-                    ScrollerLogs?.ScrollToEnd();
+                    // Newest on Top
+                    TxtLogConsole.Text = logLine + TxtLogConsole.Text;
+
+                    // Keep buffer clean for long sessions
+                    if (TxtLogConsole.Text.Length > 50000)
+                    {
+                        TxtLogConsole.Text = TxtLogConsole.Text.Substring(0, 40000);
+                    }
+
+                    ScrollerLogs?.ScrollToHome();
                 }
                 else
                 {
-                    _pendingLogs.Add(logLine);
+                    _pendingLogs.Insert(0, logLine);
                 }
+            }
+
+            if (Dispatcher.CheckAccess())
+            {
+                PrependLog();
             }
             else
             {
-                Dispatcher.Invoke(() =>
-                {
-                    if (TxtLogConsole != null)
-                    {
-                        TxtLogConsole.AppendText(logLine);
-                        ScrollerLogs?.ScrollToEnd();
-                    }
-                    else
-                    {
-                        _pendingLogs.Add(logLine);
-                    }
-                });
+                Dispatcher.Invoke(PrependLog);
             }
         }
 

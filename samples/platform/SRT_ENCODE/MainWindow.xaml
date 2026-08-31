@@ -320,8 +320,8 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Low Latency Badge -->
-                    <Border x:Name="BadgeLowLatency" Background="#1E3A2F" BorderBrush="#2E7D32" BorderThickness="1" CornerRadius="12" Padding="8,4" Margin="0,0,12,0" Visibility="Visible">
+                    <!-- Low Latency Badge (Default: Collapsed/Off) -->
+                    <Border x:Name="BadgeLowLatency" Background="#1E3A2F" BorderBrush="#2E7D32" BorderThickness="1" CornerRadius="12" Padding="8,4" Margin="0,0,12,0" Visibility="Collapsed">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="⚡" Margin="0,0,4,0"/>
                             <TextBlock Text="ULL ENABLED (B=0, GOP=1s)" FontSize="11" FontWeight="Bold" Foreground="#81C784"/>
@@ -604,22 +604,22 @@
                 </Border>
 
                 <!-- 3. Activity Log Console -->
-                <Border Grid.Row="2" Background="#181818" BorderBrush="#2D2D30" BorderThickness="1" CornerRadius="6" Padding="10">
+                <Border Grid.Row="2" Background="#181818" BorderBrush="#2D2D30" BorderThickness="1" CornerRadius="6" Padding="8,5">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <Grid Grid.Row="0" Margin="0,0,0,6">
+                        <Grid Grid.Row="0" Margin="0,0,0,3">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="EVENT &amp; BROADCAST LOG CONSOLE" FontWeight="Bold" FontSize="11" Foreground="#9E9E9E"/>
+                                <TextBlock Text="EVENT &amp; BROADCAST LOG (NEWEST ON TOP)" FontWeight="Bold" FontSize="10" Foreground="#9E9E9E"/>
                             </StackPanel>
-                            <Button Content="Clear Logs" Style="{StaticResource ActionButtonStyle}" HorizontalAlignment="Right" Padding="8,2" FontSize="11" Click="BtnClearLog_Click"/>
+                            <Button Content="Clear Logs" Style="{StaticResource ActionButtonStyle}" HorizontalAlignment="Right" Padding="6,1" FontSize="10" Height="20" Click="BtnClearLog_Click"/>
                         </Grid>
 
                         <ScrollViewer x:Name="ScrollerLogs" Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                            <TextBox x:Name="TxtLogConsole" Background="Transparent" Foreground="#D4D4D4" BorderThickness="0" FontFamily="Consolas, Monospace" FontSize="11" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"/>
+                            <TextBox x:Name="TxtLogConsole" Background="Transparent" Foreground="#D4D4D4" BorderThickness="0" FontFamily="Cascadia Mono, Consolas, Courier New, Monospace" FontSize="9.5" Padding="0" Margin="0" Height="Auto" VerticalContentAlignment="Top" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"/>
                         </ScrollViewer>
                     </Grid>
                 </Border>
@@ -662,9 +662,173 @@
                     </TabControl.Resources>
 
                     <!-- ════════════════════════════════════════════════════
-                         TAB 1: INPUT SOURCE SELECTION (DEFAULT: SDI)
+                         TAB 1: SRT TRANSMISSION PROTOCOL CONFIG (DEFAULT TAB 1)
                          ════════════════════════════════════════════════════ -->
-                    <TabItem Header="📡 1. Input Source">
+                    <TabItem Header="🌐 1. SRT Config">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="SRT TRANSMISSION PROTOCOL SETTINGS" FontWeight="Bold" FontSize="14" Foreground="#FFFFFF" Margin="0,0,0,4"/>
+                                <TextBlock Text="Configure transport mode, destination endpoint, auto latency and AES encryption." FontSize="11" Foreground="#888888" Margin="0,0,0,12"/>
+
+                                <!-- SRT Mode & Compression -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                            <TextBlock Text="SRT Connection Mode:" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <ComboBox x:Name="CmbSrtMode">
+                                                <ComboBoxItem Content="Caller (Connect to Studio)" IsSelected="True"/>
+                                                <ComboBoxItem Content="Listener (Wait for Incoming)"/>
+                                                <ComboBoxItem Content="Rendezvous (P2P Firewall Traversal)"/>
+                                            </ComboBox>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                            <TextBlock Text="Video Compression Codec:" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <ComboBox x:Name="CmbVideoCodec" SelectionChanged="CmbVideoCodec_SelectionChanged">
+                                                <ComboBoxItem x:Name="CmbItemH264" Content="H.264 / AVC (Default)" IsSelected="True"/>
+                                                <ComboBoxItem x:Name="CmbItemH265" Content="H.265 / HEVC (Ultra High Efficiency)"/>
+                                            </ComboBox>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Target Network Endpoint & Stream ID -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2.5*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                <TextBlock Text="IP Address / Host:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <TextBox x:Name="TxtSrtIp" Text="127.0.0.1"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                <TextBlock Text="Port (UDP):" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <TextBox x:Name="TxtSrtPort" Text="9000"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <StackPanel Margin="0,10,0,0">
+                                            <TextBlock Text="SRT Stream ID (Optional for Caller Routing):" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <TextBox x:Name="TxtSrtStreamId" Text="live/cam1/feed"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Bitrate & Hardware Acceleration Card -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="BITRATE &amp; HARDWARE ENCODER" FontWeight="Bold" FontSize="12" Foreground="#007ACC" Margin="0,0,0,10"/>
+
+                                        <Grid Margin="0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            
+                                            <!-- Label & Mbps conversion display -->
+                                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="Target Bitrate:" Style="{StaticResource HeaderLabelStyle}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <TextBlock x:Name="TxtBitrateDisplay" Text="(6.0 Mbps)" FontSize="12" FontWeight="SemiBold" Foreground="#4EC9B0" VerticalAlignment="Center"/>
+                                            </StackPanel>
+
+                                            <!-- Direct Input Box (kbps) -->
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBox x:Name="TxtTargetBitrateInput" Text="6000" Width="80" Height="26" TextAlignment="Right" FontWeight="Bold" FontSize="12" Foreground="#00E676" Background="#252526" BorderBrush="#007ACC" BorderThickness="1" Padding="6,2" TextChanged="TxtTargetBitrateInput_TextChanged" VerticalContentAlignment="Center"/>
+                                                <TextBlock Text="kbps" FontSize="11" Foreground="#9E9E9E" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
+                                        <Slider x:Name="SldTargetBitrate" Minimum="1000" Maximum="25000" Value="6000" SmallChange="500" LargeChange="1000" ValueChanged="SldTargetBitrate_ValueChanged" Margin="0,6,0,10"/>
+
+                                        <TextBlock Text="Hardware Acceleration Engine:" Style="{StaticResource HeaderLabelStyle}"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <ComboBox x:Name="CmbHardwareEncoder" Grid.Column="0" Margin="0,0,8,0" SelectionChanged="CmbHardwareEncoder_SelectionChanged">
+                                                <ComboBoxItem Content="NVIDIA NVENC (NVENC Gen 8 / Ada Lovelace / Ampere)"/>
+                                                <ComboBoxItem Content="Intel QuickSync Video (QSV)" IsSelected="True"/>
+                                                <ComboBoxItem Content="AMD AMF Video Engine"/>
+                                                <ComboBoxItem Content="Software (x264 Zerolatency CPU)"/>
+                                            </ComboBox>
+                                            <Button Grid.Column="1" Content="🔄 Scan GPU" Style="{StaticResource ActionButtonStyle}" Click="BtnScanHardwareEncoder_Click"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Latency Management (Default: Auto Latency OFF, Manual Latency ON) -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="LATENCY CONTROL" FontWeight="Bold" FontSize="12" Foreground="#007ACC" Margin="0,0,0,8"/>
+
+                                        <CheckBox x:Name="ChkAutoLatency" Content="Auto Latency (3 x RTT)" Style="{StaticResource ToggleSwitchStyle}" IsChecked="False" Checked="ChkAutoLatency_Changed" Unchecked="ChkAutoLatency_Changed"/>
+
+                                        <TextBlock Text="Calculates buffer latency based on real-time network RTT (Minimum 120ms) or enter manual latency below." FontSize="11" Foreground="#888888" Margin="0,4,0,10"/>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                <TextBlock Text="Configured Latency (ms):" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <TextBox x:Name="TxtManualLatency" Text="120" IsEnabled="True"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                <TextBlock Text="Calculated Auto Latency:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <Border Background="#252526" BorderBrush="#3F3F46" BorderThickness="1" Height="30" Padding="8,4">
+                                                    <TextBlock x:Name="TxtCalculatedLatency" Text="120 ms (3 x 40ms RTT)" FontSize="12" FontWeight="SemiBold" Foreground="#00E676" VerticalAlignment="Center"/>
+                                                </Border>
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- SRT Security & Encryption -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,8">
+                                            <TextBlock Text="SRT ENCRYPTION (AES SECURITY)" FontWeight="Bold" FontSize="12" Foreground="#007ACC" VerticalAlignment="Center"/>
+                                            <CheckBox x:Name="ChkEnableEncryption" Content="Enable Encryption" Style="{StaticResource ToggleSwitchStyle}" IsChecked="False" HorizontalAlignment="Right" Checked="ChkEnableEncryption_Changed" Unchecked="ChkEnableEncryption_Changed"/>
+                                        </Grid>
+
+                                        <StackPanel x:Name="PnlEncryptionConfig" Visibility="Collapsed">
+                                            <Grid Margin="0,4,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="2*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                    <TextBlock Text="Passphrase (10 - 79 characters):" Style="{StaticResource HeaderLabelStyle}"/>
+                                                    <PasswordBox x:Name="TxtSrtPassphrase" Password="BroadcastKey2026!" Background="#252526" Foreground="White" BorderBrush="#3F3F46" Height="30" Padding="6,4" VerticalContentAlignment="Center"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                    <TextBlock Text="Key Length:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                    <ComboBox x:Name="CmbKeyLength">
+                                                        <ComboBoxItem Content="128-bit / 16 bytes"/>
+                                                        <ComboBoxItem Content="192-bit / 24 bytes"/>
+                                                        <ComboBoxItem Content="256-bit / 32 bytes (Top Secret)" IsSelected="True"/>
+                                                    </ComboBox>
+                                                </StackPanel>
+                                            </Grid>
+                                            <TextBlock Text="* Both Sender and Receiver must share the exact same passphrase and key length." FontSize="10" Foreground="#FFA726" Margin="0,6,0,0"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- ════════════════════════════════════════════════════
+                         TAB 2: INPUT SOURCE SELECTION (DEFAULT: SDI)
+                         ════════════════════════════════════════════════════ -->
+                    <TabItem Header="📡 2. Input Source">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
                             <StackPanel>
                                 <TextBlock Text="SELECT BROADCAST VIDEO SOURCE" FontWeight="Bold" FontSize="14" Foreground="#FFFFFF" Margin="0,0,0,4"/>
@@ -812,129 +976,7 @@
                     </TabItem>
 
                     <!-- ════════════════════════════════════════════════════
-                         TAB 2: SRT TRANSMISSION PROTOCOL CONFIG
-                         ════════════════════════════════════════════════════ -->
-                    <TabItem Header="🌐 2. SRT Config">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
-                            <StackPanel>
-                                <TextBlock Text="SRT TRANSMISSION PROTOCOL SETTINGS" FontWeight="Bold" FontSize="14" Foreground="#FFFFFF" Margin="0,0,0,4"/>
-                                <TextBlock Text="Configure transport mode, destination endpoint, auto latency and AES encryption." FontSize="11" Foreground="#888888" Margin="0,0,0,12"/>
-
-                                <!-- SRT Mode & Compression -->
-                                <Border Style="{StaticResource DarkCardBorderStyle}">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                            <TextBlock Text="SRT Connection Mode:" Style="{StaticResource HeaderLabelStyle}"/>
-                                            <ComboBox x:Name="CmbSrtMode">
-                                                <ComboBoxItem Content="Caller (Connect to Studio)" IsSelected="True"/>
-                                                <ComboBoxItem Content="Listener (Wait for Incoming)"/>
-                                                <ComboBoxItem Content="Rendezvous (P2P Firewall Traversal)"/>
-                                            </ComboBox>
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                                            <TextBlock Text="Video Compression Codec:" Style="{StaticResource HeaderLabelStyle}"/>
-                                            <ComboBox x:Name="CmbVideoCodec">
-                                                <ComboBoxItem Content="H.264 / AVC (Default)" IsSelected="True"/>
-                                                <ComboBoxItem Content="H.265 / HEVC (Ultra High Efficiency)"/>
-                                            </ComboBox>
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-
-                                <!-- Target Network Endpoint & Stream ID -->
-                                <Border Style="{StaticResource DarkCardBorderStyle}">
-                                    <StackPanel>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="2.5*"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
-                                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                                <TextBlock Text="IP Address / Host:" Style="{StaticResource HeaderLabelStyle}"/>
-                                                <TextBox x:Name="TxtSrtIp" Text="127.0.0.1"/>
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                                                <TextBlock Text="Port (UDP):" Style="{StaticResource HeaderLabelStyle}"/>
-                                                <TextBox x:Name="TxtSrtPort" Text="9000"/>
-                                            </StackPanel>
-                                        </Grid>
-
-                                        <StackPanel Margin="0,10,0,0">
-                                            <TextBlock Text="SRT Stream ID (Optional for Caller Routing):" Style="{StaticResource HeaderLabelStyle}"/>
-                                            <TextBox x:Name="TxtSrtStreamId" Text="live/cam1/feed"/>
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- Latency Management (Auto Latency 3xRTT) -->
-                                <Border Style="{StaticResource DarkCardBorderStyle}">
-                                    <StackPanel>
-                                        <TextBlock Text="LATENCY CONTROL" FontWeight="Bold" FontSize="12" Foreground="#007ACC" Margin="0,0,0,8"/>
-
-                                        <CheckBox x:Name="ChkAutoLatency" Content="Auto Latency (3 x RTT) [Recommended]" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkAutoLatency_Changed" Unchecked="ChkAutoLatency_Changed"/>
-
-                                        <TextBlock Text="Automatically calculates buffer latency based on real-time network RTT (Minimum 120ms)." FontSize="11" Foreground="#888888" Margin="0,4,0,10"/>
-
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
-                                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                                <TextBlock Text="Configured Latency (ms):" Style="{StaticResource HeaderLabelStyle}"/>
-                                                <TextBox x:Name="TxtManualLatency" Text="120" IsEnabled="False"/>
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                                                <TextBlock Text="Calculated Auto Latency:" Style="{StaticResource HeaderLabelStyle}"/>
-                                                <Border Background="#252526" BorderBrush="#3F3F46" BorderThickness="1" Height="30" Padding="8,4">
-                                                    <TextBlock x:Name="TxtCalculatedLatency" Text="120 ms (3 x 40ms RTT)" FontSize="12" FontWeight="SemiBold" Foreground="#00E676" VerticalAlignment="Center"/>
-                                                </Border>
-                                            </StackPanel>
-                                        </Grid>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- SRT Security & Encryption -->
-                                <Border Style="{StaticResource DarkCardBorderStyle}">
-                                    <StackPanel>
-                                        <Grid Margin="0,0,0,8">
-                                            <TextBlock Text="SRT ENCRYPTION (AES SECURITY)" FontWeight="Bold" FontSize="12" Foreground="#007ACC" VerticalAlignment="Center"/>
-                                            <CheckBox x:Name="ChkEnableEncryption" Content="Enable Encryption" Style="{StaticResource ToggleSwitchStyle}" IsChecked="False" HorizontalAlignment="Right" Checked="ChkEnableEncryption_Changed" Unchecked="ChkEnableEncryption_Changed"/>
-                                        </Grid>
-
-                                        <StackPanel x:Name="PnlEncryptionConfig" Visibility="Collapsed">
-                                            <Grid Margin="0,4,0,0">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="2*"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                                    <TextBlock Text="Passphrase (10 - 79 characters):" Style="{StaticResource HeaderLabelStyle}"/>
-                                                    <PasswordBox x:Name="TxtSrtPassphrase" Password="BroadcastKey2026!" Background="#252526" Foreground="White" BorderBrush="#3F3F46" Height="30" Padding="6,4" VerticalContentAlignment="Center"/>
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                                                    <TextBlock Text="Key Length:" Style="{StaticResource HeaderLabelStyle}"/>
-                                                    <ComboBox x:Name="CmbKeyLength">
-                                                        <ComboBoxItem Content="128-bit / 16 bytes"/>
-                                                        <ComboBoxItem Content="192-bit / 24 bytes"/>
-                                                        <ComboBoxItem Content="256-bit / 32 bytes (Top Secret)" IsSelected="True"/>
-                                                    </ComboBox>
-                                                </StackPanel>
-                                            </Grid>
-                                            <TextBlock Text="* Both Sender and Receiver must share the exact same passphrase and key length." FontSize="10" Foreground="#FFA726" Margin="0,6,0,0"/>
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Border>
-                            </StackPanel>
-                        </ScrollViewer>
-                    </TabItem>
-
-                    <!-- ════════════════════════════════════════════════════
-                         TAB 3: ULTRA LOW-LATENCY ENGINE PRESET
+                         TAB 3: ULTRA LOW-LATENCY ENGINE PRESET (DEFAULT: OFF)
                          ════════════════════════════════════════════════════ -->
                     <TabItem Header="⚡ 3. Low-Latency">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
@@ -953,7 +995,7 @@
                                             <TextBlock Text="Bật Cấu Hình Độ Trễ Tối Thiểu (Ultra Low-Latency)" FontWeight="Bold" FontSize="13" Foreground="#81C784"/>
                                             <TextBlock Text="Forces zero B-frames, zerolatency tuning, 1-second GOP, and strict CBR." FontSize="11" Foreground="#A5D6A7" Margin="0,4,0,0"/>
                                         </StackPanel>
-                                        <CheckBox x:Name="ChkUltraLowLatency" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkUltraLowLatency_Changed" Unchecked="ChkUltraLowLatency_Changed" VerticalAlignment="Center"/>
+                                        <CheckBox x:Name="ChkUltraLowLatency" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="False" Checked="ChkUltraLowLatency_Changed" Unchecked="ChkUltraLowLatency_Changed" VerticalAlignment="Center"/>
                                     </Grid>
                                 </Border>
 
@@ -962,62 +1004,41 @@
                                     <StackPanel>
                                         <TextBlock Text="ENCODER ENGINE PARAMETERS" FontWeight="Bold" FontSize="12" Foreground="#007ACC" Margin="0,0,0,10"/>
 
-                                        <!-- B-Frames = 0 -->
+                                        <!-- B-Frames = 2 (Standard when ULL is off) -->
                                         <Grid Margin="0,4">
                                             <TextBlock Text="B-Frames Count:" Style="{StaticResource HeaderLabelStyle}"/>
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                                <TextBlock x:Name="TxtBframesVal" Text="0 (FORCED OFF - NO DELAY)" FontWeight="Bold" FontSize="12" Foreground="#00E676"/>
+                                                <TextBlock x:Name="TxtBframesVal" Text="2 (Standard B-Frames)" FontWeight="Bold" FontSize="12" Foreground="#FFC107"/>
                                             </StackPanel>
                                         </Grid>
 
                                         <!-- Preset Zerolatency -->
                                         <Grid Margin="0,6">
                                             <TextBlock Text="Encoder Tuning Preset:" Style="{StaticResource HeaderLabelStyle}"/>
-                                            <ComboBox x:Name="CmbEncoderPreset" Width="220" HorizontalAlignment="Right">
-                                                <ComboBoxItem Content="Low-Latency / Zerolatency (P1)" IsSelected="True"/>
+                                            <ComboBox x:Name="CmbEncoderPreset" Width="220" HorizontalAlignment="Right" IsEnabled="True">
+                                                <ComboBoxItem Content="Low-Latency / Zerolatency (P1)"/>
                                                 <ComboBoxItem Content="Fast Low-Latency (P2)"/>
-                                                <ComboBoxItem Content="Medium Quality (P4)"/>
+                                                <ComboBoxItem Content="Medium Quality (P4)" IsSelected="True"/>
                                             </ComboBox>
                                         </Grid>
 
-                                        <!-- GOP Interval = 1s -->
+                                        <!-- GOP Interval = 2s -->
                                         <Grid Margin="0,6">
                                             <TextBlock Text="Keyframe Interval (GOP):" Style="{StaticResource HeaderLabelStyle}"/>
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                                <TextBlock x:Name="TxtGopVal" Text="1.0 Second (60 Frames @ 60fps)" FontWeight="Bold" FontSize="12" Foreground="#00E676"/>
+                                                <TextBlock x:Name="TxtGopVal" Text="2.0 Seconds (120 Frames @ 60fps)" FontWeight="Bold" FontSize="12" Foreground="#FFFFFF"/>
                                             </StackPanel>
                                         </Grid>
 
                                         <!-- Rate Control = CBR -->
                                         <Grid Margin="0,6">
                                             <TextBlock Text="Rate Control Mode:" Style="{StaticResource HeaderLabelStyle}"/>
-                                            <ComboBox x:Name="CmbRateControl" Width="220" HorizontalAlignment="Right">
+                                            <ComboBox x:Name="CmbRateControl" Width="220" HorizontalAlignment="Right" IsEnabled="True">
                                                 <ComboBoxItem Content="CBR (Constant Bitrate - Default)" IsSelected="True"/>
                                                 <ComboBoxItem Content="VBR (Variable Bitrate)"/>
                                                 <ComboBoxItem Content="CQP (Constant Quantization)"/>
                                             </ComboBox>
                                         </Grid>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- Bitrate & Hardware Acceleration Card -->
-                                <Border Style="{StaticResource DarkCardBorderStyle}">
-                                    <StackPanel>
-                                        <TextBlock Text="BITRATE &amp; HARDWARE ENCODER" FontWeight="Bold" FontSize="12" Foreground="#007ACC" Margin="0,0,0,10"/>
-
-                                        <Grid Margin="0,4">
-                                            <TextBlock Text="Target Bitrate:" Style="{StaticResource HeaderLabelStyle}"/>
-                                            <TextBlock x:Name="TxtBitrateDisplay" Text="6,000 kbps (6.0 Mbps)" HorizontalAlignment="Right" FontWeight="Bold" Foreground="#FFFFFF"/>
-                                        </Grid>
-                                        <Slider x:Name="SldTargetBitrate" Minimum="1000" Maximum="25000" Value="6000" SmallChange="500" LargeChange="1000" ValueChanged="SldTargetBitrate_ValueChanged" Margin="0,4,0,10"/>
-
-                                        <TextBlock Text="Hardware Acceleration Engine:" Style="{StaticResource HeaderLabelStyle}"/>
-                                        <ComboBox x:Name="CmbHardwareEncoder">
-                                            <ComboBoxItem Content="NVIDIA NVENC (NVENC Gen 8 / Ada Lovelace / Ampere)" IsSelected="True"/>
-                                            <ComboBoxItem Content="Intel QuickSync Video (QSV)"/>
-                                            <ComboBoxItem Content="AMD AMF Video Engine"/>
-                                            <ComboBoxItem Content="Software (x264 Zerolatency CPU)"/>
-                                        </ComboBox>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
