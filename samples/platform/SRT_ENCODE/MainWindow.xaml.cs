@@ -155,12 +155,12 @@ namespace SRT_ENCODE
                 _player.IsMuted = ChkEnableAudioMonitor.IsChecked != true;
 
                 // Default to SDI Input or SMPTE pattern preview
-                if (RadSourceSdi.IsChecked == true && CmbSdiDevices.SelectedItem != null)
+                if (CmbInputSource?.SelectedIndex == 0 && CmbSdiDevices.SelectedItem != null)
                 {
                     string devName = CmbSdiDevices.SelectedItem.ToString() ?? "DeckLink SDI (1)";
                     TxtActiveSourceBadge.Text = $"INPUT: {devName.ToUpper()}";
                 }
-                else
+                else if (CmbInputSource?.SelectedIndex == 3)
                 {
                     TxtActiveSourceBadge.Text = "INPUT: SMPTE COLORBAR & 1kHz (UTC EMBEDDED)";
                 }
@@ -355,7 +355,7 @@ namespace SRT_ENCODE
                 _channelLevels16[i] = -60.0;
             }
 
-            if (RadSourceColorbar?.IsChecked == true)
+            if (CmbInputSource?.SelectedIndex == 3)
             {
                 // Retrieve exact test tone levels from ColorbarEngine
                 _colorbarEngine.GetAudioToneLevels16(_channelLevels16);
@@ -519,17 +519,20 @@ namespace SRT_ENCODE
             }
         }
 
-        private void InputSource_SelectionChanged(object sender, RoutedEventArgs e)
+        private void CmbInputSource_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (!_isInitialized) return;
-            if (PnlSdiConfig == null || PnlNdiConfig == null || PnlFileConfig == null || PnlColorbarConfig == null) return;
+            if (CardSdiConfig == null || CardNdiConfig == null || CardFileConfig == null || CardColorbarConfig == null) return;
 
-            PnlSdiConfig.IsEnabled = RadSourceSdi.IsChecked == true;
-            PnlNdiConfig.IsEnabled = RadSourceNdi.IsChecked == true;
-            PnlFileConfig.IsEnabled = RadSourceFile.IsChecked == true;
-            PnlColorbarConfig.IsEnabled = RadSourceColorbar.IsChecked == true;
+            int selected = CmbInputSource.SelectedIndex;
 
-            bool isColorbar = RadSourceColorbar.IsChecked == true;
+            // Show only the active source configuration panel (Border Card)
+            CardSdiConfig.Visibility = (selected == 0) ? Visibility.Visible : Visibility.Collapsed;
+            CardNdiConfig.Visibility = (selected == 1) ? Visibility.Visible : Visibility.Collapsed;
+            CardFileConfig.Visibility = (selected == 2) ? Visibility.Visible : Visibility.Collapsed;
+            CardColorbarConfig.Visibility = (selected == 3) ? Visibility.Visible : Visibility.Collapsed;
+
+            bool isColorbar = (selected == 3);
             bool isPreviewEnabled = ChkEnableVideoPreview?.IsChecked == true;
 
             if (ViewboxColorbar != null)
@@ -542,31 +545,37 @@ namespace SRT_ENCODE
                 ReviewView.Visibility = (!isColorbar && isPreviewEnabled) ? Visibility.Visible : Visibility.Collapsed;
             }
 
-            if (RadSourceSdi.IsChecked == true)
+            switch (selected)
             {
-                string dev = CmbSdiDevices.SelectedItem?.ToString() ?? "DeckLink SDI";
-                TxtActiveSourceBadge.Text = $"INPUT: SDI ({dev})";
-                LogEvent("[INFO]", $"Đã chuyển nguồn đầu vào: SDI Input [{dev}]");
-            }
-            else if (RadSourceNdi.IsChecked == true)
-            {
-                string ndi = CmbNdiSources.SelectedItem?.ToString() ?? "NDI Source";
-                TxtActiveSourceBadge.Text = $"INPUT: NDI ({ndi})";
-                LogEvent("[INFO]", $"Đã chuyển nguồn đầu vào: NDI Input [{ndi}]");
-            }
-            else if (RadSourceFile.IsChecked == true)
-            {
-                string fn = Path.GetFileName(TxtFilePath.Text);
-                if (string.IsNullOrEmpty(fn)) fn = "No File Selected";
-                TxtActiveSourceBadge.Text = $"INPUT: FILE ({fn})";
-                LogEvent("[INFO]", $"Đã chuyển nguồn đầu vào: File Video [{fn}]");
-            }
-            else if (RadSourceColorbar.IsChecked == true)
-            {
-                UpdateColorbarDisplay();
-                string patternName = (CmbColorbarPattern?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "SMPTE RP 219";
-                TxtActiveSourceBadge.Text = $"INPUT: COLORBAR ({patternName.Split(' ')[0]})";
-                LogEvent("[INFO]", $"Đã chuyển nguồn đầu vào: Test Pattern [{patternName}] + [{_colorbarEngine.GetToneDescription()}]");
+                case 0: // SDI
+                    if (TxtActiveSourceTypeBadge != null) TxtActiveSourceTypeBadge.Text = "📡 SDI INPUT ACTIVE";
+                    string dev = CmbSdiDevices.SelectedItem?.ToString() ?? "DeckLink SDI";
+                    TxtActiveSourceBadge.Text = $"INPUT: SDI ({dev})";
+                    LogEvent("[INFO]", $"Đã chuyển nguồn đầu vào: SDI Input [{dev}]");
+                    break;
+
+                case 1: // NDI
+                    if (TxtActiveSourceTypeBadge != null) TxtActiveSourceTypeBadge.Text = "🌐 NDI INPUT ACTIVE";
+                    string ndi = CmbNdiSources.SelectedItem?.ToString() ?? "NDI Source";
+                    TxtActiveSourceBadge.Text = $"INPUT: NDI ({ndi})";
+                    LogEvent("[INFO]", $"Đã chuyển nguồn đầu vào: NDI Input [{ndi}]");
+                    break;
+
+                case 2: // File
+                    if (TxtActiveSourceTypeBadge != null) TxtActiveSourceTypeBadge.Text = "📁 FILE INPUT ACTIVE";
+                    string fn = Path.GetFileName(TxtFilePath.Text);
+                    if (string.IsNullOrEmpty(fn)) fn = "No File Selected";
+                    TxtActiveSourceBadge.Text = $"INPUT: FILE ({fn})";
+                    LogEvent("[INFO]", $"Đã chuyển nguồn đầu vào: File Video [{fn}]");
+                    break;
+
+                case 3: // Colorbar
+                    if (TxtActiveSourceTypeBadge != null) TxtActiveSourceTypeBadge.Text = "🎨 COLORBAR ACTIVE";
+                    UpdateColorbarDisplay();
+                    string patternName = (CmbColorbarPattern?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "SMPTE RP 219";
+                    TxtActiveSourceBadge.Text = $"INPUT: COLORBAR ({patternName.Split(' ')[0]})";
+                    LogEvent("[INFO]", $"Đã chuyển nguồn đầu vào: Test Pattern [{patternName}] + [{_colorbarEngine.GetToneDescription()}]");
+                    break;
             }
         }
 
@@ -599,7 +608,7 @@ namespace SRT_ENCODE
                 _ => ColorbarPatternType.SmpteRp219
             };
 
-            if (RadSourceColorbar?.IsChecked == true)
+            if (CmbInputSource?.SelectedIndex == 3)
             {
                 UpdateColorbarDisplay();
                 string patternName = (CmbColorbarPattern.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "SMPTE RP 219";
@@ -622,7 +631,7 @@ namespace SRT_ENCODE
                 _ => AudioTestToneType.Sine1kHzMinus18dBFS
             };
 
-            if (RadSourceColorbar?.IsChecked == true)
+            if (CmbInputSource?.SelectedIndex == 3)
             {
                 UpdateColorbarDisplay();
             }
@@ -1137,7 +1146,7 @@ namespace SRT_ENCODE
         {
             if (!_isInitialized) return;
             bool isEnabled = ChkEnableVideoPreview.IsChecked == true;
-            bool isColorbar = RadSourceColorbar?.IsChecked == true;
+            bool isColorbar = CmbInputSource?.SelectedIndex == 3;
 
             if (ViewboxColorbar != null)
             {

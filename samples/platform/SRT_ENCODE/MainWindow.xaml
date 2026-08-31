@@ -834,19 +834,38 @@
                                 <TextBlock Text="SELECT BROADCAST VIDEO SOURCE" FontWeight="Bold" FontSize="14" Foreground="#FFFFFF" Margin="0,0,0,4"/>
                                 <TextBlock Text="Choose your capture device, live IP feed, media file or SMPTE pattern." FontSize="11" Foreground="#888888" Margin="0,0,0,12"/>
 
-                                <!-- Source Option 1: SDI Input (Default) -->
-                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                <!-- Master Input Source Dropdown Card -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}" BorderBrush="#007ACC" Background="#1A1F26" Padding="14,12">
                                     <StackPanel>
-                                        <RadioButton x:Name="RadSourceSdi" GroupName="InputSourceGroup" IsChecked="True" Checked="InputSource_SelectionChanged">
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="📡 SDI Input (Blackmagic DeckLink / AJA)" FontWeight="Bold" FontSize="13" Foreground="#FFFFFF"/>
+                                        <Grid Margin="0,0,0,8">
+                                            <TextBlock Text="Select Broadcast Video Source:" FontWeight="Bold" FontSize="13" Foreground="#4EC9B0" VerticalAlignment="Center"/>
+                                            <Border Background="#252526" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="3" Padding="6,2" HorizontalAlignment="Right">
+                                                <TextBlock x:Name="TxtActiveSourceTypeBadge" Text="📡 SDI INPUT ACTIVE" FontSize="10" FontWeight="Bold" Foreground="#00E676"/>
+                                            </Border>
+                                        </Grid>
+
+                                        <ComboBox x:Name="CmbInputSource" SelectionChanged="CmbInputSource_SelectionChanged" Height="34" FontSize="13" FontWeight="SemiBold">
+                                            <ComboBoxItem Content="📡 SDI Input (Blackmagic DeckLink / AJA Capture Card)" IsSelected="True"/>
+                                            <ComboBoxItem Content="🌐 NDI Input (Network Live Stream Source)"/>
+                                            <ComboBoxItem Content="📁 File Input (.mp4, .mov, .mkv, .ts Media File)"/>
+                                            <ComboBoxItem Content="🎨 Colorbar (SMPTE RP 219 / EBU Pattern &amp; 1kHz Tone)"/>
+                                        </ComboBox>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Source Option 1 Frame: SDI Input (Default: Visible) -->
+                                <Border x:Name="CardSdiConfig" Style="{StaticResource DarkCardBorderStyle}" Visibility="Visible">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,10">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="📡 SDI HARDWARE CAPTURE CONFIGURATION" FontWeight="Bold" FontSize="12" Foreground="#007ACC"/>
                                                 <Border Background="#007ACC" CornerRadius="3" Padding="4,1" Margin="8,0,0,0">
-                                                    <TextBlock Text="DEFAULT" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                                                    <TextBlock Text="HARDWARE" FontSize="9" FontWeight="Bold" Foreground="White"/>
                                                 </Border>
                                             </StackPanel>
-                                        </RadioButton>
+                                        </Grid>
 
-                                        <StackPanel x:Name="PnlSdiConfig" Margin="24,10,0,0">
+                                        <StackPanel x:Name="PnlSdiConfig">
                                             <TextBlock Text="Capture Card Device:" Style="{StaticResource HeaderLabelStyle}"/>
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
@@ -882,18 +901,24 @@
                                                     </ComboBox>
                                                 </StackPanel>
                                             </Grid>
+                                            <TextBlock Text="* Hỗ trợ chuẩn Blackmagic DeckLink SDI / 12G SDI / AJA KONA với xử lý trực tiếp qua Direct3D 11." FontSize="10.5" Foreground="#888888" Margin="0,8,0,0"/>
                                         </StackPanel>
                                     </StackPanel>
                                 </Border>
 
-                                <!-- Source Option 2: NDI Input -->
-                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                <!-- Source Option 2 Frame: NDI Input (Default: Collapsed) -->
+                                <Border x:Name="CardNdiConfig" Style="{StaticResource DarkCardBorderStyle}" Visibility="Collapsed">
                                     <StackPanel>
-                                        <RadioButton x:Name="RadSourceNdi" GroupName="InputSourceGroup" Checked="InputSource_SelectionChanged">
-                                            <TextBlock Text="🌐 NDI Input (Network Live Source)" FontWeight="Bold" FontSize="13" Foreground="#FFFFFF"/>
-                                        </RadioButton>
+                                        <Grid Margin="0,0,0,10">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="🌐 NDI NETWORK LIVE SOURCE CONFIGURATION" FontWeight="Bold" FontSize="12" Foreground="#007ACC"/>
+                                                <Border Background="#2E7D32" CornerRadius="3" Padding="4,1" Margin="8,0,0,0">
+                                                    <TextBlock Text="IP STREAM" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                                                </Border>
+                                            </StackPanel>
+                                        </Grid>
 
-                                        <StackPanel x:Name="PnlNdiConfig" Margin="24,10,0,0" IsEnabled="False">
+                                        <StackPanel x:Name="PnlNdiConfig">
                                             <TextBlock Text="Discovered NDI Sources on LAN:" Style="{StaticResource HeaderLabelStyle}"/>
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
@@ -903,18 +928,24 @@
                                                 <ComboBox x:Name="CmbNdiSources" Grid.Column="0" Margin="0,0,8,0"/>
                                                 <Button Grid.Column="1" Content="🔄 Find NDI" Style="{StaticResource ActionButtonStyle}" Click="BtnScanNdi_Click"/>
                                             </Grid>
+                                            <TextBlock Text="* Tự động nhận diện các luồng NDI Full Bandwidth và NDI|HX trên mạng nội bộ qua mDNS." FontSize="10.5" Foreground="#888888" Margin="0,8,0,0"/>
                                         </StackPanel>
                                     </StackPanel>
                                 </Border>
 
-                                <!-- Source Option 3: File Input -->
-                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                <!-- Source Option 3 Frame: File Input (Default: Collapsed) -->
+                                <Border x:Name="CardFileConfig" Style="{StaticResource DarkCardBorderStyle}" Visibility="Collapsed">
                                     <StackPanel>
-                                        <RadioButton x:Name="RadSourceFile" GroupName="InputSourceGroup" Checked="InputSource_SelectionChanged">
-                                            <TextBlock Text="📁 File Input (.mp4, .mov, .mkv, .ts)" FontWeight="Bold" FontSize="13" Foreground="#FFFFFF"/>
-                                        </RadioButton>
+                                        <Grid Margin="0,0,0,10">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="📁 MEDIA FILE INPUT CONFIGURATION" FontWeight="Bold" FontSize="12" Foreground="#007ACC"/>
+                                                <Border Background="#F57C00" CornerRadius="3" Padding="4,1" Margin="8,0,0,0">
+                                                    <TextBlock Text="MEDIA FILE" FontSize="9" FontWeight="Bold" Foreground="White"/>
+                                                </Border>
+                                            </StackPanel>
+                                        </Grid>
 
-                                        <StackPanel x:Name="PnlFileConfig" Margin="24,10,0,0" IsEnabled="False">
+                                        <StackPanel x:Name="PnlFileConfig">
                                             <TextBlock Text="Media File Path:" Style="{StaticResource HeaderLabelStyle}"/>
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
@@ -925,24 +956,25 @@
                                                 <Button Grid.Column="1" Content="📂 Browse..." Style="{StaticResource ActionButtonStyle}" Click="BtnBrowseFile_Click"/>
                                             </Grid>
 
-                                            <CheckBox x:Name="ChkLoopFile" Content="Auto Loop Playback" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Margin="0,8,0,0"/>
+                                            <CheckBox x:Name="ChkLoopFile" Content="Auto Loop Playback" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Margin="0,10,0,0"/>
+                                            <TextBlock Text="* Hỗ trợ giải mã phần cứng các định dạng phát sóng MP4, MOV (ProRes), MKV, TS." FontSize="10.5" Foreground="#888888" Margin="0,6,0,0"/>
                                         </StackPanel>
                                     </StackPanel>
                                 </Border>
 
-                                <!-- Source Option 4: Colorbar & 1kHz Voice with Time UTC -->
-                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                <!-- Source Option 4 Frame: Colorbar & Test Signal (Default: Collapsed) -->
+                                <Border x:Name="CardColorbarConfig" Style="{StaticResource DarkCardBorderStyle}" Visibility="Collapsed">
                                     <StackPanel>
-                                        <RadioButton x:Name="RadSourceColorbar" GroupName="InputSourceGroup" Checked="InputSource_SelectionChanged">
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="🎨 Colorbar &amp; 1kHz Tone with Time UTC" FontWeight="Bold" FontSize="13" Foreground="#FFFFFF"/>
+                                        <Grid Margin="0,0,0,10">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="🎨 COLORBAR &amp; SMPTE TEST GENERATOR" FontWeight="Bold" FontSize="12" Foreground="#007ACC"/>
                                                 <Border Background="#388E3C" CornerRadius="3" Padding="4,1" Margin="8,0,0,0">
                                                     <TextBlock Text="SMPTE PATTERN" FontSize="9" FontWeight="Bold" Foreground="White"/>
                                                 </Border>
                                             </StackPanel>
-                                        </RadioButton>
+                                        </Grid>
 
-                                        <StackPanel x:Name="PnlColorbarConfig" Margin="24,10,0,0" IsEnabled="False">
+                                        <StackPanel x:Name="PnlColorbarConfig">
                                             <TextBlock Text="Test Signal Parameters:" Style="{StaticResource HeaderLabelStyle}"/>
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
@@ -967,7 +999,7 @@
                                                     </ComboBox>
                                                 </StackPanel>
                                             </Grid>
-                                            <TextBlock Text="* Live UTC Timecode is automatically burnt directly onto frame." FontSize="11" Foreground="#4EC9B0" Margin="0,6,0,0"/>
+                                            <TextBlock Text="* Live UTC Timecode is automatically burnt directly onto frame &amp; tone phase aligned." FontSize="11" Foreground="#4EC9B0" Margin="0,8,0,0"/>
                                         </StackPanel>
                                     </StackPanel>
                                 </Border>
