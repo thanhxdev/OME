@@ -16,6 +16,8 @@ namespace SRT_DECODE
 {
     public partial class MainWindow : Window
     {
+        private const int MaxChannels = 10;
+
         // ─── Subsystem Engines ──────────────────────────────────────
         private readonly NtpSyncEngine _syncEngine = new();
         private readonly MultiStreamReceiverEngine _receiverEngine;
@@ -28,17 +30,27 @@ namespace SRT_DECODE
         private DispatcherTimer? _vuMeterTimer;
 
         // ─── State Variables ────────────────────────────────────────
-        private int _currentProgramIndex = 0; // 0: Cam1, 1: Cam2, 2: Cam3, 3: Cam4
-        private int _currentPreviewIndex = 1; // 1: Cam2
-        private bool _isSingleStreamMode = false;
+        private int _activeChannelCount = 1; // Default 1 channel active; '+' button adds up to 10
+        private int _currentProgramIndex = 0; // 0..9
+        private int _currentPreviewIndex = 1; // 0..9
         private bool _isTransitioning = false;
         private bool _isInitialized = false;
         private readonly StringBuilder _logBuffer = new();
+
+        // ─── Dynamic Metadata State ─────────────────────────────────
+        private readonly string[] _channelNames = new string[MaxChannels];
+        private readonly int[] _channelPorts = new int[MaxChannels];
 
         // ─── Control Reference Arrays ───────────────────────────────
         private Border[] _cellBorders = Array.Empty<Border>();
         private Border[] _tallyBadges = Array.Empty<Border>();
         private TextBlock[] _tallyTexts = Array.Empty<TextBlock>();
+        private TextBlock[] _headerTexts = Array.Empty<TextBlock>();
+        private TextBlock[] _fallbackTitles = Array.Empty<TextBlock>();
+        private TextBlock[] _badgeCamTexts = Array.Empty<TextBlock>();
+        private TextBlock[] _driftLabels = Array.Empty<TextBlock>();
+        private TextBlock[] _telemetryTitles = Array.Empty<TextBlock>();
+
         private Ellipse[] _ledIndicators = Array.Empty<Ellipse>();
         private Button[] _pgmButtons = Array.Empty<Button>();
         private Border[] _hudOverlays = Array.Empty<Border>();
@@ -46,9 +58,40 @@ namespace SRT_DECODE
         private TextBlock[] _statusTexts = Array.Empty<TextBlock>();
         private ProgressBar[] _vuBarsL = Array.Empty<ProgressBar>();
         private ProgressBar[] _vuBarsR = Array.Empty<ProgressBar>();
+        private Border[] _ingestCards = Array.Empty<Border>();
+        private Border[] _driftRows = Array.Empty<Border>();
+        private Border[] _telemetryCards = Array.Empty<Border>();
+        private Border[] _outputCards = Array.Empty<Border>();
+        private TextBlock[] _badgeOutputTexts = Array.Empty<TextBlock>();
+        private TextBox[] _txtOutputNdiNames = Array.Empty<TextBox>();
+        private CheckBox[] _chkMuteCams = Array.Empty<CheckBox>();
+        private OpenMediaVideoView[] _videoViews = Array.Empty<OpenMediaVideoView>();
+
+        // TextBlock & HUD array references
+        private TextBlock[] _hudRtt = Array.Empty<TextBlock>();
+        private TextBlock[] _hudLoss = Array.Empty<TextBlock>();
+        private TextBlock[] _hudBitrate = Array.Empty<TextBlock>();
+        private TextBlock[] _hudDrift = Array.Empty<TextBlock>();
+
+        private TextBlock[] _diagRtt = Array.Empty<TextBlock>();
+        private TextBlock[] _diagLoss = Array.Empty<TextBlock>();
+        private TextBlock[] _diagBitrate = Array.Empty<TextBlock>();
+        private TextBlock[] _diagHealth = Array.Empty<TextBlock>();
+        private ProgressBar[] _pbBuffer = Array.Empty<ProgressBar>();
+        private TextBlock[] _txtDriftVal = Array.Empty<TextBlock>();
+
+        // Ingest form inputs
+        private TextBox[] _txtNameInputs = Array.Empty<TextBox>();
+        private TextBox[] _txtIps = Array.Empty<TextBox>();
+        private TextBox[] _txtPorts = Array.Empty<TextBox>();
+        private ComboBox[] _cmbModes = Array.Empty<ComboBox>();
+        private TextBox[] _txtStreamIds = Array.Empty<TextBox>();
+        private TextBox[] _txtLatencies = Array.Empty<TextBox>();
+        private CheckBox[] _chkAutoLatencies = Array.Empty<CheckBox>();
+        private Button[] _btnToggles = Array.Empty<Button>();
 
         // ─── Video Presentation Bitmaps ─────────────────────────────
-        private readonly WriteableBitmap?[] _camBitmaps = new WriteableBitmap?[4];
+        private readonly WriteableBitmap?[] _camBitmaps = new WriteableBitmap?[MaxChannels];
 
         public MainWindow()
         {
@@ -79,27 +122,71 @@ namespace SRT_DECODE
         {
             try
             {
-                // Cache UI Element references for fast indexing
-                _cellBorders = new[] { CellCam1, CellCam2, CellCam3, CellCam4 };
-                _tallyBadges = new[] { TallyCam1, TallyCam2, TallyCam3, TallyCam4 };
-                _tallyTexts = new[] { (TextBlock)TallyCam1.Child, (TextBlock)TallyCam2.Child, (TextBlock)TallyCam3.Child, (TextBlock)TallyCam4.Child };
-                _ledIndicators = new[] { LedCam1, LedCam2, LedCam3, LedCam4 };
-                _pgmButtons = new[] { BtnPgmCam1, BtnPgmCam2, BtnPgmCam3, BtnPgmCam4 };
-                _hudOverlays = new[] { HudOverlayCam1, HudOverlayCam2, HudOverlayCam3, HudOverlayCam4 };
-                _fallbacks = new[] { FallbackCam1, FallbackCam2, FallbackCam3, FallbackCam4 };
-                _statusTexts = new[] { TxtStatusCam1, TxtStatusCam2, TxtStatusCam3, TxtStatusCam4 };
-                _vuBarsL = new[] { VuCam1L, VuCam2L, VuCam3L, VuCam4L };
-                _vuBarsR = new[] { VuCam1R, VuCam2R, VuCam3R, VuCam4R };
+                // Initialize default names and ports
+                for (int i = 0; i < MaxChannels; i++)
+                {
+                    _channelNames[i] = $"CAM {i + 1}";
+                    _channelPorts[i] = 9000 + i;
+                }
 
-                // Initialize WriteableBitmaps for Quad-View video rendering
-                for (int i = 0; i < 4; i++)
+                // Cache UI Element references for fast indexing
+                _cellBorders = new[] { CellCam1, CellCam2, CellCam3, CellCam4, CellCam5, CellCam6, CellCam7, CellCam8, CellCam9, CellCam10 };
+                _tallyBadges = new[] { TallyCam1, TallyCam2, TallyCam3, TallyCam4, TallyCam5, TallyCam6, TallyCam7, TallyCam8, TallyCam9, TallyCam10 };
+                _tallyTexts = new[]
+                {
+                    (TextBlock)TallyCam1.Child, (TextBlock)TallyCam2.Child, (TextBlock)TallyCam3.Child, (TextBlock)TallyCam4.Child, (TextBlock)TallyCam5.Child,
+                    (TextBlock)TallyCam6.Child, (TextBlock)TallyCam7.Child, (TextBlock)TallyCam8.Child, (TextBlock)TallyCam9.Child, (TextBlock)TallyCam10.Child
+                };
+                _headerTexts = new[] { TxtHeaderCam1, TxtHeaderCam2, TxtHeaderCam3, TxtHeaderCam4, TxtHeaderCam5, TxtHeaderCam6, TxtHeaderCam7, TxtHeaderCam8, TxtHeaderCam9, TxtHeaderCam10 };
+                _fallbackTitles = new[] { TxtFallbackTitleCam1, TxtFallbackTitleCam2, TxtFallbackTitleCam3, TxtFallbackTitleCam4, TxtFallbackTitleCam5, TxtFallbackTitleCam6, TxtFallbackTitleCam7, TxtFallbackTitleCam8, TxtFallbackTitleCam9, TxtFallbackTitleCam10 };
+                _badgeCamTexts = new[] { TxtBadgeCam1, TxtBadgeCam2, TxtBadgeCam3, TxtBadgeCam4, TxtBadgeCam5, TxtBadgeCam6, TxtBadgeCam7, TxtBadgeCam8, TxtBadgeCam9, TxtBadgeCam10 };
+                _driftLabels = new[] { TxtDriftCamLabel1, TxtDriftCamLabel2, TxtDriftCamLabel3, TxtDriftCamLabel4, TxtDriftCamLabel5, TxtDriftCamLabel6, TxtDriftCamLabel7, TxtDriftCamLabel8, TxtDriftCamLabel9, TxtDriftCamLabel10 };
+                _telemetryTitles = new[] { TxtTelemetryCamTitle1, TxtTelemetryCamTitle2, TxtTelemetryCamTitle3, TxtTelemetryCamTitle4, TxtTelemetryCamTitle5, TxtTelemetryCamTitle6, TxtTelemetryCamTitle7, TxtTelemetryCamTitle8, TxtTelemetryCamTitle9, TxtTelemetryCamTitle10 };
+
+                _ledIndicators = new[] { LedCam1, LedCam2, LedCam3, LedCam4, LedCam5, LedCam6, LedCam7, LedCam8, LedCam9, LedCam10 };
+                _pgmButtons = new[] { BtnPgmCam1, BtnPgmCam2, BtnPgmCam3, BtnPgmCam4, BtnPgmCam5, BtnPgmCam6, BtnPgmCam7, BtnPgmCam8, BtnPgmCam9, BtnPgmCam10 };
+                _hudOverlays = new[] { HudOverlayCam1, HudOverlayCam2, HudOverlayCam3, HudOverlayCam4, HudOverlayCam5, HudOverlayCam6, HudOverlayCam7, HudOverlayCam8, HudOverlayCam9, HudOverlayCam10 };
+                _fallbacks = new[] { FallbackCam1, FallbackCam2, FallbackCam3, FallbackCam4, FallbackCam5, FallbackCam6, FallbackCam7, FallbackCam8, FallbackCam9, FallbackCam10 };
+                _statusTexts = new[] { TxtStatusCam1, TxtStatusCam2, TxtStatusCam3, TxtStatusCam4, TxtStatusCam5, TxtStatusCam6, TxtStatusCam7, TxtStatusCam8, TxtStatusCam9, TxtStatusCam10 };
+                _vuBarsL = new[] { VuCam1L, VuCam2L, VuCam3L, VuCam4L, VuCam5L, VuCam6L, VuCam7L, VuCam8L, VuCam9L, VuCam10L };
+                _vuBarsR = new[] { VuCam1R, VuCam2R, VuCam3R, VuCam4R, VuCam5R, VuCam6R, VuCam7R, VuCam8R, VuCam9R, VuCam10R };
+                _ingestCards = new[] { CardCam1, CardCam2, CardCam3, CardCam4, CardCam5, CardCam6, CardCam7, CardCam8, CardCam9, CardCam10 };
+                _driftRows = new[] { RowDriftCam1, RowDriftCam2, RowDriftCam3, RowDriftCam4, RowDriftCam5, RowDriftCam6, RowDriftCam7, RowDriftCam8, RowDriftCam9, RowDriftCam10 };
+                _telemetryCards = new[] { CardTelemetryCam1, CardTelemetryCam2, CardTelemetryCam3, CardTelemetryCam4, CardTelemetryCam5, CardTelemetryCam6, CardTelemetryCam7, CardTelemetryCam8, CardTelemetryCam9, CardTelemetryCam10 };
+                _outputCards = new[] { CardOutputCam1, CardOutputCam2, CardOutputCam3, CardOutputCam4, CardOutputCam5, CardOutputCam6, CardOutputCam7, CardOutputCam8, CardOutputCam9, CardOutputCam10 };
+                _badgeOutputTexts = new[] { TxtBadgeOutputCam1, TxtBadgeOutputCam2, TxtBadgeOutputCam3, TxtBadgeOutputCam4, TxtBadgeOutputCam5, TxtBadgeOutputCam6, TxtBadgeOutputCam7, TxtBadgeOutputCam8, TxtBadgeOutputCam9, TxtBadgeOutputCam10 };
+                _txtOutputNdiNames = new[] { TxtOutputNdiNameCam1, TxtOutputNdiNameCam2, TxtOutputNdiNameCam3, TxtOutputNdiNameCam4, TxtOutputNdiNameCam5, TxtOutputNdiNameCam6, TxtOutputNdiNameCam7, TxtOutputNdiNameCam8, TxtOutputNdiNameCam9, TxtOutputNdiNameCam10 };
+                _chkMuteCams = new[] { ChkMuteCam1, ChkMuteCam2, ChkMuteCam3, ChkMuteCam4, ChkMuteCam5, ChkMuteCam6, ChkMuteCam7, ChkMuteCam8, ChkMuteCam9, ChkMuteCam10 };
+                _videoViews = new[] { VideoViewCam1, VideoViewCam2, VideoViewCam3, VideoViewCam4, VideoViewCam5, VideoViewCam6, VideoViewCam7, VideoViewCam8, VideoViewCam9, VideoViewCam10 };
+
+                _hudRtt = new[] { HudRttCam1, HudRttCam2, HudRttCam3, HudRttCam4, HudRttCam5, HudRttCam6, HudRttCam7, HudRttCam8, HudRttCam9, HudRttCam10 };
+                _hudLoss = new[] { HudLossCam1, HudLossCam2, HudLossCam3, HudLossCam4, HudLossCam5, HudLossCam6, HudLossCam7, HudLossCam8, HudLossCam9, HudLossCam10 };
+                _hudBitrate = new[] { HudBitrateCam1, HudBitrateCam2, HudBitrateCam3, HudBitrateCam4, HudBitrateCam5, HudBitrateCam6, HudBitrateCam7, HudBitrateCam8, HudBitrateCam9, HudBitrateCam10 };
+                _hudDrift = new[] { HudDriftCam1, HudDriftCam2, HudDriftCam3, HudDriftCam4, HudDriftCam5, HudDriftCam6, HudDriftCam7, HudDriftCam8, HudDriftCam9, HudDriftCam10 };
+
+                _diagRtt = new[] { DiagRttCam1, DiagRttCam2, DiagRttCam3, DiagRttCam4, DiagRttCam5, DiagRttCam6, DiagRttCam7, DiagRttCam8, DiagRttCam9, DiagRttCam10 };
+                _diagLoss = new[] { DiagLossCam1, DiagLossCam2, DiagLossCam3, DiagLossCam4, DiagLossCam5, DiagLossCam6, DiagLossCam7, DiagLossCam8, DiagLossCam9, DiagLossCam10 };
+                _diagBitrate = new[] { DiagBitrateCam1, DiagBitrateCam2, DiagBitrateCam3, DiagBitrateCam4, DiagBitrateCam5, DiagBitrateCam6, DiagBitrateCam7, DiagBitrateCam8, DiagBitrateCam9, DiagBitrateCam10 };
+                _diagHealth = new[] { DiagHealthCam1, DiagHealthCam2, DiagHealthCam3, DiagHealthCam4, DiagHealthCam5, DiagHealthCam6, DiagHealthCam7, DiagHealthCam8, DiagHealthCam9, DiagHealthCam10 };
+                _pbBuffer = new[] { PbBufferCam1, PbBufferCam2, PbBufferCam3, PbBufferCam4, PbBufferCam5, PbBufferCam6, PbBufferCam7, PbBufferCam8, PbBufferCam9, PbBufferCam10 };
+                _txtDriftVal = new[] { TxtDriftValCam1, TxtDriftValCam2, TxtDriftValCam3, TxtDriftValCam4, TxtDriftValCam5, TxtDriftValCam6, TxtDriftValCam7, TxtDriftValCam8, TxtDriftValCam9, TxtDriftValCam10 };
+
+                _txtNameInputs = new[] { TxtNameCam1, TxtNameCam2, TxtNameCam3, TxtNameCam4, TxtNameCam5, TxtNameCam6, TxtNameCam7, TxtNameCam8, TxtNameCam9, TxtNameCam10 };
+                _txtIps = new[] { TxtIpCam1, TxtIpCam2, TxtIpCam3, TxtIpCam4, TxtIpCam5, TxtIpCam6, TxtIpCam7, TxtIpCam8, TxtIpCam9, TxtIpCam10 };
+                _txtPorts = new[] { TxtPortCam1, TxtPortCam2, TxtPortCam3, TxtPortCam4, TxtPortCam5, TxtPortCam6, TxtPortCam7, TxtPortCam8, TxtPortCam9, TxtPortCam10 };
+                _cmbModes = new[] { CmbModeCam1, CmbModeCam2, CmbModeCam3, CmbModeCam4, CmbModeCam5, CmbModeCam6, CmbModeCam7, CmbModeCam8, CmbModeCam9, CmbModeCam10 };
+                _txtStreamIds = new[] { TxtStreamIdCam1, TxtStreamIdCam2, TxtStreamIdCam3, TxtStreamIdCam4, TxtStreamIdCam5, TxtStreamIdCam6, TxtStreamIdCam7, TxtStreamIdCam8, TxtStreamIdCam9, TxtStreamIdCam10 };
+                _txtLatencies = new[] { TxtLatencyCam1, TxtLatencyCam2, TxtLatencyCam3, TxtLatencyCam4, TxtLatencyCam5, TxtLatencyCam6, TxtLatencyCam7, TxtLatencyCam8, TxtLatencyCam9, TxtLatencyCam10 };
+                _chkAutoLatencies = new[] { ChkAutoLatencyCam1, ChkAutoLatencyCam2, ChkAutoLatencyCam3, ChkAutoLatencyCam4, ChkAutoLatencyCam5, ChkAutoLatencyCam6, ChkAutoLatencyCam7, ChkAutoLatencyCam8, ChkAutoLatencyCam9, ChkAutoLatencyCam10 };
+                _btnToggles = new[] { BtnToggleCam1, BtnToggleCam2, BtnToggleCam3, BtnToggleCam4, BtnToggleCam5, BtnToggleCam6, BtnToggleCam7, BtnToggleCam8, BtnToggleCam9, BtnToggleCam10 };
+
+                // Initialize WriteableBitmaps for video rendering surfaces
+                for (int i = 0; i < MaxChannels; i++)
                 {
                     _camBitmaps[i] = new WriteableBitmap(1920, 1080, 96, 96, PixelFormats.Bgra32, null);
+                    _videoViews[i].PresentBitmap(_camBitmaps[i]);
                 }
-                VideoViewCam1.PresentBitmap(_camBitmaps[0]);
-                VideoViewCam2.PresentBitmap(_camBitmaps[1]);
-                VideoViewCam3.PresentBitmap(_camBitmaps[2]);
-                VideoViewCam4.PresentBitmap(_camBitmaps[3]);
+                VideoViewPgm.PresentBitmap(_camBitmaps[0]);
 
                 LogEvent("[INFO]", "Ứng dụng OME Broadcast Multi-SRT Decoder & Studio Sync đang khởi chạy...");
                 TxtEngineStatus.Text = "Engine: Initializing Platform...";
@@ -124,9 +211,10 @@ namespace SRT_DECODE
                 StartTelemetryTimer();
                 StartVuMeterTimer();
 
-                // Initial UI Tally Sync
+                // Initial Active Streams UI & Layout
+                UpdateActiveStreamsUI();
                 UpdateTallyIndicators();
-                LogEvent("[INFO]", "Hệ thống Master Control Room đã sẵn sàng nhận luồng SRT (Cam 1-4).");
+                LogEvent("[INFO]", "Hệ thống Master Control Room đã sẵn sàng (Tab 1. SRT Ingest, 2. Tab Outputs, tối đa 10 luồng).");
             }
             catch (Exception ex)
             {
@@ -148,6 +236,238 @@ namespace SRT_DECODE
                 OpenMediaRuntime.Shutdown();
             }
             catch { }
+        }
+
+        #endregion
+
+        #region Dynamic Stream Names & Ports Binding
+
+        private void TxtNameOrPort_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (!_isInitialized) return;
+
+            if (sender is TextBox tb && tb.Tag is string tagStr && int.TryParse(tagStr, out int idx))
+            {
+                UpdateChannelDisplayMeta(idx);
+            }
+        }
+
+        private void UpdateChannelDisplayMeta(int idx)
+        {
+            if (idx < 0 || idx >= MaxChannels) return;
+
+            // Get Name
+            string name = _txtNameInputs[idx]?.Text.Trim() ?? string.Empty;
+            if (string.IsNullOrEmpty(name)) name = $"CAM {idx + 1}";
+            _channelNames[idx] = name;
+
+            // Get Port
+            if (int.TryParse(_txtPorts[idx]?.Text, out int port))
+            {
+                _channelPorts[idx] = port;
+            }
+            else
+            {
+                _channelPorts[idx] = 9000 + idx;
+            }
+
+            // Sync to Engine channel metadata
+            _receiverEngine.Channels[idx].Name = _channelNames[idx];
+
+            // Update Multiviewer cell header & fallback title
+            if (idx < _headerTexts.Length && _headerTexts[idx] != null)
+            {
+                _headerTexts[idx].Text = $"{_channelNames[idx]} (PORT {_channelPorts[idx]})";
+            }
+            if (idx < _fallbackTitles.Length && _fallbackTitles[idx] != null)
+            {
+                _fallbackTitles[idx].Text = $"{_channelNames[idx]} • SRT RECEIVER";
+            }
+            if (idx < _badgeCamTexts.Length && _badgeCamTexts[idx] != null)
+            {
+                _badgeCamTexts[idx].Text = _channelNames[idx];
+            }
+            if (idx < _badgeOutputTexts.Length && _badgeOutputTexts[idx] != null)
+            {
+                _badgeOutputTexts[idx].Text = $"{_channelNames[idx]} - ISO CHANNEL OUTPUT ROUTING";
+            }
+            if (idx < _txtOutputNdiNames.Length && _txtOutputNdiNames[idx] != null)
+            {
+                string safeName = _channelNames[idx].Replace(" ", "_").ToUpperInvariant();
+                _txtOutputNdiNames[idx].Text = $"OME_{safeName}_ISO";
+            }
+            if (idx < _pgmButtons.Length && _pgmButtons[idx] != null)
+            {
+                _pgmButtons[idx].Content = _channelNames[idx];
+            }
+            if (idx < _driftLabels.Length && _driftLabels[idx] != null)
+            {
+                _driftLabels[idx].Text = $"{_channelNames[idx]}:";
+            }
+            if (idx < _telemetryTitles.Length && _telemetryTitles[idx] != null)
+            {
+                _telemetryTitles[idx].Text = $"{_channelNames[idx]} (PORT {_channelPorts[idx]})";
+            }
+
+            // Update PGM Top screen title if this camera is currently on-air
+            if (idx == _currentProgramIndex && TxtPgmMasterTitle != null)
+            {
+                TxtPgmMasterTitle.Text = $"PROGRAM ({_channelNames[idx]})";
+            }
+        }
+
+        #endregion
+
+        #region Dynamic Streams Management (+ Button / Ingest Cards)
+
+        private void BtnAddStream_Click(object sender, RoutedEventArgs e)
+        {
+            if (_activeChannelCount < MaxChannels)
+            {
+                _activeChannelCount++;
+                UpdateActiveStreamsUI();
+                LogEvent("[INGEST]", $"➕ Đã thêm khung SRT Receiver Ingest #{_activeChannelCount} ({_channelNames[_activeChannelCount - 1]}). Tổng số luồng: {_activeChannelCount}/10.");
+            }
+            else
+            {
+                LogEvent("[WARN]", "Đã đạt giới hạn tối đa 10 luồng SRT Receiver Ingest.");
+            }
+        }
+
+        private async void BtnRemoveStream_Click(object sender, RoutedEventArgs e)
+        {
+            if (_activeChannelCount > 1)
+            {
+                int removeIdx = _activeChannelCount - 1;
+                // Stop channel if running
+                if (_receiverEngine.Channels[removeIdx].IsRunning)
+                {
+                    await _receiverEngine.StopChannelAsync(removeIdx);
+                }
+
+                _activeChannelCount--;
+                if (_currentProgramIndex >= _activeChannelCount)
+                {
+                    _currentProgramIndex = 0;
+                    UpdateTallyIndicators();
+                }
+                UpdateActiveStreamsUI();
+                LogEvent("[INGEST]", $"➖ Đã bớt luồng SRT Ingest #{removeIdx + 1}. Còn lại: {_activeChannelCount}/10 luồng.");
+            }
+        }
+
+        private void UpdateActiveStreamsUI()
+        {
+            if (!_isInitialized) return;
+
+            // Update badge text
+            TxtStreamCountBadge.Text = $"Active: {_activeChannelCount}/{MaxChannels}";
+
+            // Enable/disable add button
+            BtnAddStream.IsEnabled = _activeChannelCount < MaxChannels;
+            BtnRemoveStream.IsEnabled = _activeChannelCount > 1;
+
+            // Toggle Ingest Cards, Output Cards, PGM buttons, Telemetry cards & Drift rows
+            for (int i = 0; i < MaxChannels; i++)
+            {
+                bool isActive = i < _activeChannelCount;
+                _ingestCards[i].Visibility = isActive ? Visibility.Visible : Visibility.Collapsed;
+                if (i < _outputCards.Length && _outputCards[i] != null)
+                {
+                    _outputCards[i].Visibility = isActive ? Visibility.Visible : Visibility.Collapsed;
+                }
+                _pgmButtons[i].Visibility = isActive ? Visibility.Visible : Visibility.Collapsed;
+                _driftRows[i].Visibility = isActive ? Visibility.Visible : Visibility.Collapsed;
+                _telemetryCards[i].Visibility = isActive ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            // Re-apply Multiviewer layout (View vs PGM+View)
+            ApplyMultiviewerLayout();
+        }
+
+        #endregion
+
+        #region Layout Handling (Always 2 Columns Multi-view & PGM Top View)
+
+        private void CmbLayoutMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            ApplyMultiviewerLayout();
+        }
+
+        private void ApplyMultiviewerLayout()
+        {
+            if (!_isInitialized || MultiviewerContainer == null || _cellBorders.Length < MaxChannels) return;
+
+            int selected = CmbLayoutMode.SelectedIndex; // 0: View (Multi-view 2 cột), 1: PGM+View (PGM trên + Multi-view)
+
+            MultiviewerContainer.RowDefinitions.Clear();
+            MultiviewerContainer.ColumnDefinitions.Clear();
+
+            // Always strictly 2 columns for Multi-view
+            MultiviewerContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            MultiviewerContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            int numRows = Math.Max(1, (_activeChannelCount + 1) / 2);
+            for (int r = 0; r < numRows; r++)
+            {
+                MultiviewerContainer.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            }
+
+            if (selected == 0)
+            {
+                // ─── OPTION 1: "View" (Multi-view 2 cột, không có màn hình mở rộng toàn khung) ────────
+                CellPgmMaster.Visibility = Visibility.Collapsed;
+
+                for (int i = 0; i < MaxChannels; i++)
+                {
+                    if (i < _activeChannelCount)
+                    {
+                        _cellBorders[i].Visibility = Visibility.Visible;
+                        int row = i / 2;
+                        int col = i % 2;
+                        Grid.SetRow(_cellBorders[i], row);
+                        Grid.SetColumn(_cellBorders[i], col);
+                        Grid.SetRowSpan(_cellBorders[i], 1);
+                        Grid.SetColumnSpan(_cellBorders[i], 1); // Strictly 1 column, never expand to 2
+                    }
+                    else
+                    {
+                        _cellBorders[i].Visibility = Visibility.Collapsed;
+                    }
+                }
+            }
+            else
+            {
+                // ─── OPTION 2: "PGM+View" (PGM trên cùng, dưới là tất cả các cam theo thứ tự 2 cột) ───
+                CellPgmMaster.Visibility = Visibility.Visible;
+                TxtPgmMasterTitle.Text = $"PROGRAM ({_channelNames[_currentProgramIndex]})";
+
+                // Present live PGM frame on top screen
+                if (_camBitmaps[_currentProgramIndex] != null)
+                {
+                    VideoViewPgm.PresentBitmap(_camBitmaps[_currentProgramIndex]);
+                }
+                FallbackPgm.Visibility = _fallbacks[_currentProgramIndex].Visibility;
+
+                for (int i = 0; i < MaxChannels; i++)
+                {
+                    if (i < _activeChannelCount)
+                    {
+                        _cellBorders[i].Visibility = Visibility.Visible;
+                        int row = i / 2;
+                        int col = i % 2;
+                        Grid.SetRow(_cellBorders[i], row);
+                        Grid.SetColumn(_cellBorders[i], col);
+                        Grid.SetRowSpan(_cellBorders[i], 1);
+                        Grid.SetColumnSpan(_cellBorders[i], 1); // Strictly 1 column, view all cameras in order
+                    }
+                    else
+                    {
+                        _cellBorders[i].Visibility = Visibility.Collapsed;
+                    }
+                }
+            }
         }
 
         #endregion
@@ -201,10 +521,10 @@ namespace SRT_DECODE
             };
             _vuMeterTimer.Tick += (s, e) =>
             {
-                bool[] active = new bool[4];
-                for (int i = 0; i < 4; i++)
+                bool[] active = new bool[MaxChannels];
+                for (int i = 0; i < MaxChannels; i++)
                 {
-                    active[i] = _receiverEngine.Channels[i].IsConnected;
+                    active[i] = i < _activeChannelCount && _receiverEngine.Channels[i].IsConnected;
                 }
                 _audioManager.ProcessAudioTick(active, _currentProgramIndex);
             };
@@ -221,7 +541,7 @@ namespace SRT_DECODE
             ulong totalBytes = 0;
             var syncSnapshot = _syncEngine.GetSnapshot();
 
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < _activeChannelCount && i < MaxChannels; i++)
             {
                 var ch = _receiverEngine.Channels[i];
                 var sync = syncSnapshot[i];
@@ -230,69 +550,21 @@ namespace SRT_DECODE
                 totalBytes += ch.TotalBytesReceived;
 
                 // Update HUD Overlay in Video Cell
-                switch (i)
-                {
-                    case 0:
-                        HudRttCam1.Text = $"RTT: {ch.CurrentRttMs:F0} ms";
-                        HudLossCam1.Text = $"Loss: {ch.CurrentPacketLoss:F2}%";
-                        HudLossCam1.Foreground = ch.CurrentPacketLoss > 3.0 ? Brushes.Red : Brushes.LightGreen;
-                        HudBitrateCam1.Text = $"Bitrate: {ch.CurrentBitrateKbps:F0} kbps";
-                        HudDriftCam1.Text = $"Drift: {sync.GetFormattedDrift()}";
-                        DiagRttCam1.Text = $"⏱️ RTT: {ch.CurrentRttMs:F1} ms";
-                        DiagLossCam1.Text = $"📉 Loss: {ch.CurrentPacketLoss:F2} %";
-                        DiagLossCam1.Foreground = ch.CurrentPacketLoss > 3.0 ? Brushes.Red : Brushes.LightGreen;
-                        DiagBitrateCam1.Text = $"🚀 Ingest: {ch.CurrentBitrateKbps:F0} kbps";
-                        DiagHealthCam1.Text = $"⏳ Health: {ch.BufferHealthPercent:F0}% ({(ch.BufferHealthPercent > 80 ? "Stable" : "Jittering")})";
-                        PbBufferCam1.Value = ch.BufferHealthPercent;
-                        TxtDriftValCam1.Text = $"Δt: {sync.GetFormattedDrift()} ({sync.LockState})";
-                        TxtDriftValCam1.Foreground = sync.LockState == SyncLockState.Locked ? Brushes.LightGreen : Brushes.Orange;
-                        break;
-                    case 1:
-                        HudRttCam2.Text = $"RTT: {ch.CurrentRttMs:F0} ms";
-                        HudLossCam2.Text = $"Loss: {ch.CurrentPacketLoss:F2}%";
-                        HudLossCam2.Foreground = ch.CurrentPacketLoss > 3.0 ? Brushes.Red : Brushes.LightGreen;
-                        HudBitrateCam2.Text = $"Bitrate: {ch.CurrentBitrateKbps:F0} kbps";
-                        HudDriftCam2.Text = $"Drift: {sync.GetFormattedDrift()}";
-                        DiagRttCam2.Text = $"⏱️ RTT: {ch.CurrentRttMs:F1} ms";
-                        DiagLossCam2.Text = $"📉 Loss: {ch.CurrentPacketLoss:F2} %";
-                        DiagLossCam2.Foreground = ch.CurrentPacketLoss > 3.0 ? Brushes.Red : Brushes.LightGreen;
-                        DiagBitrateCam2.Text = $"🚀 Ingest: {ch.CurrentBitrateKbps:F0} kbps";
-                        DiagHealthCam2.Text = $"⏳ Health: {ch.BufferHealthPercent:F0}% ({(ch.BufferHealthPercent > 80 ? "Stable" : "Jittering")})";
-                        PbBufferCam2.Value = ch.BufferHealthPercent;
-                        TxtDriftValCam2.Text = $"Δt: {sync.GetFormattedDrift()} ({sync.LockState})";
-                        TxtDriftValCam2.Foreground = sync.LockState == SyncLockState.Locked ? Brushes.LightGreen : Brushes.Orange;
-                        break;
-                    case 2:
-                        HudRttCam3.Text = $"RTT: {ch.CurrentRttMs:F0} ms";
-                        HudLossCam3.Text = $"Loss: {ch.CurrentPacketLoss:F2}%";
-                        HudLossCam3.Foreground = ch.CurrentPacketLoss > 3.0 ? Brushes.Red : Brushes.LightGreen;
-                        HudBitrateCam3.Text = $"Bitrate: {ch.CurrentBitrateKbps:F0} kbps";
-                        HudDriftCam3.Text = $"Drift: {sync.GetFormattedDrift()}";
-                        DiagRttCam3.Text = $"⏱️ RTT: {ch.CurrentRttMs:F1} ms";
-                        DiagLossCam3.Text = $"📉 Loss: {ch.CurrentPacketLoss:F2} %";
-                        DiagLossCam3.Foreground = ch.CurrentPacketLoss > 3.0 ? Brushes.Red : Brushes.LightGreen;
-                        DiagBitrateCam3.Text = $"🚀 Ingest: {ch.CurrentBitrateKbps:F0} kbps";
-                        DiagHealthCam3.Text = $"⏳ Health: {ch.BufferHealthPercent:F0}% ({(ch.BufferHealthPercent > 80 ? "Stable" : "Jittering")})";
-                        PbBufferCam3.Value = ch.BufferHealthPercent;
-                        TxtDriftValCam3.Text = $"Δt: {sync.GetFormattedDrift()} ({sync.LockState})";
-                        TxtDriftValCam3.Foreground = sync.LockState == SyncLockState.Locked ? Brushes.LightGreen : Brushes.Orange;
-                        break;
-                    case 3:
-                        HudRttCam4.Text = $"RTT: {ch.CurrentRttMs:F0} ms";
-                        HudLossCam4.Text = $"Loss: {ch.CurrentPacketLoss:F2}%";
-                        HudLossCam4.Foreground = ch.CurrentPacketLoss > 3.0 ? Brushes.Red : Brushes.LightGreen;
-                        HudBitrateCam4.Text = $"Bitrate: {ch.CurrentBitrateKbps:F0} kbps";
-                        HudDriftCam4.Text = $"Drift: {sync.GetFormattedDrift()}";
-                        DiagRttCam4.Text = $"⏱️ RTT: {ch.CurrentRttMs:F1} ms";
-                        DiagLossCam4.Text = $"📉 Loss: {ch.CurrentPacketLoss:F2} %";
-                        DiagLossCam4.Foreground = ch.CurrentPacketLoss > 3.0 ? Brushes.Red : Brushes.LightGreen;
-                        DiagBitrateCam4.Text = $"🚀 Ingest: {ch.CurrentBitrateKbps:F0} kbps";
-                        DiagHealthCam4.Text = $"⏳ Health: {ch.BufferHealthPercent:F0}% ({(ch.BufferHealthPercent > 80 ? "Stable" : "Jittering")})";
-                        PbBufferCam4.Value = ch.BufferHealthPercent;
-                        TxtDriftValCam4.Text = $"Δt: {sync.GetFormattedDrift()} ({sync.LockState})";
-                        TxtDriftValCam4.Foreground = sync.LockState == SyncLockState.Locked ? Brushes.LightGreen : Brushes.Orange;
-                        break;
-                }
+                _hudRtt[i].Text = $"RTT: {ch.CurrentRttMs:F0} ms";
+                _hudLoss[i].Text = $"Loss: {ch.CurrentPacketLoss:F2}%";
+                _hudLoss[i].Foreground = ch.CurrentPacketLoss > 3.0 ? Brushes.Red : Brushes.LightGreen;
+                _hudBitrate[i].Text = $"Bitrate: {ch.CurrentBitrateKbps:F0} kbps";
+                _hudDrift[i].Text = $"Drift: {sync.GetFormattedDrift()}";
+
+                // Update Diag Tab
+                _diagRtt[i].Text = $"⏱️ RTT: {ch.CurrentRttMs:F1} ms";
+                _diagLoss[i].Text = $"📉 Loss: {ch.CurrentPacketLoss:F2} %";
+                _diagLoss[i].Foreground = ch.CurrentPacketLoss > 3.0 ? Brushes.Red : Brushes.LightGreen;
+                _diagBitrate[i].Text = $"🚀 Ingest: {ch.CurrentBitrateKbps:F0} kbps";
+                _diagHealth[i].Text = $"⏳ Health: {ch.BufferHealthPercent:F0}% ({(ch.BufferHealthPercent > 80 ? "Stable" : "Jittering")})";
+                _pbBuffer[i].Value = ch.BufferHealthPercent;
+                _txtDriftVal[i].Text = $"Δt: {sync.GetFormattedDrift()} ({sync.LockState})";
+                _txtDriftVal[i].Foreground = sync.LockState == SyncLockState.Locked ? Brushes.LightGreen : Brushes.Orange;
             }
 
             // Bottom status updates
@@ -322,7 +594,7 @@ namespace SRT_DECODE
         {
             Dispatcher.Invoke(() =>
             {
-                if (index < 0 || index >= 4) return;
+                if (index < 0 || index >= MaxChannels) return;
 
                 // Update Status text and LED
                 _statusTexts[index].Text = state.StatusMessage;
@@ -334,22 +606,17 @@ namespace SRT_DECODE
                 if (!state.IsConnected)
                 {
                     _fallbacks[index].Visibility = Visibility.Visible;
+                    if (index == _currentProgramIndex)
+                    {
+                        FallbackPgm.Visibility = Visibility.Visible;
+                    }
                 }
 
                 // Update toggle button text in config tab
-                Button? btnToggle = index switch
+                if (index < _btnToggles.Length && _btnToggles[index] != null)
                 {
-                    0 => BtnToggleCam1,
-                    1 => BtnToggleCam2,
-                    2 => BtnToggleCam3,
-                    3 => BtnToggleCam4,
-                    _ => null
-                };
-
-                if (btnToggle != null)
-                {
-                    btnToggle.Content = state.IsRunning ? $"Stop Cam {index + 1}" : $"Start Cam {index + 1}";
-                    btnToggle.Background = state.IsRunning 
+                    _btnToggles[index].Content = state.IsRunning ? $"Stop {_channelNames[index]}" : $"Start {_channelNames[index]}";
+                    _btnToggles[index].Background = state.IsRunning 
                         ? new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26)) 
                         : new SolidColorBrush(Color.FromRgb(0x00, 0x7A, 0xCC));
                 }
@@ -358,7 +625,7 @@ namespace SRT_DECODE
 
         private void OnFrameReady(int channelIndex, byte[] frameBytes, int width, int height)
         {
-            if (channelIndex < 0 || channelIndex >= 4) return;
+            if (channelIndex < 0 || channelIndex >= MaxChannels) return;
 
             Dispatcher.InvokeAsync(() =>
             {
@@ -369,15 +636,7 @@ namespace SRT_DECODE
                     {
                         bmp = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
                         _camBitmaps[channelIndex] = bmp;
-                        var view = channelIndex switch
-                        {
-                            0 => VideoViewCam1,
-                            1 => VideoViewCam2,
-                            2 => VideoViewCam3,
-                            3 => VideoViewCam4,
-                            _ => null
-                        };
-                        view?.PresentBitmap(bmp);
+                        _videoViews[channelIndex].PresentBitmap(bmp);
                     }
 
                     int stride = width * 4;
@@ -387,6 +646,16 @@ namespace SRT_DECODE
                     if (_fallbacks[channelIndex].Visibility != Visibility.Collapsed)
                     {
                         _fallbacks[channelIndex].Visibility = Visibility.Collapsed;
+                    }
+
+                    // If this channel is the active Program on PGM+View top screen, present it
+                    if (channelIndex == _currentProgramIndex)
+                    {
+                        if (FallbackPgm.Visibility != Visibility.Collapsed)
+                        {
+                            FallbackPgm.Visibility = Visibility.Collapsed;
+                        }
+                        VideoViewPgm.PresentBitmap(bmp);
                     }
                 }
                 catch { }
@@ -414,16 +683,16 @@ namespace SRT_DECODE
 
         private async void BtnConnectAll_Click(object sender, RoutedEventArgs e)
         {
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < _activeChannelCount; i++)
             {
                 ApplyFormInputsToChannel(i);
             }
-            await _receiverEngine.StartAllAsync();
+            await _receiverEngine.StartAllAsync(_activeChannelCount);
         }
 
         private async void BtnDisconnectAll_Click(object sender, RoutedEventArgs e)
         {
-            await _receiverEngine.StopAllAsync();
+            await _receiverEngine.StopAllAsync(_activeChannelCount);
         }
 
         private static SRTMode ParseSrtMode(ComboBox? cmb)
@@ -436,102 +705,69 @@ namespace SRT_DECODE
 
         private void ApplyFormInputsToChannel(int index)
         {
+            if (index < 0 || index >= MaxChannels) return;
             var ch = _receiverEngine.Channels[index];
-            switch (index)
+
+            ch.Config.Host = _txtIps[index].Text.Trim();
+            if (int.TryParse(_txtPorts[index].Text, out int port)) ch.Config.Port = port;
+            ch.Config.Mode = ParseSrtMode(_cmbModes[index]);
+            ch.Config.StreamId = _txtStreamIds[index].Text.Trim();
+            ch.Config.AutoLatency = _chkAutoLatencies[index].IsChecked == true;
+            if (int.TryParse(_txtLatencies[index].Text, out int lat)) ch.Config.LatencyMs = lat;
+
+            // Update Name
+            UpdateChannelDisplayMeta(index);
+
+            // Cam 1 has decryption controls
+            if (index == 0)
             {
-                case 0:
-                    ch.Config.Host = TxtIpCam1.Text.Trim();
-                    if (int.TryParse(TxtPortCam1.Text, out int p1)) ch.Config.Port = p1;
-                    ch.Config.Mode = ParseSrtMode(CmbModeCam1);
-                    ch.Config.StreamId = TxtStreamIdCam1.Text.Trim();
-                    ch.Config.AutoLatency = ChkAutoLatencyCam1.IsChecked == true;
-                    if (int.TryParse(TxtLatencyCam1.Text, out int lat1)) ch.Config.LatencyMs = lat1;
-                    ch.Config.EncryptionEnabled = ChkDecryptCam1.IsChecked == true;
-                    ch.Config.Passphrase = TxtPassphraseCam1.Text;
-                    ch.Config.KeyLength = CmbKeyLenCam1.SelectedIndex switch { 1 => 24, 2 => 16, _ => 32 };
-                    break;
-                case 1:
-                    ch.Config.Host = TxtIpCam2.Text.Trim();
-                    if (int.TryParse(TxtPortCam2.Text, out int p2)) ch.Config.Port = p2;
-                    ch.Config.Mode = ParseSrtMode(CmbModeCam2);
-                    ch.Config.StreamId = TxtStreamIdCam2.Text.Trim();
-                    ch.Config.AutoLatency = ChkAutoLatencyCam2.IsChecked == true;
-                    if (int.TryParse(TxtLatencyCam2.Text, out int lat2)) ch.Config.LatencyMs = lat2;
-                    break;
-                case 2:
-                    ch.Config.Host = TxtIpCam3.Text.Trim();
-                    if (int.TryParse(TxtPortCam3.Text, out int p3)) ch.Config.Port = p3;
-                    ch.Config.Mode = ParseSrtMode(CmbModeCam3);
-                    ch.Config.StreamId = TxtStreamIdCam3.Text.Trim();
-                    ch.Config.AutoLatency = ChkAutoLatencyCam3.IsChecked == true;
-                    if (int.TryParse(TxtLatencyCam3.Text, out int lat3)) ch.Config.LatencyMs = lat3;
-                    break;
-                case 3:
-                    ch.Config.Host = TxtIpCam4.Text.Trim();
-                    if (int.TryParse(TxtPortCam4.Text, out int p4)) ch.Config.Port = p4;
-                    ch.Config.Mode = ParseSrtMode(CmbModeCam4);
-                    ch.Config.StreamId = TxtStreamIdCam4.Text.Trim();
-                    ch.Config.AutoLatency = ChkAutoLatencyCam4.IsChecked == true;
-                    if (int.TryParse(TxtLatencyCam4.Text, out int lat4)) ch.Config.LatencyMs = lat4;
-                    break;
+                ch.Config.EncryptionEnabled = ChkDecryptCam1.IsChecked == true;
+                ch.Config.Passphrase = TxtPassphraseCam1.Text;
             }
         }
 
         #endregion
 
-        #region Vision Switcher & Tally Routing
+        #region Vision Switcher & Program Selection
 
         private void BtnPgmSelect_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button btn && btn.Tag is string tagStr && int.TryParse(tagStr, out int index))
             {
-                if (index != _currentProgramIndex)
-                {
-                    _currentPreviewIndex = _currentProgramIndex; // Old PGM becomes preview
-                    _currentProgramIndex = index;
-                    UpdateTallyIndicators();
-                    LogEvent("[SWITCHER]", $"Program chuyển góc quay sang: CAM {_currentProgramIndex + 1} (Direct Cut)");
-                }
+                SelectProgramChannel(index);
             }
         }
 
-        private void BtnCutTransition_Click(object sender, RoutedEventArgs e)
+        private void SelectProgramChannel(int index)
         {
-            // Swap PGM and PVW immediately
-            int temp = _currentProgramIndex;
-            _currentProgramIndex = _currentPreviewIndex;
-            _currentPreviewIndex = temp;
+            if (index < 0 || index >= _activeChannelCount) return;
+            _currentProgramIndex = index;
             UpdateTallyIndicators();
-            LogEvent("[SWITCHER]", $"CUT: CAM {_currentProgramIndex + 1} lên sóng PROGRAM.");
-        }
+            LogEvent("[SWITCHER]", $"Đã chọn {_channelNames[index]} làm tín hiệu PROGRAM (On-Air).");
 
-        private async void BtnDissolveTransition_Click(object sender, RoutedEventArgs e)
-        {
-            if (_isTransitioning) return;
-            _isTransitioning = true;
-            BtnDissolveTransition.Background = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44));
-
-            LogEvent("[SWITCHER]", $"Bắt đầu chuyển cảnh DISSOLVE (1.0s) từ CAM {_currentProgramIndex + 1} ➔ CAM {_currentPreviewIndex + 1}...");
-            await Task.Delay(1000);
-
-            int temp = _currentProgramIndex;
-            _currentProgramIndex = _currentPreviewIndex;
-            _currentPreviewIndex = temp;
-            UpdateTallyIndicators();
-
-            BtnDissolveTransition.Background = new SolidColorBrush(Color.FromRgb(0x25, 0x25, 0x2A));
-            _isTransitioning = false;
-            LogEvent("[SWITCHER]", $"Hoàn tất DISSOLVE: CAM {_currentProgramIndex + 1} đã ở trên sóng PROGRAM.");
+            // Update PGM Top screen
+            if (TxtPgmMasterTitle != null)
+            {
+                TxtPgmMasterTitle.Text = $"PROGRAM ({_channelNames[index]})";
+            }
+            if (_camBitmaps[index] != null)
+            {
+                VideoViewPgm.PresentBitmap(_camBitmaps[index]);
+            }
+            FallbackPgm.Visibility = _fallbacks[index].Visibility;
         }
 
         private void UpdateTallyIndicators()
         {
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < MaxChannels; i++)
             {
+                if (i >= _activeChannelCount) continue;
+
                 if (i == _currentProgramIndex)
                 {
-                    _cellBorders[i].BorderBrush = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26)); // Red
-                    _cellBorders[i].BorderThickness = new Thickness(2);
+                    // PGM (Red On-Air)
+                    _cellBorders[i].BorderBrush = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26));
+                    _cellBorders[i].BorderThickness = new Thickness(2.5);
                     _tallyBadges[i].Background = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26));
                     _tallyTexts[i].Text = "PGM";
                     _tallyTexts[i].Foreground = Brushes.White;
@@ -540,20 +776,22 @@ namespace SRT_DECODE
                 }
                 else if (i == _currentPreviewIndex)
                 {
-                    _cellBorders[i].BorderBrush = new SolidColorBrush(Color.FromRgb(0x16, 0xA3, 0x4A)); // Green
+                    // PVW (Green Standby)
+                    _cellBorders[i].BorderBrush = new SolidColorBrush(Color.FromRgb(0x16, 0xA3, 0x4A));
                     _cellBorders[i].BorderThickness = new Thickness(1.5);
                     _tallyBadges[i].Background = new SolidColorBrush(Color.FromRgb(0x16, 0xA3, 0x4A));
                     _tallyTexts[i].Text = "PVW";
                     _tallyTexts[i].Foreground = Brushes.White;
-                    _pgmButtons[i].Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x1E, 0x24));
-                    _pgmButtons[i].Foreground = Brushes.LightGreen;
+                    _pgmButtons[i].Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x2E));
+                    _pgmButtons[i].Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
                 }
                 else
                 {
-                    _cellBorders[i].BorderBrush = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x35)); // Gray
+                    // Inactive Tally (Neutral Dark)
+                    _cellBorders[i].BorderBrush = new SolidColorBrush(Color.FromRgb(0x2D, 0x2D, 0x35));
                     _cellBorders[i].BorderThickness = new Thickness(1);
                     _tallyBadges[i].Background = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x38));
-                    _tallyTexts[i].Text = $"CAM {i + 1}";
+                    _tallyTexts[i].Text = _channelNames[i];
                     _tallyTexts[i].Foreground = new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA));
                     _pgmButtons[i].Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x2E));
                     _pgmButtons[i].Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
@@ -561,35 +799,89 @@ namespace SRT_DECODE
             }
         }
 
+        private async void BtnCutTransition_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isTransitioning) return;
+            _isTransitioning = true;
+            LogEvent("[SWITCHER]", $"Thực hiện CUT Transition: {_channelNames[_currentProgramIndex]} ➔ {_channelNames[_currentPreviewIndex]}");
+
+            int temp = _currentProgramIndex;
+            _currentProgramIndex = _currentPreviewIndex;
+            _currentPreviewIndex = temp;
+
+            UpdateTallyIndicators();
+            SelectProgramChannel(_currentProgramIndex);
+
+            await Task.Delay(50);
+            _isTransitioning = false;
+        }
+
+        private async void BtnDissolveTransition_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isTransitioning) return;
+            _isTransitioning = true;
+            LogEvent("[SWITCHER]", $"Thực hiện DISSOLVE (1.0s) Transition: {_channelNames[_currentProgramIndex]} ➔ {_channelNames[_currentPreviewIndex]}...");
+
+            int steps = 20;
+            for (int s = 0; s <= steps; s++)
+            {
+                await Task.Delay(50);
+            }
+
+            int temp = _currentProgramIndex;
+            _currentProgramIndex = _currentPreviewIndex;
+            _currentPreviewIndex = temp;
+
+            UpdateTallyIndicators();
+            SelectProgramChannel(_currentProgramIndex);
+
+            _isTransitioning = false;
+            LogEvent("[SWITCHER]", "Dissolve hoàn tất.");
+        }
+
         #endregion
 
-        #region Audio Monitoring & VU Meters
+        #region Audio Monitoring & VU Meter Handlers
 
         private void OnAudioLevelsUpdated(ChannelAudioLevels[] levels)
         {
-            Dispatcher.Invoke(() =>
+            Dispatcher.InvokeAsync(() =>
             {
-                for (int i = 0; i < 4; i++)
+                for (int i = 0; i < MaxChannels; i++)
                 {
-                    _vuBarsL[i].Value = levels[i].LeftPercent;
-                    _vuBarsR[i].Value = levels[i].RightPercent;
+                    if (i < levels.Length && i < _activeChannelCount)
+                    {
+                        _vuBarsL[i].Value = levels[i].LeftPercent;
+                        _vuBarsR[i].Value = levels[i].RightPercent;
 
-                    // Color code high audio levels
-                    _vuBarsL[i].Foreground = levels[i].LeftPercent > 90 ? Brushes.Red : (levels[i].LeftPercent > 75 ? Brushes.Gold : Brushes.LightGreen);
-                    _vuBarsR[i].Foreground = levels[i].RightPercent > 90 ? Brushes.Red : (levels[i].RightPercent > 75 ? Brushes.Gold : Brushes.LightGreen);
+                        _vuBarsL[i].Foreground = levels[i].IsClipping ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
+                        _vuBarsR[i].Foreground = levels[i].IsClipping ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
+                    }
+                    else
+                    {
+                        _vuBarsL[i].Value = 0;
+                        _vuBarsR[i].Value = 0;
+                    }
                 }
-            });
+            }, DispatcherPriority.Render);
         }
 
-        private void OnProgramLevelsUpdated(ChannelAudioLevels pgmLevels)
+        private void OnProgramLevelsUpdated(ChannelAudioLevels pgm)
         {
-            Dispatcher.Invoke(() =>
+            Dispatcher.InvokeAsync(() =>
             {
-                VuMasterL.Value = pgmLevels.LeftPercent;
-                VuMasterR.Value = pgmLevels.RightPercent;
-                VuMasterL.Foreground = pgmLevels.LeftPercent > 90 ? Brushes.Red : (pgmLevels.LeftPercent > 75 ? Brushes.Gold : Brushes.LightGreen);
-                VuMasterR.Foreground = pgmLevels.RightPercent > 90 ? Brushes.Red : (pgmLevels.RightPercent > 75 ? Brushes.Gold : Brushes.LightGreen);
-            });
+                VuMasterL.Value = pgm.LeftPercent;
+                VuMasterR.Value = pgm.RightPercent;
+
+                VuMasterL.Foreground = pgm.IsClipping ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
+                VuMasterR.Foreground = pgm.IsClipping ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
+
+                // Also update top PGM screen VU meters
+                VuPgmTopL.Value = pgm.LeftPercent;
+                VuPgmTopR.Value = pgm.RightPercent;
+                VuPgmTopL.Foreground = pgm.IsClipping ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
+                VuPgmTopR.Foreground = pgm.IsClipping ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
+            }, DispatcherPriority.Render);
         }
 
         private void BtnSoloCam_Click(object sender, RoutedEventArgs e)
@@ -602,6 +894,12 @@ namespace SRT_DECODE
                     2 => SoloAudioSource.Cam2,
                     3 => SoloAudioSource.Cam3,
                     4 => SoloAudioSource.Cam4,
+                    5 => SoloAudioSource.Cam5,
+                    6 => SoloAudioSource.Cam6,
+                    7 => SoloAudioSource.Cam7,
+                    8 => SoloAudioSource.Cam8,
+                    9 => SoloAudioSource.Cam9,
+                    10 => SoloAudioSource.Cam10,
                     _ => SoloAudioSource.ProgramMaster
                 };
                 TxtCurrentSolo.Text = _audioManager.GetSoloLabel(_audioManager.SoloSource);
@@ -615,78 +913,13 @@ namespace SRT_DECODE
             BtnMuteAll.Background = _audioManager.IsMuteAll ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x38));
         }
 
-        #endregion
-
-        #region Layout & Ingest Mode Handlers
-
-        private void CmbLayoutMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void ChkMuteCam_Click(object sender, RoutedEventArgs e)
         {
-            if (!_isInitialized || _cellBorders == null || _cellBorders.Length < 4) return;
-
-            int selected = CmbLayoutMode.SelectedIndex;
-            switch (selected)
+            if (sender is CheckBox cb && cb.Tag is string tagStr && int.TryParse(tagStr, out int camIdx))
             {
-                case 0: // Quad-View (2x2)
-                    for (int i = 0; i < 4; i++)
-                    {
-                        _cellBorders[i].Visibility = Visibility.Visible;
-                        Grid.SetRow(_cellBorders[i], i / 2);
-                        Grid.SetColumn(_cellBorders[i], i % 2);
-                        Grid.SetRowSpan(_cellBorders[i], 1);
-                        Grid.SetColumnSpan(_cellBorders[i], 1);
-                    }
-                    break;
-                case 1: // 1 PGM + 3 PVW
-                    for (int i = 0; i < 4; i++)
-                    {
-                        _cellBorders[i].Visibility = Visibility.Visible;
-                    }
-                    Grid.SetRow(_cellBorders[0], 0);
-                    Grid.SetColumn(_cellBorders[0], 0);
-                    Grid.SetRowSpan(_cellBorders[0], 2);
-                    Grid.SetColumnSpan(_cellBorders[0], 1);
-
-                    Grid.SetRow(_cellBorders[1], 0);
-                    Grid.SetColumn(_cellBorders[1], 1);
-                    Grid.SetRowSpan(_cellBorders[1], 1);
-
-                    Grid.SetRow(_cellBorders[2], 1);
-                    Grid.SetColumn(_cellBorders[2], 1);
-                    Grid.SetRowSpan(_cellBorders[2], 1);
-
-                    _cellBorders[3].Visibility = Visibility.Collapsed;
-                    break;
-                case 2: // Single View Cam 1
-                case 3: // Single View Cam 2
-                case 4: // Single View Cam 3
-                case 5: // Single View Cam 4
-                    int targetCam = selected - 2;
-                    for (int i = 0; i < 4; i++)
-                    {
-                        if (i == targetCam)
-                        {
-                            _cellBorders[i].Visibility = Visibility.Visible;
-                            Grid.SetRow(_cellBorders[i], 0);
-                            Grid.SetColumn(_cellBorders[i], 0);
-                            Grid.SetRowSpan(_cellBorders[i], 2);
-                            Grid.SetColumnSpan(_cellBorders[i], 2);
-                        }
-                        else
-                        {
-                            _cellBorders[i].Visibility = Visibility.Collapsed;
-                        }
-                    }
-                    break;
+                bool isMuted = cb.IsChecked == true;
+                _audioManager.SetChannelMuted(camIdx, isMuted, _channelNames[camIdx]);
             }
-        }
-
-        private void CmbIngestMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (!_isInitialized) return;
-            _isSingleStreamMode = CmbIngestMode.SelectedIndex == 1;
-            LogEvent("[INGEST]", _isSingleStreamMode 
-                ? "Chuyển sang chế độ Single Stream Mode (1 Camera)" 
-                : "Chuyển sang chế độ Multi-Camera Mode (4 Cameras)");
         }
 
         #endregion
@@ -729,9 +962,9 @@ namespace SRT_DECODE
 
         private void ChkShowHudOverlay_Changed(object sender, RoutedEventArgs e)
         {
-            if (!_isInitialized || _hudOverlays == null || _hudOverlays.Length < 4) return;
+            if (!_isInitialized || _hudOverlays == null) return;
             bool show = ChkShowHudOverlay.IsChecked == true;
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < MaxChannels; i++)
             {
                 _hudOverlays[i].Visibility = show ? Visibility.Visible : Visibility.Collapsed;
             }
@@ -749,7 +982,7 @@ namespace SRT_DECODE
         private async void ChkNdiOutput_Changed(object sender, RoutedEventArgs e)
         {
             if (!_isInitialized) return;
-            bool enable = ChkNdiOutput.IsChecked == true;
+            bool enable = ChkNDIOutput.IsChecked == true;
             _outputManager.NdiStreamName = TxtNdiName.Text.Trim();
             _outputManager.NdiMultiviewerMode = ChkNdiMultiviewer.IsChecked == true;
             await _outputManager.ToggleNdiAsync(enable);

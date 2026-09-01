@@ -7,8 +7,49 @@ using OpenMedia.Platform.Models;
 
 namespace SRT_DECODE
 {
+    public sealed class VideoCodecConfig
+    {
+        public string Resolution { get; set; } = "1920x1080 (1080p)";
+        public string Codec { get; set; } = "H.264 / AVC (NVENC)";
+        public string Bitrate { get; set; } = "8 Mbps";
+        public string Fps { get; set; } = "59.94 fps";
+    }
+
+    public sealed class ReceiverOutputConfig
+    {
+        public int ChannelIndex { get; set; }
+        public string ChannelName { get; set; } = "CAM 1";
+
+        // Output Port Routing
+        public bool SdiEnabled { get; set; } = false;
+        public string SdiPort { get; set; } = "Blackmagic DeckLink (Port 1)";
+        public bool NdiEnabled { get; set; } = false;
+        public string NdiName { get; set; } = "OME_CAM1_ISO";
+        public bool SrtBridgeEnabled { get; set; } = false;
+        public string SrtBridgeHost { get; set; } = "192.168.1.150";
+        public int SrtBridgePort { get; set; } = 9101;
+        public string SrtBridgeCodec { get; set; } = "H.264 (NVENC)";
+        public string SrtBridgeBitrate { get; set; } = "8000 kbps";
+        public bool RecEnabled { get; set; } = false;
+        public string RecFormat { get; set; } = "MP4 (H.264 / AAC)";
+
+        // Codec Settings
+        public string Codec { get; set; } = "Passthrough (Native Source)";
+        public string Resolution { get; set; } = "Match Source (Passthrough)";
+        public string Bitrate { get; set; } = "Match Source";
+        public string Fps { get; set; } = "Match Source";
+    }
+
     public sealed class BroadcastOutputManager : IDisposable
     {
+        public const int MaxChannels = 10;
+
+        // ─── Master Video Codec Configuration ───────────────────────────
+        public VideoCodecConfig MasterVideoCodec { get; } = new();
+
+        // ─── Per-Receiver Output Configurations (Up to 10) ──────────────
+        public ReceiverOutputConfig[] ReceiverOutputs { get; } = new ReceiverOutputConfig[MaxChannels];
+
         // ─── SDI Output ─────────────────────────────────────────────────
         public bool SdiEnabled { get; set; } = false;
         public string SdiDevice { get; set; } = "DeckLink Studio 4K (Card 1)";
@@ -37,6 +78,20 @@ namespace SRT_DECODE
 
         public event Action<string, string>? LogEmitted;
         public event Action<string, bool>? OutputStateChanged;
+
+        public BroadcastOutputManager()
+        {
+            for (int i = 0; i < MaxChannels; i++)
+            {
+                ReceiverOutputs[i] = new ReceiverOutputConfig
+                {
+                    ChannelIndex = i,
+                    ChannelName = $"CAM {i + 1}",
+                    SdiPort = $"Blackmagic DeckLink (Port {i + 1})",
+                    NdiName = $"OME_CAM{i + 1}_ISO"
+                };
+            }
+        }
 
         public async Task<bool> ToggleSdiAsync(bool enable)
         {

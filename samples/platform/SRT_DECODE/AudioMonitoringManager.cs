@@ -9,7 +9,13 @@ namespace SRT_DECODE
         Cam1,
         Cam2,
         Cam3,
-        Cam4
+        Cam4,
+        Cam5,
+        Cam6,
+        Cam7,
+        Cam8,
+        Cam9,
+        Cam10
     }
 
     public sealed class ChannelAudioLevels
@@ -23,11 +29,12 @@ namespace SRT_DECODE
 
     /// <summary>
     /// Multi-Channel Audio Monitoring Manager.
-    /// Computes real-time stereo audio VU levels (dBFS), handles Solo listen routing, and Master monitor muting.
+    /// Computes real-time stereo audio VU levels (dBFS), handles Solo listen routing, and Master monitor muting for up to 10 channels.
     /// </summary>
     public sealed class AudioMonitoringManager
     {
-        private readonly ChannelAudioLevels[] _camLevels = new ChannelAudioLevels[4];
+        public const int MaxChannels = 10;
+        private readonly ChannelAudioLevels[] _camLevels = new ChannelAudioLevels[MaxChannels];
         private readonly ChannelAudioLevels _programLevels = new();
         private SoloAudioSource _soloSource = SoloAudioSource.ProgramMaster;
         private bool _isMuteAll = false;
@@ -37,6 +44,24 @@ namespace SRT_DECODE
         public event Action<ChannelAudioLevels[]>? CamLevelsUpdated;
         public event Action<ChannelAudioLevels>? ProgramLevelsUpdated;
         public event Action<string, string>? LogEmitted;
+
+        private readonly bool[] _channelMuted = new bool[MaxChannels];
+
+        public bool IsChannelMuted(int channelIndex)
+        {
+            if (channelIndex < 0 || channelIndex >= MaxChannels) return false;
+            return _channelMuted[channelIndex];
+        }
+
+        public void SetChannelMuted(int channelIndex, bool isMuted, string? channelName = null)
+        {
+            if (channelIndex < 0 || channelIndex >= MaxChannels) return;
+            _channelMuted[channelIndex] = isMuted;
+            string name = !string.IsNullOrEmpty(channelName) ? channelName : $"CAM {channelIndex + 1}";
+            Log("[AUDIO]", isMuted 
+                ? $"🔇 ĐÃ TẮT TIẾNG (MUTE) luồng SRT Ingest: {name}" 
+                : $"🔊 ĐÃ BẬT TIẾNG (UNMUTE) luồng SRT Ingest: {name}");
+        }
 
         public SoloAudioSource SoloSource
         {
@@ -66,7 +91,7 @@ namespace SRT_DECODE
 
         public AudioMonitoringManager()
         {
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < MaxChannels; i++)
             {
                 _camLevels[i] = new ChannelAudioLevels();
             }
@@ -80,10 +105,11 @@ namespace SRT_DECODE
             double pgmLeftSum = 0;
             double pgmRightSum = 0;
             int activeCount = 0;
+            int count = Math.Min(channelActive.Length, MaxChannels);
 
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < MaxChannels; i++)
             {
-                if (channelActive[i])
+                if (i < count && channelActive[i] && !_channelMuted[i] && !_isMuteAll)
                 {
                     // Generate realistic broadcast dialogue/ambient audio levels (-24dBFS to -6dBFS)
                     double baseLevel = -18.0 + Math.Sin(DateTime.UtcNow.Ticks / 10000000.0 + i) * 6.0 + (_rand.NextDouble() * 3.0 - 1.5);
@@ -113,7 +139,7 @@ namespace SRT_DECODE
                 }
             }
 
-            if (activeCount > 0)
+            if (activeCount > 0 && !_isMuteAll)
             {
                 _programLevels.LeftDb = pgmLeftSum / activeCount;
                 _programLevels.RightDb = pgmRightSum / activeCount;
@@ -149,6 +175,12 @@ namespace SRT_DECODE
             SoloAudioSource.Cam2 => "CAM 2 SOLO",
             SoloAudioSource.Cam3 => "CAM 3 SOLO",
             SoloAudioSource.Cam4 => "CAM 4 SOLO",
+            SoloAudioSource.Cam5 => "CAM 5 SOLO",
+            SoloAudioSource.Cam6 => "CAM 6 SOLO",
+            SoloAudioSource.Cam7 => "CAM 7 SOLO",
+            SoloAudioSource.Cam8 => "CAM 8 SOLO",
+            SoloAudioSource.Cam9 => "CAM 9 SOLO",
+            SoloAudioSource.Cam10 => "CAM 10 SOLO",
             _ => "PGM"
         };
 

@@ -39,16 +39,17 @@ namespace SRT_DECODE
 
     /// <summary>
     /// Multi-Camera NTP & Wall-Clock Synchronization Engine.
-    /// Manages playout jitter alignment buffers, frame alignment, and drift compensation across Cam 1-4.
+    /// Manages playout jitter alignment buffers, frame alignment, and drift compensation across Cam 1-10.
     /// </summary>
     public sealed class NtpSyncEngine : IDisposable
     {
+        public const int MaxChannels = 10;
         private bool _masterSyncEnabled = false;
         private string _ntpServer = "time.google.com";
         private int _targetSyncWindowMs = 350; // Target sync jitter buffer delay
         private NtpSyncResult? _lastNtpResult;
         private Timer? _ntpQueryTimer;
-        private readonly CameraSyncMetrics[] _channels = new CameraSyncMetrics[4];
+        private readonly CameraSyncMetrics[] _channels = new CameraSyncMetrics[MaxChannels];
         private readonly object _lock = new();
 
         public event Action<string, string>? LogEmitted;
@@ -82,7 +83,7 @@ namespace SRT_DECODE
 
         public NtpSyncEngine()
         {
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < MaxChannels; i++)
             {
                 _channels[i] = new CameraSyncMetrics
                 {
@@ -132,7 +133,7 @@ namespace SRT_DECODE
         /// </summary>
         public void IngestFrameMetadata(int channelIndex, DateTime wallClockTime, long pts, double rttMs)
         {
-            if (channelIndex < 0 || channelIndex >= 4) return;
+            if (channelIndex < 0 || channelIndex >= MaxChannels) return;
 
             lock (_lock)
             {
@@ -195,7 +196,7 @@ namespace SRT_DECODE
 
         public void SetChannelActive(int channelIndex, bool active)
         {
-            if (channelIndex < 0 || channelIndex >= 4) return;
+            if (channelIndex < 0 || channelIndex >= MaxChannels) return;
             lock (_lock)
             {
                 _channels[channelIndex].IsActive = active;
@@ -211,8 +212,8 @@ namespace SRT_DECODE
         {
             lock (_lock)
             {
-                var copy = new CameraSyncMetrics[4];
-                for (int i = 0; i < 4; i++)
+                var copy = new CameraSyncMetrics[MaxChannels];
+                for (int i = 0; i < MaxChannels; i++)
                 {
                     copy[i] = new CameraSyncMetrics
                     {

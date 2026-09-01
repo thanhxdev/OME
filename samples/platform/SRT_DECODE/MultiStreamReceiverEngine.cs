@@ -9,7 +9,7 @@ namespace SRT_DECODE
 {
     public sealed class ReceiverChannelState
     {
-        public int ChannelIndex { get; set; } // 0..3
+        public int ChannelIndex { get; set; } // 0..9
         public string Name { get; set; } = string.Empty;
         public SRTStreamConfig Config { get; set; } = new();
         public SRTStreamSession? Session { get; set; }
@@ -26,13 +26,14 @@ namespace SRT_DECODE
     }
 
     /// <summary>
-    /// Multi-Stream SRT Receiver Engine managing up to 4 concurrent camera streams.
+    /// Multi-Stream SRT Receiver Engine managing up to 10 concurrent camera streams.
     /// </summary>
     public sealed class MultiStreamReceiverEngine : IDisposable, IAsyncDisposable
     {
-        private readonly ReceiverChannelState[] _channels = new ReceiverChannelState[4];
-        private readonly ChannelVideoDecoder?[] _decoders = new ChannelVideoDecoder?[4];
-        private readonly CancellationTokenSource?[] _receiverCts = new CancellationTokenSource?[4];
+        public const int MaxChannels = 10;
+        private readonly ReceiverChannelState[] _channels = new ReceiverChannelState[MaxChannels];
+        private readonly ChannelVideoDecoder?[] _decoders = new ChannelVideoDecoder?[MaxChannels];
+        private readonly CancellationTokenSource?[] _receiverCts = new CancellationTokenSource?[MaxChannels];
         private readonly NtpSyncEngine _syncEngine;
         private bool _isDisposed;
 
@@ -47,9 +48,9 @@ namespace SRT_DECODE
         {
             _syncEngine = syncEngine;
 
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < MaxChannels; i++)
             {
-                int port = 9000 + i; // Cam 1: 9000, Cam 2: 9001, Cam 3: 9002, Cam 4: 9003
+                int port = 9000 + i; // Cam 1: 9000 ... Cam 10: 9009
                 var config = new SRTStreamConfig
                 {
                     Host = "0.0.0.0", // Default listener binds to all local interfaces
@@ -76,7 +77,7 @@ namespace SRT_DECODE
 
         public async Task<bool> StartChannelAsync(int index)
         {
-            if (index < 0 || index >= 4) return false;
+            if (index < 0 || index >= MaxChannels) return false;
             var ch = _channels[index];
             if (ch.IsRunning) return true;
 
@@ -201,7 +202,7 @@ namespace SRT_DECODE
 
         public async Task StopChannelAsync(int index)
         {
-            if (index < 0 || index >= 4) return;
+            if (index < 0 || index >= MaxChannels) return;
             var ch = _channels[index];
             if (!ch.IsRunning) return;
 
@@ -242,19 +243,21 @@ namespace SRT_DECODE
             }
         }
 
-        public async Task StartAllAsync()
+        public async Task StartAllAsync(int activeCount = MaxChannels)
         {
-            Log("[SRT]", "Bắt đầu kết nối TẤT CẢ 4 kênh SRT Ingest...");
-            for (int i = 0; i < 4; i++)
+            int count = Math.Clamp(activeCount, 1, MaxChannels);
+            Log("[SRT]", $"Bắt đầu kết nối {count} kênh SRT Ingest...");
+            for (int i = 0; i < count; i++)
             {
                 await StartChannelAsync(i);
             }
         }
 
-        public async Task StopAllAsync()
+        public async Task StopAllAsync(int activeCount = MaxChannels)
         {
-            Log("[SRT]", "Dừng TẤT CẢ 4 kênh SRT Ingest...");
-            for (int i = 0; i < 4; i++)
+            int count = Math.Clamp(activeCount, 1, MaxChannels);
+            Log("[SRT]", $"Dừng tất cả {count} kênh SRT Ingest...");
+            for (int i = 0; i < count; i++)
             {
                 await StopChannelAsync(i);
             }
@@ -271,7 +274,7 @@ namespace SRT_DECODE
             if (_isDisposed) return;
             _isDisposed = true;
 
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < MaxChannels; i++)
             {
                 _receiverCts[i]?.Cancel();
                 _receiverCts[i]?.Dispose();
@@ -290,7 +293,7 @@ namespace SRT_DECODE
             if (_isDisposed) return;
             _isDisposed = true;
 
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < MaxChannels; i++)
             {
                 _receiverCts[i]?.Cancel();
                 _receiverCts[i]?.Dispose();
