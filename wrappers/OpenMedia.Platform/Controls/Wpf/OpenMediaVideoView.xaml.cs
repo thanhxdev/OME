@@ -136,6 +136,31 @@ namespace OpenMedia.Platform.Controls.Wpf
             Trace.WriteLine($"[OpenMediaVideoView] Resize requested: {width}x{height}");
         }
 
+        /// <summary>
+        /// Gets the underlying WPF Image control for direct bitmap binding.
+        /// </summary>
+        public System.Windows.Controls.Image VideoImageControl => VideoImage;
+
+        /// <summary>
+        /// Presents a direct bitmap / WriteableBitmap frame source.
+        /// </summary>
+        public void PresentBitmap(ImageSource? source)
+        {
+            if (Dispatcher.CheckAccess())
+            {
+                VideoImage.Source = source;
+                IsPlaying = source != null;
+            }
+            else
+            {
+                Dispatcher.InvokeAsync(() =>
+                {
+                    VideoImage.Source = source;
+                    IsPlaying = source != null;
+                });
+            }
+        }
+
         private void OnRendering(object? sender, EventArgs e)
         {
             _renderer?.RenderFrame();

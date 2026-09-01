@@ -31,12 +31,15 @@ namespace SRT_DECODE
     public sealed class MultiStreamReceiverEngine : IDisposable, IAsyncDisposable
     {
         private readonly ReceiverChannelState[] _channels = new ReceiverChannelState[4];
+        private readonly ChannelVideoDecoder?[] _decoders = new ChannelVideoDecoder?[4];
+        private readonly CancellationTokenSource?[] _receiverCts = new CancellationTokenSource?[4];
         private readonly NtpSyncEngine _syncEngine;
         private bool _isDisposed;
 
         public event Action<int, ReceiverChannelState>? ChannelUpdated;
         public event Action<string, string>? LogEmitted;
         public event Action<int, string>? ChannelError;
+        public event Action<int, byte[], int, int>? FrameReady;
 
         public ReceiverChannelState[] Channels => _channels;
 
@@ -46,13 +49,13 @@ namespace SRT_DECODE
 
             for (int i = 0; i < 4; i++)
             {
-                int port = 9001 + i;
+                int port = 9000 + i; // Cam 1: 9000, Cam 2: 9001, Cam 3: 9002, Cam 4: 9003
                 var config = new SRTStreamConfig
                 {
                     Host = "0.0.0.0", // Default listener binds to all local interfaces
                     Port = port,
                     Mode = SRTMode.Listener,
-                    LatencyMs = 300,
+                    LatencyMs = 120,
                     AutoLatency = true,
                     EncryptionEnabled = false,
                     Passphrase = string.Empty,
@@ -134,6 +137,53 @@ namespace SRT_DECODE
                 ch.StatusMessage = ok ? "Listening / Receiving..." : "Failed to bind";
                 _syncEngine.SetChannelActive(index, ok);
 
+                if (ok)
+                {
+                    // Start Video Decoder Pipeline
+                    _decoders[index]?.Dispose();
+                    var decoder = new ChannelVideoDecoder(index, 1920, 1080);
+                    decoder.LogEmitted += (tag, msg) => Log(tag, msg);
+                    decoder.FrameDecoded += (chIdx, frameBytes, w, h) =>
+                    {
+                        FrameReady?.Invoke(chIdx, frameBytes, w, h);
+                    };
+                    decoder.Start();
+                    _decoders[index] = decoder;
+
+                    // Start Background Packet Receiver & Feeder Loop
+                    _receiverCts[index]?.Cancel();
+                    _receiverCts[index]?.Dispose();
+                    var cts = new CancellationTokenSource();
+                    _receiverCts[index] = cts;
+                    var token = cts.Token;
+                    var session = ch.Session;
+
+                    _ = Task.Run(async () =>
+                    {
+                        byte[] buffer = new byte[65536]; // 64KB buffer to receive any SRT live MTU payload
+                        try
+                        {
+                            while (!token.IsCancellationRequested && ch.IsRunning && session != null && session.IsRunning)
+                            {
+                                int bytesRead = session.ReceiveData(buffer);
+                                if (bytesRead > 0)
+                                {
+                                    decoder.FeedData(buffer, bytesRead);
+                                }
+                                else
+                                {
+                                    await Task.Delay(1, token).ConfigureAwait(false);
+                                }
+                            }
+                        }
+                        catch (OperationCanceledException) { }
+                        catch (Exception ex)
+                        {
+                            Log("[WARN]", $"[{ch.Name}] Luồng nhận gói tin: {ex.Message}");
+                        }
+                    }, token);
+                }
+
                 ChannelUpdated?.Invoke(index, ch);
                 Log("[SRT]", $"✅ {ch.Name} đã sẵn sàng nhận luồng trên cổng {ch.Config.Port}.");
                 return ok;
@@ -158,6 +208,15 @@ namespace SRT_DECODE
             try
             {
                 Log("[SRT]", $"Dừng thu luồng {ch.Name}...");
+
+                _receiverCts[index]?.Cancel();
+                _receiverCts[index]?.Dispose();
+                _receiverCts[index] = null;
+
+                _decoders[index]?.Stop();
+                _decoders[index]?.Dispose();
+                _decoders[index] = null;
+
                 if (ch.Session != null)
                 {
                     await ch.Session.StopAsync();
@@ -214,6 +273,13 @@ namespace SRT_DECODE
 
             for (int i = 0; i < 4; i++)
             {
+                _receiverCts[i]?.Cancel();
+                _receiverCts[i]?.Dispose();
+                _receiverCts[i] = null;
+
+                _decoders[i]?.Dispose();
+                _decoders[i] = null;
+
                 _channels[i].Session?.Dispose();
                 _channels[i].Session = null;
             }
@@ -226,6 +292,13 @@ namespace SRT_DECODE
 
             for (int i = 0; i < 4; i++)
             {
+                _receiverCts[i]?.Cancel();
+                _receiverCts[i]?.Dispose();
+                _receiverCts[i] = null;
+
+                _decoders[i]?.Dispose();
+                _decoders[i] = null;
+
                 var session = _channels[i].Session;
                 if (session != null)
                 {

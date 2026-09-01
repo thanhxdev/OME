@@ -251,6 +251,12 @@ namespace OpenMedia.Platform
             return _platformOutput;
         }
 
+        /// <summary>Gets the native SRTSource instance if in receiving mode.</summary>
+        public SRTSource? NativeSource => _nativeSource;
+
+        /// <summary>Gets the native SRTOutput instance if in transmission mode.</summary>
+        public SRTOutput? NativeOutput => _nativeOutput;
+
         /// <summary>
         /// Sends raw video/audio transport packet bytes directly over the active SRT connection.
         /// </summary>
@@ -261,6 +267,20 @@ namespace OpenMedia.Platform
                 return _nativeOutput.Send(data);
             }
             return false;
+        }
+
+        /// <summary>
+        /// Receives raw transport packet bytes from the active SRT receiver connection.
+        /// </summary>
+        /// <param name="buffer">Target buffer to receive data into.</param>
+        /// <returns>Number of bytes received, or negative on error / no data.</returns>
+        public int ReceiveData(byte[] buffer)
+        {
+            if (_nativeSource != null && _nativeSource.IsConnected && buffer != null && buffer.Length > 0)
+            {
+                return _nativeSource.Receive(buffer);
+            }
+            return -1;
         }
 
         private void StartStatisticsPolling()

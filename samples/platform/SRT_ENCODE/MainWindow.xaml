@@ -406,7 +406,7 @@
 
                 <!-- 1. Video Display Area with DirectX11 Zero-Copy View & Overlay HUD -->
                 <Border Grid.Row="0" Background="#000000" BorderBrush="#2D2D30" BorderThickness="1" CornerRadius="6" Margin="0,0,0,6" ClipToBounds="True">
-                    <Grid ClipToBounds="True">
+                    <Grid x:Name="PnlMasterProgramBus" ClipToBounds="True">
                         <!-- DirectX 11 Hardware Render View -->
                         <om:OpenMediaVideoView x:Name="ReviewView" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
 

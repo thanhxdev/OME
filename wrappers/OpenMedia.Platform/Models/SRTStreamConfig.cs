@@ -69,7 +69,11 @@ namespace OpenMedia.Platform.Models
                 _ => "caller"
             };
 
-            sb.Append($"srt://{Host}:{Port}?mode={modeParam}");
+            string host = string.IsNullOrWhiteSpace(Host) || (Mode == SRTMode.Caller && Host == "0.0.0.0")
+                ? (Mode == SRTMode.Caller ? "127.0.0.1" : "0.0.0.0")
+                : Host;
+
+            sb.Append($"srt://{host}:{Port}?mode={modeParam}");
 
             if (LatencyMs > 0)
             {

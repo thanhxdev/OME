@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using OpenMedia.Platform;
@@ -16,10 +17,10 @@ namespace SRT_DECODE
     public partial class MainWindow : Window
     {
         // ─── Subsystem Engines ──────────────────────────────────────
-        private readonly NtpSyncEngine _syncEngine;
+        private readonly NtpSyncEngine _syncEngine = new();
         private readonly MultiStreamReceiverEngine _receiverEngine;
-        private readonly AudioMonitoringManager _audioManager;
-        private readonly BroadcastOutputManager _outputManager;
+        private readonly AudioMonitoringManager _audioManager = new();
+        private readonly BroadcastOutputManager _outputManager = new();
 
         // ─── Timers ─────────────────────────────────────────────────
         private DispatcherTimer? _masterClockTimer;
@@ -31,6 +32,7 @@ namespace SRT_DECODE
         private int _currentPreviewIndex = 1; // 1: Cam2
         private bool _isSingleStreamMode = false;
         private bool _isTransitioning = false;
+        private bool _isInitialized = false;
         private readonly StringBuilder _logBuffer = new();
 
         // ─── Control Reference Arrays ───────────────────────────────
@@ -45,14 +47,12 @@ namespace SRT_DECODE
         private ProgressBar[] _vuBarsL = Array.Empty<ProgressBar>();
         private ProgressBar[] _vuBarsR = Array.Empty<ProgressBar>();
 
+        // ─── Video Presentation Bitmaps ─────────────────────────────
+        private readonly WriteableBitmap?[] _camBitmaps = new WriteableBitmap?[4];
+
         public MainWindow()
         {
-            InitializeComponent();
-
-            _syncEngine = new NtpSyncEngine();
             _receiverEngine = new MultiStreamReceiverEngine(_syncEngine);
-            _audioManager = new AudioMonitoringManager();
-            _outputManager = new BroadcastOutputManager();
 
             // Wire log events
             _syncEngine.LogEmitted += LogEvent;
@@ -62,8 +62,12 @@ namespace SRT_DECODE
 
             // Wire receiver updates
             _receiverEngine.ChannelUpdated += OnReceiverChannelUpdated;
+            _receiverEngine.FrameReady += OnFrameReady;
             _audioManager.CamLevelsUpdated += OnAudioLevelsUpdated;
             _audioManager.ProgramLevelsUpdated += OnProgramLevelsUpdated;
+
+            InitializeComponent();
+            _isInitialized = true;
 
             Loaded += MainWindow_Loaded;
             Closing += MainWindow_Closing;
@@ -86,6 +90,16 @@ namespace SRT_DECODE
                 _statusTexts = new[] { TxtStatusCam1, TxtStatusCam2, TxtStatusCam3, TxtStatusCam4 };
                 _vuBarsL = new[] { VuCam1L, VuCam2L, VuCam3L, VuCam4L };
                 _vuBarsR = new[] { VuCam1R, VuCam2R, VuCam3R, VuCam4R };
+
+                // Initialize WriteableBitmaps for Quad-View video rendering
+                for (int i = 0; i < 4; i++)
+                {
+                    _camBitmaps[i] = new WriteableBitmap(1920, 1080, 96, 96, PixelFormats.Bgra32, null);
+                }
+                VideoViewCam1.PresentBitmap(_camBitmaps[0]);
+                VideoViewCam2.PresentBitmap(_camBitmaps[1]);
+                VideoViewCam3.PresentBitmap(_camBitmaps[2]);
+                VideoViewCam4.PresentBitmap(_camBitmaps[3]);
 
                 LogEvent("[INFO]", "Ứng dụng OME Broadcast Multi-SRT Decoder & Studio Sync đang khởi chạy...");
                 TxtEngineStatus.Text = "Engine: Initializing Platform...";
@@ -316,8 +330,11 @@ namespace SRT_DECODE
                     ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) 
                     : new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
 
-                // Show/hide fallback placeholder
-                _fallbacks[index].Visibility = state.IsConnected ? Visibility.Collapsed : Visibility.Visible;
+                // Show fallback placeholder if disconnected
+                if (!state.IsConnected)
+                {
+                    _fallbacks[index].Visibility = Visibility.Visible;
+                }
 
                 // Update toggle button text in config tab
                 Button? btnToggle = index switch
@@ -337,6 +354,43 @@ namespace SRT_DECODE
                         : new SolidColorBrush(Color.FromRgb(0x00, 0x7A, 0xCC));
                 }
             });
+        }
+
+        private void OnFrameReady(int channelIndex, byte[] frameBytes, int width, int height)
+        {
+            if (channelIndex < 0 || channelIndex >= 4) return;
+
+            Dispatcher.InvokeAsync(() =>
+            {
+                try
+                {
+                    var bmp = _camBitmaps[channelIndex];
+                    if (bmp == null || bmp.PixelWidth != width || bmp.PixelHeight != height)
+                    {
+                        bmp = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
+                        _camBitmaps[channelIndex] = bmp;
+                        var view = channelIndex switch
+                        {
+                            0 => VideoViewCam1,
+                            1 => VideoViewCam2,
+                            2 => VideoViewCam3,
+                            3 => VideoViewCam4,
+                            _ => null
+                        };
+                        view?.PresentBitmap(bmp);
+                    }
+
+                    int stride = width * 4;
+                    bmp.WritePixels(new Int32Rect(0, 0, width, height), frameBytes, stride, 0);
+
+                    // Ensure video is visible and fallback placeholder is hidden
+                    if (_fallbacks[channelIndex].Visibility != Visibility.Collapsed)
+                    {
+                        _fallbacks[channelIndex].Visibility = Visibility.Collapsed;
+                    }
+                }
+                catch { }
+            }, DispatcherPriority.Render);
         }
 
         private async void BtnToggleCam_Click(object sender, RoutedEventArgs e)
@@ -372,6 +426,14 @@ namespace SRT_DECODE
             await _receiverEngine.StopAllAsync();
         }
 
+        private static SRTMode ParseSrtMode(ComboBox? cmb)
+        {
+            string modeStr = (cmb?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Caller";
+            if (modeStr.Contains("Listener", StringComparison.OrdinalIgnoreCase)) return SRTMode.Listener;
+            if (modeStr.Contains("Rendezvous", StringComparison.OrdinalIgnoreCase)) return SRTMode.Rendezvous;
+            return SRTMode.Caller;
+        }
+
         private void ApplyFormInputsToChannel(int index)
         {
             var ch = _receiverEngine.Channels[index];
@@ -380,7 +442,7 @@ namespace SRT_DECODE
                 case 0:
                     ch.Config.Host = TxtIpCam1.Text.Trim();
                     if (int.TryParse(TxtPortCam1.Text, out int p1)) ch.Config.Port = p1;
-                    ch.Config.Mode = (SRTMode)CmbModeCam1.SelectedIndex;
+                    ch.Config.Mode = ParseSrtMode(CmbModeCam1);
                     ch.Config.StreamId = TxtStreamIdCam1.Text.Trim();
                     ch.Config.AutoLatency = ChkAutoLatencyCam1.IsChecked == true;
                     if (int.TryParse(TxtLatencyCam1.Text, out int lat1)) ch.Config.LatencyMs = lat1;
@@ -391,7 +453,7 @@ namespace SRT_DECODE
                 case 1:
                     ch.Config.Host = TxtIpCam2.Text.Trim();
                     if (int.TryParse(TxtPortCam2.Text, out int p2)) ch.Config.Port = p2;
-                    ch.Config.Mode = (SRTMode)CmbModeCam2.SelectedIndex;
+                    ch.Config.Mode = ParseSrtMode(CmbModeCam2);
                     ch.Config.StreamId = TxtStreamIdCam2.Text.Trim();
                     ch.Config.AutoLatency = ChkAutoLatencyCam2.IsChecked == true;
                     if (int.TryParse(TxtLatencyCam2.Text, out int lat2)) ch.Config.LatencyMs = lat2;
@@ -399,7 +461,7 @@ namespace SRT_DECODE
                 case 2:
                     ch.Config.Host = TxtIpCam3.Text.Trim();
                     if (int.TryParse(TxtPortCam3.Text, out int p3)) ch.Config.Port = p3;
-                    ch.Config.Mode = (SRTMode)CmbModeCam3.SelectedIndex;
+                    ch.Config.Mode = ParseSrtMode(CmbModeCam3);
                     ch.Config.StreamId = TxtStreamIdCam3.Text.Trim();
                     ch.Config.AutoLatency = ChkAutoLatencyCam3.IsChecked == true;
                     if (int.TryParse(TxtLatencyCam3.Text, out int lat3)) ch.Config.LatencyMs = lat3;
@@ -407,7 +469,7 @@ namespace SRT_DECODE
                 case 3:
                     ch.Config.Host = TxtIpCam4.Text.Trim();
                     if (int.TryParse(TxtPortCam4.Text, out int p4)) ch.Config.Port = p4;
-                    ch.Config.Mode = (SRTMode)CmbModeCam4.SelectedIndex;
+                    ch.Config.Mode = ParseSrtMode(CmbModeCam4);
                     ch.Config.StreamId = TxtStreamIdCam4.Text.Trim();
                     ch.Config.AutoLatency = ChkAutoLatencyCam4.IsChecked == true;
                     if (int.TryParse(TxtLatencyCam4.Text, out int lat4)) ch.Config.LatencyMs = lat4;
@@ -559,7 +621,7 @@ namespace SRT_DECODE
 
         private void CmbLayoutMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (_cellBorders.Length < 4) return;
+            if (!_isInitialized || _cellBorders == null || _cellBorders.Length < 4) return;
 
             int selected = CmbLayoutMode.SelectedIndex;
             switch (selected)
@@ -620,6 +682,7 @@ namespace SRT_DECODE
 
         private void CmbIngestMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            if (!_isInitialized) return;
             _isSingleStreamMode = CmbIngestMode.SelectedIndex == 1;
             LogEvent("[INGEST]", _isSingleStreamMode 
                 ? "Chuyển sang chế độ Single Stream Mode (1 Camera)" 
@@ -632,11 +695,13 @@ namespace SRT_DECODE
 
         private void ChkMasterSync_Changed(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             _syncEngine.MasterSyncEnabled = ChkMasterSync.IsChecked == true;
         }
 
         private async void BtnQueryNtp_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             _syncEngine.NtpServer = TxtNtpServer.Text.Trim();
             bool ok = await _syncEngine.QueryNtpMasterAsync();
             if (ok && _syncEngine.LastNtpResult != null)
@@ -653,6 +718,7 @@ namespace SRT_DECODE
 
         private void SliderSyncWindow_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
+            if (!_isInitialized) return;
             if (TxtTargetSyncWindowVal != null)
             {
                 int val = (int)SliderSyncWindow.Value;
@@ -663,6 +729,7 @@ namespace SRT_DECODE
 
         private void ChkShowHudOverlay_Changed(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized || _hudOverlays == null || _hudOverlays.Length < 4) return;
             bool show = ChkShowHudOverlay.IsChecked == true;
             for (int i = 0; i < 4; i++)
             {
@@ -672,6 +739,7 @@ namespace SRT_DECODE
 
         private async void ChkSdiOutput_Changed(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             bool enable = ChkSdiOutput.IsChecked == true;
             await _outputManager.ToggleSdiAsync(enable);
             BadgeOutputSdi.Background = enable ? new SolidColorBrush(Color.FromRgb(0x00, 0x7A, 0xCC)) : new SolidColorBrush(Color.FromRgb(0x26, 0x26, 0x2B));
@@ -680,6 +748,7 @@ namespace SRT_DECODE
 
         private async void ChkNdiOutput_Changed(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             bool enable = ChkNdiOutput.IsChecked == true;
             _outputManager.NdiStreamName = TxtNdiName.Text.Trim();
             _outputManager.NdiMultiviewerMode = ChkNdiMultiviewer.IsChecked == true;
@@ -690,6 +759,7 @@ namespace SRT_DECODE
 
         private async void ChkSrtBridge_Changed(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             bool enable = ChkSrtBridge.IsChecked == true;
             _outputManager.SrtBridgeHost = TxtBridgeHost.Text.Trim();
             if (int.TryParse(TxtBridgePort.Text, out int bp)) _outputManager.SrtBridgePort = bp;
@@ -700,6 +770,7 @@ namespace SRT_DECODE
 
         private async void ChkRecording_Changed(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             bool enable = ChkRecording.IsChecked == true;
             await _outputManager.ToggleRecordingAsync(enable);
             BadgeOutputRec.Background = enable ? new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26)) : new SolidColorBrush(Color.FromRgb(0x26, 0x26, 0x2B));

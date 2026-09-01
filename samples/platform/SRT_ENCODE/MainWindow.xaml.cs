@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using OpenMedia.Platform;
@@ -140,6 +141,8 @@ namespace SRT_ENCODE
                 await InitializePreviewPlayerAsync();
 
                 // Apply initial UI states
+                UpdateColorbarDisplay();
+                RefreshMasterProgramFrameBuffer();
                 UpdateCodecCapabilities();
                 UpdateTargetSummary();
                 UpdateUltraLowLatencyState();
@@ -216,6 +219,11 @@ namespace SRT_ENCODE
                 if (TxtColorbarUtcTime != null)
                 {
                     TxtColorbarUtcTime.Text = utcStr;
+                }
+
+                if (_isStreaming && _sourceManager.CurrentSource == InputSourceType.Colorbar)
+                {
+                    RefreshMasterProgramFrameBuffer();
                 }
 
                 if (_isStreaming && _streamStartTime != DateTime.MinValue)
@@ -627,6 +635,56 @@ namespace SRT_ENCODE
             }
         }
 
+        private byte[]? _currentProgramFrameBytes = null;
+        private readonly object _programFrameLock = new();
+
+        private void RefreshMasterProgramFrameBuffer()
+        {
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.Invoke(RefreshMasterProgramFrameBuffer);
+                return;
+            }
+
+            try
+            {
+                FrameworkElement? visualToCapture = null;
+                if (_sourceManager.CurrentSource == InputSourceType.Colorbar)
+                {
+                    visualToCapture = (FrameworkElement?)PnlColorbarPattern ?? (FrameworkElement?)PnlColorbarVisualHost;
+                }
+                else
+                {
+                    visualToCapture = (FrameworkElement?)ReviewView ?? (FrameworkElement?)PnlMasterProgramBus;
+                }
+
+                if (visualToCapture == null) return;
+
+                int width = 1920;
+                int height = 1080;
+
+                visualToCapture.Measure(new Size(width, height));
+                visualToCapture.Arrange(new Rect(0, 0, width, height));
+                visualToCapture.UpdateLayout();
+
+                var rtb = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
+                rtb.Render(visualToCapture);
+
+                int stride = width * 4;
+                byte[] raw = new byte[height * stride];
+                rtb.CopyPixels(raw, stride, 0);
+
+                lock (_programFrameLock)
+                {
+                    _currentProgramFrameBytes = raw;
+                }
+            }
+            catch (Exception ex)
+            {
+                LogEvent("[WARN]", $"Không thể chụp khung hình Master Program: {ex.Message}");
+            }
+        }
+
         private void UpdateColorbarDisplay()
         {
             _sourceManager.UpdateColorbarDisplay();
@@ -656,9 +714,10 @@ namespace SRT_ENCODE
             if (CmbInputSource?.SelectedIndex == 3)
             {
                 UpdateColorbarDisplay();
+                RefreshMasterProgramFrameBuffer();
                 string patternName = (CmbColorbarPattern.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "SMPTE RP 219";
                 TxtActiveSourceBadge.Text = $"INPUT: COLORBAR ({patternName.Split(' ')[0]})";
-                LogEvent("[INFO]", $"🎨 Đã áp dụng mẫu hình kiểm tra: {patternName}");
+                LogEvent("[INFO]", $"🎨 Đã áp dụng mẫu hình kiểm tra (WYSIWYG 1080p): {patternName}");
             }
 
             if (_currentMuxer != null)
@@ -667,7 +726,7 @@ namespace SRT_ENCODE
             }
         }
 
-        private void CmbAudioTone_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private async void CmbAudioTone_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (!_isInitialized) return;
             if (CmbAudioTone == null) return;
@@ -684,6 +743,7 @@ namespace SRT_ENCODE
             if (CmbInputSource?.SelectedIndex == 3)
             {
                 UpdateColorbarDisplay();
+                RefreshMasterProgramFrameBuffer();
             }
 
             if (_currentMuxer != null)
@@ -693,6 +753,37 @@ namespace SRT_ENCODE
 
             string toneName = _colorbarEngine.GetToneDescription();
             LogEvent("[INFO]", $"🔊 Đã áp dụng cấu hình âm thanh Test Tone: {toneName}");
+
+            // Nếu đang Live Stream ở chế độ Colorbar, tự động chuyển đổi luồng phát âm thanh mới
+            if (_isStreaming && _sourceManager.CurrentSource == InputSourceType.Colorbar)
+            {
+                await RestartMasterProgramStreamingWorkerAsync();
+            }
+        }
+
+        private async Task RestartMasterProgramStreamingWorkerAsync()
+        {
+            try
+            {
+                _transmissionCts?.Cancel();
+                if (_streamProcess != null && !_streamProcess.HasExited)
+                {
+                    try { _streamProcess.Kill(true); } catch { }
+                    _streamProcess.Dispose();
+                    _streamProcess = null;
+                }
+
+                await Task.Delay(60);
+
+                if (_isStreaming && _srtStream != null && _srtStream.IsRunning)
+                {
+                    StartMasterProgramStreamingProcess();
+                }
+            }
+            catch (Exception ex)
+            {
+                LogEvent("[WARN]", $"Lỗi chuyển đổi luồng Master Program: {ex.Message}");
+            }
         }
 
         #endregion
@@ -916,28 +1007,57 @@ namespace SRT_ENCODE
 
         private void UpdateCodecCapabilities()
         {
-            if (CmbHardwareEncoder == null || CmbItemH265 == null || CmbVideoCodec == null) return;
+            if (CmbHardwareEncoder == null || CmbVideoCodec == null) return;
 
-            string selectedEncoderText = CmbHardwareEncoder.SelectedItem?.ToString() ?? "";
+            string selectedEncoderText = (CmbHardwareEncoder.SelectedItem as ComboBoxItem)?.Content?.ToString() 
+                                        ?? CmbHardwareEncoder.SelectedItem?.ToString() 
+                                        ?? "";
             bool supportsH265 = EvaluateH265Support(selectedEncoderText);
+            bool supportsAv1 = EvaluateAv1Support(selectedEncoderText);
 
-            if (supportsH265)
+            if (CmbItemH265 != null)
             {
-                CmbItemH265.IsEnabled = true;
-                CmbItemH265.Content = "H.265 / HEVC (Ultra High Efficiency - Hardware Supported)";
-                CmbItemH265.Foreground = new SolidColorBrush(Color.FromRgb(255, 255, 255));
-            }
-            else
-            {
-                CmbItemH265.IsEnabled = false;
-                CmbItemH265.Content = "H.265 / HEVC (Không hỗ trợ bởi Engine/GPU đã chọn)";
-                CmbItemH265.Foreground = new SolidColorBrush(Color.FromRgb(128, 128, 128));
-
-                // If H.265 was selected, automatically revert to H.264
-                if (CmbVideoCodec.SelectedIndex == 1)
+                if (supportsH265)
                 {
-                    CmbVideoCodec.SelectedIndex = 0;
-                    LogEvent("[CODEC]", $"⚠️ {selectedEncoderText} không hỗ trợ mã hóa H.265. Tự động chuyển Video Codec về H.264 / AVC.");
+                    CmbItemH265.IsEnabled = true;
+                    CmbItemH265.Content = "H.265 / HEVC (Ultra High Efficiency - Hardware Supported)";
+                    CmbItemH265.Foreground = new SolidColorBrush(Color.FromRgb(255, 255, 255));
+                }
+                else
+                {
+                    CmbItemH265.IsEnabled = false;
+                    CmbItemH265.Content = "H.265 / HEVC (Không hỗ trợ bởi Engine/GPU đã chọn)";
+                    CmbItemH265.Foreground = new SolidColorBrush(Color.FromRgb(128, 128, 128));
+
+                    // If H.265 was selected, automatically revert to H.264
+                    if (CmbVideoCodec.SelectedIndex == 1)
+                    {
+                        CmbVideoCodec.SelectedIndex = 0;
+                        LogEvent("[CODEC]", $"⚠️ {selectedEncoderText} không hỗ trợ mã hóa H.265. Tự động chuyển Video Codec về H.264 / AVC.");
+                    }
+                }
+            }
+
+            if (CmbItemAV1 != null)
+            {
+                if (supportsAv1)
+                {
+                    CmbItemAV1.IsEnabled = true;
+                    CmbItemAV1.Content = "AV1 (AOMedia Video 1 Next-Gen - Hardware Supported)";
+                    CmbItemAV1.Foreground = new SolidColorBrush(Color.FromRgb(255, 255, 255));
+                }
+                else
+                {
+                    CmbItemAV1.IsEnabled = false;
+                    CmbItemAV1.Content = "AV1 (Không hỗ trợ bởi Hardware Engine đã chọn)";
+                    CmbItemAV1.Foreground = new SolidColorBrush(Color.FromRgb(128, 128, 128));
+
+                    // If AV1 was selected, automatically revert to H.264
+                    if (CmbVideoCodec.SelectedIndex == 2)
+                    {
+                        CmbVideoCodec.SelectedIndex = 0;
+                        LogEvent("[CODEC]", $"⚠️ {selectedEncoderText} không hỗ trợ phần cứng mã hóa AV1. Tự động chuyển Video Codec về H.264 / AVC.");
+                    }
                 }
             }
         }
@@ -998,9 +1118,87 @@ namespace SRT_ENCODE
             return true;
         }
 
+        private static bool EvaluateAv1Support(string encoderText)
+        {
+            if (string.IsNullOrWhiteSpace(encoderText)) return false;
+
+            if (encoderText.Contains("Không phát hiện GPU", StringComparison.OrdinalIgnoreCase) || 
+                encoderText.Contains("No Hardware Detected", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            // 1. Software CPU (x264 zerolatency) does not support HW AV1
+            if (encoderText.Contains("Software", StringComparison.OrdinalIgnoreCase) || encoderText.Contains("x264", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            // 2. NVIDIA NVENC (AV1 encode requires Ada Lovelace / RTX 40-series, Blackwell / RTX 50-series, L4, L40)
+            if (encoderText.Contains("NVENC", StringComparison.OrdinalIgnoreCase) || encoderText.Contains("NVIDIA", StringComparison.OrdinalIgnoreCase))
+            {
+                if (encoderText.Contains("RTX 40", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("RTX 50", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("Ada", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("Blackwell", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("L40", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("L4", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+                return false;
+            }
+
+            // 3. Intel QuickSync Video (QSV) (AV1 encode requires Intel Arc A-Series, Intel Core Ultra / Meteor Lake / Lunar Lake / Arrow Lake / Arc 140T / Arc 140V)
+            if (encoderText.Contains("QuickSync", StringComparison.OrdinalIgnoreCase) || encoderText.Contains("QSV", StringComparison.OrdinalIgnoreCase) || encoderText.Contains("Intel", StringComparison.OrdinalIgnoreCase))
+            {
+                if (encoderText.Contains("Arc", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("Core Ultra", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("Xe LPG", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("Xe2", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("A380", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("A580", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("A750", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("A770", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("140T", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("140V", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("130V", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("140H", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("155H", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("185H", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+                return false;
+            }
+
+            // 4. AMD AMF Video Engine (AV1 encode requires RDNA 3 / Radeon RX 7000 series, 780M/760M/890M/880M or newer)
+            if (encoderText.Contains("AMD", StringComparison.OrdinalIgnoreCase) || encoderText.Contains("AMF", StringComparison.OrdinalIgnoreCase))
+            {
+                if (encoderText.Contains("RX 7", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("RX 8", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("780M", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("760M", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("890M", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("880M", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("RDNA 3", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("RDNA 4", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("Radeon 7", StringComparison.OrdinalIgnoreCase) ||
+                    encoderText.Contains("Radeon 8", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+                return false;
+            }
+
+            return false;
+        }
+
         private async void BtnScanHardwareEncoder_Click(object sender, RoutedEventArgs e)
         {
             await ScanHardwareEncodersAsync();
+            UpdateCodecCapabilities();
+            UpdateTargetSummary();
         }
 
         private async Task ScanHardwareEncodersAsync()
@@ -1023,7 +1221,7 @@ namespace SRT_ENCODE
                 string nvidiaDesc = gpus.FirstOrDefault(g => g.Contains("NVIDIA", StringComparison.OrdinalIgnoreCase) || g.Contains("RTX", StringComparison.OrdinalIgnoreCase) || g.Contains("GeForce", StringComparison.OrdinalIgnoreCase)) ?? "NVIDIA GPU";
                 string nvencLabel = hasNvidia 
                     ? $"NVIDIA NVENC ({nvidiaDesc})" 
-                    : "NVIDIA NVENC (NVENC Gen 8 / Ada Lovelace / Ampere)";
+                    : "NVIDIA NVENC (Không phát hiện GPU)";
                 CmbHardwareEncoder.Items.Add(nvencLabel);
                 if (hasNvidia && preferredIndex == -1) preferredIndex = CmbHardwareEncoder.Items.Count - 1;
 
@@ -1031,7 +1229,7 @@ namespace SRT_ENCODE
                 string intelDesc = gpus.FirstOrDefault(g => g.Contains("Intel", StringComparison.OrdinalIgnoreCase) || g.Contains("Arc", StringComparison.OrdinalIgnoreCase) || g.Contains("Iris", StringComparison.OrdinalIgnoreCase)) ?? "Intel GPU";
                 string qsvLabel = hasIntel 
                     ? $"Intel QuickSync Video (QSV - {intelDesc})" 
-                    : "Intel QuickSync Video (QSV)";
+                    : "Intel QuickSync Video (QSV - Không phát hiện GPU)";
                 CmbHardwareEncoder.Items.Add(qsvLabel);
                 if (hasIntel && preferredIndex == -1) preferredIndex = CmbHardwareEncoder.Items.Count - 1;
 
@@ -1039,7 +1237,7 @@ namespace SRT_ENCODE
                 string amdDesc = gpus.FirstOrDefault(g => g.Contains("AMD", StringComparison.OrdinalIgnoreCase) || g.Contains("Radeon", StringComparison.OrdinalIgnoreCase)) ?? "AMD GPU";
                 string amdLabel = hasAmd 
                     ? $"AMD AMF Video Engine ({amdDesc})" 
-                    : "AMD AMF Video Engine";
+                    : "AMD AMF Video Engine (Không phát hiện GPU)";
                 CmbHardwareEncoder.Items.Add(amdLabel);
                 if (hasAmd && preferredIndex == -1) preferredIndex = CmbHardwareEncoder.Items.Count - 1;
 
@@ -1054,6 +1252,7 @@ namespace SRT_ENCODE
 
                 CmbHardwareEncoder.SelectedIndex = preferredIndex;
                 UpdateCodecCapabilities();
+                UpdateTargetSummary();
 
                 string selectedEngine = CmbHardwareEncoder.SelectedItem?.ToString() ?? "";
                 if (gpus.Count > 0)
@@ -1292,10 +1491,15 @@ namespace SRT_ENCODE
 
                 if (currentSource == InputSourceType.File && !string.IsNullOrWhiteSpace(currentFilePath) && File.Exists(currentFilePath))
                 {
+                    // Lấy vị trí thời gian hiện tại của Player để đồng bộ thời gian thực chuẩn broadcast
+                    double currentSec = _sourceManager.CurrentPosition.TotalSeconds;
+                    string seekArg = currentSec > 0.05 ? $"-ss {currentSec:F3} " : "";
+
                     string ffmpegArgs;
                     if (isPassthrough)
                     {
-                        ffmpegArgs = $"-hide_banner -loglevel error -re -stream_loop -1 -i \"{currentFilePath}\" -c:v copy -c:a aac -b:a 192k -ar 48000 -ac 2 -f mpegts -mpegts_flags resend_headers -pcr_period 20 pipe:1";
+                        ffmpegArgs = $"-hide_banner -loglevel error {seekArg}-re -stream_loop -1 -i \"{currentFilePath}\" -c:v copy -c:a aac -b:a 192k -ar 48000 -ac 2 -f mpegts -mpegts_flags resend_headers -pcr_period 20 pipe:1";
+                        LogEvent("[PIPELINE]", $"🎬 Nạp nguồn Video File (Direct Bitstream Passthrough @ {TimeSpan.FromSeconds(currentSec):hh\\:mm\\:ss\\.fff}) vào SRT Engine: {Path.GetFileName(currentFilePath)}");
                     }
                     else
                     {
@@ -1321,11 +1525,11 @@ namespace SRT_ENCODE
                         }
 
                         string lowLatencyArg = isUll ? "-tune zerolatency -bf 0 -g 30" : "-g 60";
-                        ffmpegArgs = $"-hide_banner -loglevel error -re -stream_loop -1 -i \"{currentFilePath}\" {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} -c:a aac -b:a 192k -ar 48000 -ac 2 -f mpegts -mpegts_flags resend_headers -pcr_period 20 pipe:1";
+                        ffmpegArgs = $"-hide_banner -loglevel error {seekArg}-re -stream_loop -1 -i \"{currentFilePath}\" {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} -c:a aac -b:a 192k -ar 48000 -ac 2 -f mpegts -mpegts_flags resend_headers -pcr_period 20 pipe:1";
+                        LogEvent("[PIPELINE]", $"🎬 Nạp nguồn Video File (Encoder Pipeline @ {TimeSpan.FromSeconds(currentSec):hh\\:mm\\:ss\\.fff}) vào SRT Engine: {Path.GetFileName(currentFilePath)} ({normalizedCodec} via {hwEncoder})");
                     }
 
-                    LogEvent("[PIPELINE]", $"🎬 Nạp nguồn Video File vào SRT Engine: {Path.GetFileName(currentFilePath)}");
-                    LogEvent("[SRT]", $"Khởi động Streaming Worker với tệp: {Path.GetFileName(currentFilePath)}");
+                    LogEvent("[SRT]", $"Khởi động Streaming Worker với tệp: {Path.GetFileName(currentFilePath)} tại vị trí {TimeSpan.FromSeconds(currentSec):hh\\:mm\\:ss\\.fff}");
 
                     var psi = new ProcessStartInfo
                     {
@@ -1395,44 +1599,8 @@ namespace SRT_ENCODE
                 }
                 else
                 {
-                    // Khởi tạo bộ Muxer đóng gói MPEG-TS chuẩn ISO/IEC 13818-1 với PAT, PMT, PES và PCR
-                    _currentMuxer = new MpegTsMuxer(codecType, _colorbarEngine.CurrentPattern, _colorbarEngine.CurrentTone);
-                    var muxer = _currentMuxer;
-
-                    // Khởi động vòng lặp truyền gói dữ liệu MPEG-TS thời gian thực với Broadcast Token Bucket Pacing & PCR Clock Sync
-                    _transmissionCts = new CancellationTokenSource();
-                    var token = _transmissionCts.Token;
-                    _ = Task.Run(async () =>
-                    {
-                        var stopwatch = Stopwatch.StartNew();
-                        double packetsPerSecond = (double)(bitrateKbps * 1000) / (8.0 * 1316);
-                        long totalPacketsSent = 0;
-
-                        while (!token.IsCancellationRequested && _isStreaming && _srtStream != null)
-                        {
-                            double targetTotalPackets = stopwatch.Elapsed.TotalSeconds * packetsPerSecond;
-                            long packetsToSend = (long)Math.Ceiling(targetTotalPackets - totalPacketsSent);
-
-                            if (packetsToSend > 0)
-                            {
-                                // Giới hạn burst tối đa 8 gói (~10.5 KB) để tránh làm tràn bộ đệm nhận (Queue Overflow)
-                                long burstCount = Math.Min(8, packetsToSend);
-
-                                for (int b = 0; b < burstCount; b++)
-                                {
-                                    byte[] srtBuffer = muxer.GenerateSrtTransmissionBlock();
-                                    if (_srtStream.IsRunning)
-                                    {
-                                        _srtStream.SendData(srtBuffer);
-                                    }
-                                    totalPacketsSent++;
-                                }
-                            }
-
-                            // Điều tiết nhịp truyền theo micro-delay mượt mà
-                            await Task.Delay(1, token).ConfigureAwait(false);
-                        }
-                    }, token);
+                    // Chế độ Colorbar WYSIWYG Full HD Broadcast
+                    StartMasterProgramStreamingProcess();
                 }
 
                 // Cập nhật trạng thái UI
@@ -1452,6 +1620,182 @@ namespace SRT_ENCODE
                 LogEvent("[ERROR]", $"Lỗi khởi động phát sóng SRT: {ex.Message}");
                 StopTransmissionInternal();
             }
+        }
+
+        private void StartMasterProgramStreamingProcess()
+        {
+            RefreshMasterProgramFrameBuffer();
+
+            string codecStr = (CmbVideoCodec?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "H.264 / AVC";
+            string hwEncoder = CmbHardwareEncoder?.SelectedItem?.ToString() ?? "NVIDIA NVENC";
+            bool isUll = ChkUltraLowLatency?.IsChecked == true;
+            int bitrateKbps = (int)(SldTargetBitrate?.Value ?? 6000);
+
+            VideoCodecType codecType = VideoCodecType.H264_AVC;
+            if (codecStr.Contains("H.265") || codecStr.Contains("HEVC")) codecType = VideoCodecType.H265_HEVC;
+            else if (codecStr.Contains("AV1")) codecType = VideoCodecType.AV1;
+
+            string normalizedCodec = codecType switch
+            {
+                VideoCodecType.H265_HEVC => "H.265 / HEVC",
+                VideoCodecType.AV1 => "AV1",
+                _ => "H.264 / AVC"
+            };
+
+            string vcodecArg;
+            if (codecType == VideoCodecType.H265_HEVC)
+            {
+                if (hwEncoder.Contains("NVENC", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v hevc_nvenc";
+                else if (hwEncoder.Contains("QSV", StringComparison.OrdinalIgnoreCase) || hwEncoder.Contains("QuickSync", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v hevc_qsv";
+                else if (hwEncoder.Contains("AMF", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v hevc_amf";
+                else vcodecArg = "-c:v libx265 -preset veryfast";
+            }
+            else if (codecType == VideoCodecType.AV1)
+            {
+                if (hwEncoder.Contains("NVENC", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v av1_nvenc";
+                else vcodecArg = "-c:v libsvtav1 -preset 8";
+            }
+            else
+            {
+                if (hwEncoder.Contains("NVENC", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v h264_nvenc";
+                else if (hwEncoder.Contains("QSV", StringComparison.OrdinalIgnoreCase) || hwEncoder.Contains("QuickSync", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v h264_qsv";
+                else if (hwEncoder.Contains("AMF", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v h264_amf";
+                else vcodecArg = "-c:v libx264 -preset veryfast";
+            }
+
+            string lowLatencyArg = isUll ? "-tune zerolatency -bf 0 -g 30" : "-g 60";
+            string ffmpegArgs;
+
+            InputSourceType currentSource = _sourceManager.CurrentSource;
+            string currentFilePath = !string.IsNullOrWhiteSpace(_sourceManager.CurrentSourcePath) ? _sourceManager.CurrentSourcePath : TxtFilePath?.Text?.Trim() ?? "";
+
+            if (currentSource == InputSourceType.File && !string.IsNullOrWhiteSpace(currentFilePath) && File.Exists(currentFilePath))
+            {
+                // Master PGM Output với nguồn File: Video là luồng WYSIWYG từ Master Program Bus, Audio được đọc từ Media File
+                ffmpegArgs = $"-hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s 1920x1080 -r 30 -i pipe:0 -re -stream_loop -1 -i \"{currentFilePath}\" -map 0:v:0 -map 1:a? {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} -c:a aac -b:a 192k -ar 48000 -ac 2 -f mpegts -mpegts_flags resend_headers -pcr_period 20 pipe:1";
+                LogEvent("[PIPELINE]", $"🎬 Nạp nguồn Master PGM File (WYSIWYG 1920x1080 @ 30 FPS) vào Video Encoder ({normalizedCodec} via {hwEncoder})");
+            }
+            else
+            {
+                // Master PGM Output với nguồn Colorbar (hoặc Live Pattern): Video là luồng WYSIWYG, Audio là Test Tone chuẩn EBU/SMPTE
+                int toneFreq = _colorbarEngine.CurrentTone switch
+                {
+                    AudioTestToneType.Glits400Hz => 400,
+                    _ => 1000
+                };
+                ffmpegArgs = $"-hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s 1920x1080 -r 30 -i pipe:0 -f lavfi -i \"sine=frequency={toneFreq}:sample_rate=48000\" {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} -c:a aac -b:a 192k -ar 48000 -ac 2 -f mpegts -mpegts_flags resend_headers -pcr_period 20 pipe:1";
+                LogEvent("[PIPELINE]", $"🎨 Nạp nguồn Master PGM Colorbar (WYSIWYG 1920x1080 @ 30 FPS, Audio: {toneFreq} Hz) vào Video Encoder ({normalizedCodec} via {hwEncoder})");
+            }
+
+            LogEvent("[SRT]", $"Khởi động Streaming Worker chuẩn Broadcast Master PGM Output ({normalizedCodec} via {hwEncoder})");
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = "ffmpeg",
+                Arguments = ffmpegArgs,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            _streamProcess = Process.Start(psi);
+            if (_streamProcess == null)
+            {
+                throw new InvalidOperationException("Không thể khởi chạy tiến trình phát luồng FFmpeg cho Master PGM Output.");
+            }
+
+            _transmissionCts = new CancellationTokenSource();
+            var token = _transmissionCts.Token;
+            var process = _streamProcess;
+
+            // Task 1: Bơm khung hình 1920x1080 BGRA từ Master Program Bus vào stdin của FFmpeg ở nhịp 30 FPS
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var stdin = process.StandardInput.BaseStream;
+                    var stopwatch = Stopwatch.StartNew();
+                    long frameCount = 0;
+
+                    while (!token.IsCancellationRequested && _isStreaming && !process.HasExited)
+                    {
+                        byte[]? frameData;
+                        lock (_programFrameLock)
+                        {
+                            frameData = _currentProgramFrameBytes;
+                        }
+
+                        if (frameData != null && frameData.Length > 0)
+                        {
+                            await stdin.WriteAsync(frameData.AsMemory(0, frameData.Length), token).ConfigureAwait(false);
+                            await stdin.FlushAsync(token).ConfigureAwait(false);
+                            frameCount++;
+                        }
+
+                        double targetTimeMs = frameCount * (1000.0 / 30.0);
+                        double elapsedMs = stopwatch.Elapsed.TotalMilliseconds;
+                        int sleepMs = (int)(targetTimeMs - elapsedMs);
+                        if (sleepMs > 0)
+                        {
+                            await Task.Delay(sleepMs, token).ConfigureAwait(false);
+                        }
+                    }
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    LogEvent("[WARN]", $"Luồng cấp dữ liệu Video stdin: {ex.Message}");
+                }
+            }, token);
+
+            // Task 2: Đọc các gói tin MPEG-TS từ stdout của FFmpeg và gửi qua SRT
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var stdout = process.StandardOutput.BaseStream;
+                    byte[] buffer = new byte[7 * 188]; // 1316 bytes (7 TS packets)
+
+                    while (!token.IsCancellationRequested && _isStreaming && _srtStream != null && !process.HasExited)
+                    {
+                        int totalRead = 0;
+                        while (totalRead < buffer.Length)
+                        {
+                            int read = await stdout.ReadAsync(buffer.AsMemory(totalRead, buffer.Length - totalRead), token).ConfigureAwait(false);
+                            if (read <= 0) break;
+                            totalRead += read;
+                        }
+
+                        if (totalRead > 0)
+                        {
+                            if (_srtStream.IsRunning)
+                            {
+                                if (totalRead == buffer.Length)
+                                {
+                                    _srtStream.SendData(buffer);
+                                }
+                                else
+                                {
+                                    byte[] partial = new byte[totalRead];
+                                    Buffer.BlockCopy(buffer, 0, partial, 0, totalRead);
+                                    _srtStream.SendData(partial);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            await Task.Delay(5, token).ConfigureAwait(false);
+                        }
+                    }
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    LogEvent("[WARN]", $"Luồng phát MPEG-TS Master PGM: {ex.Message}");
+                }
+            }, token);
         }
 
         private void BtnStopStreaming_Click(object sender, RoutedEventArgs e)

@@ -66,6 +66,7 @@ namespace SRT_ENCODE
         private SRTStreamSession? _srtStreamSource;
 
         public PlatformMediaPlayer? Player => _player;
+        public TimeSpan CurrentPosition => _player?.Position ?? TimeSpan.Zero;
         public ColorbarEngine ColorbarEngine => _colorbarEngine;
         public SRTStreamSession? SrtStreamSource => _srtStreamSource;
         public InputSourceType CurrentSource => _currentSource;
