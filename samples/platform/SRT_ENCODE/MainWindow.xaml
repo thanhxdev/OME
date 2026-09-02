@@ -681,10 +681,10 @@
                             </Button.Resources>
                         </Button>
 
-                        <!-- Volume & Audio Mute/Unmute Controls -->
+                        <!-- Volume & Audio Mute/Unmute Controls (Default: Muted) -->
                         <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button x:Name="BtnAudioMute" Style="{StaticResource IconOnlyButtonStyle}" Click="BtnAudioMute_Click" ToolTip="Tắt tiếng / Bật tiếng loa kiểm âm (Mute/Unmute Audio)" Margin="0,0,3,0">
-                                <TextBlock x:Name="TxtAudioMuteIcon" Text="🔊" FontSize="13" Foreground="#00E676" VerticalAlignment="Center"/>
+                            <Button x:Name="BtnAudioMute" Style="{StaticResource IconOnlyButtonStyle}" Click="BtnAudioMute_Click" ToolTip="Đang tắt tiếng loa kiểm âm (MUTED) - Click để Bật tiếng (UNMUTE)" Margin="0,0,3,0">
+                                <TextBlock x:Name="TxtAudioMuteIcon" Text="🔇" FontSize="13" Foreground="#EF4444" VerticalAlignment="Center"/>
                             </Button>
                             <TextBlock Text="Vol:" FontSize="11" Foreground="#9E9E9E" VerticalAlignment="Center" Margin="0,0,4,0"/>
                             <Slider x:Name="SldMonitorVolume" Width="70" Minimum="0" Maximum="1" Value="0.4" ValueChanged="SldMonitorVolume_ValueChanged" VerticalAlignment="Center"/>
@@ -1074,7 +1074,7 @@
                                                 <Button Grid.Column="1" Content="📂 Browse..." Style="{StaticResource ActionButtonStyle}" Click="BtnBrowseFile_Click"/>
                                             </Grid>
 
-                                            <CheckBox x:Name="ChkLoopFile" Content="Auto Loop Playback" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Margin="0,10,0,0"/>
+                                            <CheckBox x:Name="ChkLoopFile" Content="Auto Loop Playback" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkLoopFile_Changed" Unchecked="ChkLoopFile_Changed" Margin="0,10,0,0"/>
                                             <TextBlock Text="* Hỗ trợ giải mã phần cứng các định dạng phát sóng MP4, MOV (ProRes), MKV, TS." FontSize="10.5" Foreground="#888888" Margin="0,6,0,0"/>
                                         </StackPanel>
                                     </StackPanel>

@@ -49,6 +49,17 @@ namespace OpenMedia.Platform
         /// </summary>
         public TimeSpan Duration => _information?.Duration ?? TimeSpan.Zero;
 
+        private bool _isLooping = false;
+
+        /// <summary>
+        /// Gets or sets whether playback should automatically loop back to the beginning upon reaching EOF.
+        /// </summary>
+        public bool IsLooping
+        {
+            get => _isLooping;
+            set => _isLooping = value;
+        }
+
         /// <summary>
         /// Playback volume (0.0 = mute, 1.0 = full volume).
         /// </summary>
@@ -275,8 +286,8 @@ namespace OpenMedia.Platform
                 _pipelineId = pipelineId.Value;
                 _pipelineCreated = true;
 
-                // 2. Open source on server
-                var openPayload = IPCCommandBuilder.OpenSource(_pipelineId, _sourceId, sourceUri);
+                // 2. Open source on server with loop mode support
+                var openPayload = IPCCommandBuilder.OpenSource(_pipelineId, _sourceId, sourceUri, _isLooping);
                 var openResponse = await OpenMediaRuntime.SendCommandAsync(CommandType.OpenSource, openPayload);
 
                 if (openResponse == null)
@@ -414,8 +425,15 @@ namespace OpenMedia.Platform
 
             if (Duration > TimeSpan.Zero && position >= Duration)
             {
-                await HandleEndOfMediaAsync();
-                return;
+                if (_isLooping)
+                {
+                    position = TimeSpan.Zero;
+                }
+                else
+                {
+                    await HandleEndOfMediaAsync();
+                    return;
+                }
             }
 
             Position = position;
@@ -559,10 +577,22 @@ namespace OpenMedia.Platform
                         }
                     }
 
-                    if (Duration > TimeSpan.Zero && Position >= Duration)
+                    if (Duration > TimeSpan.Zero && Position >= (Duration - TimeSpan.FromMilliseconds(150)))
                     {
-                        _ = HandleEndOfMediaAsync();
-                        break;
+                        if (_isLooping)
+                        {
+                            Position = TimeSpan.Zero;
+                            _suppressPositionUntilTick = Environment.TickCount64 + 400;
+                            RaiseEvent(() => PositionChanged?.Invoke(this, TimeSpan.Zero));
+                            _ = SeekAsync(TimeSpan.Zero);
+                        }
+                        else
+                        {
+                            Position = Duration;
+                            RaiseEvent(() => PositionChanged?.Invoke(this, Duration));
+                            _ = HandleEndOfMediaAsync();
+                            break;
+                        }
                     }
 
                     RaiseEvent(() => PositionChanged?.Invoke(this, Position));

@@ -49,6 +49,12 @@ namespace SRT_ENCODE
         private MpegTsMuxer? _currentMuxer;
         private Process? _streamProcess;
 
+        // ─── SRT Auto-Reconnect Supervisor State ────────────────────
+        private bool _isTransmissionActive = false;
+        private CancellationTokenSource? _reconnectCts;
+        private int _reconnectAttempt = 0;
+        private SRTStreamConfig? _activeSrtConfig;
+
         // ─── Logging Buffer & Init Guard ───────────────────────────
         private readonly List<string> _pendingLogs = new();
         private bool _isInitialized = false;
@@ -62,7 +68,7 @@ namespace SRT_ENCODE
         private readonly double[] _channelRmsLevels16 = new double[16];
         private readonly bool[] _channelClipping16 = new bool[16];
         private readonly AudioMeterService _audioMeterService = new();
-        private bool _isAudioMuted = false;
+        private bool _isAudioMuted = true;
         private double _lastNonZeroVolume = 0.4;
 
         public MainWindow()
@@ -143,7 +149,9 @@ namespace SRT_ENCODE
                 await ScanNdiSourcesAsync();
 
                 // Setup VideoSourceManager & Initial Preview Player
+                _sourceManager.IsLoopPlayback = ChkLoopFile?.IsChecked == true;
                 _sourceManager.SetAudioMonitor(!_isAudioMuted, SldMonitorVolume?.Value ?? 0.4);
+                UpdateAudioMuteState(logChange: false);
                 await _sourceManager.InitializeAsync(ReviewView, ViewboxColorbar, PnlColorbarVisualHost, TxtActiveSourceBadge, TxtActiveSourceTypeBadge);
                 await InitializePreviewPlayerAsync();
 
@@ -588,8 +596,17 @@ namespace SRT_ENCODE
             {
                 TxtFilePath.Text = dlg.FileName;
                 LogEvent("[INFO]", $"Đã chọn video tập tin: {Path.GetFileName(dlg.FileName)}");
+                _sourceManager.IsLoopPlayback = ChkLoopFile?.IsChecked == true;
                 await _sourceManager.HandleFileSourceAsync(dlg.FileName);
             }
+        }
+
+        private void ChkLoopFile_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            bool isLoop = ChkLoopFile?.IsChecked == true;
+            _sourceManager.IsLoopPlayback = isLoop;
+            LogEvent("[MEDIA]", isLoop ? "🔁 Đã BẬT chế độ lặp video (Auto Loop Playback)." : "▶️ Đã TẮT chế độ lặp video (Play Once).");
         }
 
         private async void CmbInputSource_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1427,255 +1444,107 @@ namespace SRT_ENCODE
 
         #region Transmission Control (Start / Stop SRT)
 
-        private async void BtnStartStreaming_Click(object sender, RoutedEventArgs e)
+        private SRTStreamConfig BuildSrtStreamConfig()
+        {
+            string ip = TxtSrtIp.Text.Trim();
+            if (!int.TryParse(TxtSrtPort.Text.Trim(), out int port))
+            {
+                port = 9000;
+            }
+
+            string modeStr = (CmbSrtMode.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Caller";
+            SRTMode srtMode = SRTMode.Caller;
+            if (modeStr.Contains("Listener", StringComparison.OrdinalIgnoreCase)) srtMode = SRTMode.Listener;
+            else if (modeStr.Contains("Rendezvous", StringComparison.OrdinalIgnoreCase)) srtMode = SRTMode.Rendezvous;
+
+            // Thu thập đầy đủ thông số cấu hình luồng SRT
+            int latency = 120;
+            if (int.TryParse(TxtManualLatency?.Text?.Trim(), out int parsedLat))
+            {
+                latency = parsedLat;
+            }
+
+            int keyLength = CmbKeyLength?.SelectedIndex switch
+            {
+                0 => 16, // AES-128
+                1 => 24, // AES-192
+                2 => 32, // AES-256
+                _ => 32
+            };
+
+            string codecStr = (CmbVideoCodec?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "H.264 / AVC";
+            string hwEncoder = CmbHardwareEncoder?.SelectedItem?.ToString() ?? "NVIDIA NVENC";
+            string rateControl = (CmbRateControl?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "CBR (Constant Bitrate)";
+            string preset = (CmbEncoderPreset?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Low-Latency / Zerolatency";
+            bool isUll = ChkUltraLowLatency?.IsChecked == true;
+            bool isEncrypted = ChkEnableEncryption?.IsChecked == true;
+            bool isNtpSync = ChkNtpSync?.IsChecked == true;
+            string streamId = TxtSrtStreamId?.Text?.Trim() ?? string.Empty;
+            string passphrase = TxtSrtPassphrase?.Password ?? string.Empty;
+            int bitrateKbps = (int)(SldTargetBitrate?.Value ?? 6000);
+
+            VideoCodecType codecType = VideoCodecType.H264_AVC;
+            if (codecStr.Contains("H.265") || codecStr.Contains("HEVC")) codecType = VideoCodecType.H265_HEVC;
+            else if (codecStr.Contains("AV1")) codecType = VideoCodecType.AV1;
+
+            string normalizedCodec = codecType switch
+            {
+                VideoCodecType.H265_HEVC => "H.265 / HEVC",
+                VideoCodecType.AV1 => "AV1",
+                _ => "H.264 / AVC"
+            };
+
+            return new SRTStreamConfig
+            {
+                Host = ip,
+                Port = port,
+                Mode = srtMode,
+                StreamId = streamId,
+                LatencyMs = latency,
+                AutoLatency = ChkAutoLatency?.IsChecked == true,
+                EncryptionEnabled = isEncrypted,
+                Passphrase = passphrase,
+                KeyLength = keyLength,
+                VideoCodec = normalizedCodec,
+                BitrateKbps = bitrateKbps,
+                HardwareEncoder = hwEncoder,
+                RateControl = rateControl,
+                EncoderPreset = preset,
+                UltraLowLatency = isUll,
+                GopSeconds = isUll ? 1.0 : 2.0,
+                BFrames = isUll ? 0 : 2,
+                NtpSyncEnabled = isNtpSync,
+                NtpServer = TxtNtpServer?.Text?.Trim() ?? "time.google.com",
+                AudioChannels = 2,
+                AudioSampleRate = 48000,
+                AudioBitrateKbps = 192,
+                AudioCodec = "AAC"
+            };
+        }
+
+        private void BtnStartStreaming_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                string ip = TxtSrtIp.Text.Trim();
-                if (!int.TryParse(TxtSrtPort.Text.Trim(), out int port))
-                {
-                    port = 9000;
-                }
+                _activeSrtConfig = BuildSrtStreamConfig();
+                _isTransmissionActive = true;
+                _reconnectAttempt = 0;
 
-                string modeStr = (CmbSrtMode.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Caller";
-                SRTMode srtMode = SRTMode.Caller;
-                if (modeStr.Contains("Listener", StringComparison.OrdinalIgnoreCase)) srtMode = SRTMode.Listener;
-                else if (modeStr.Contains("Rendezvous", StringComparison.OrdinalIgnoreCase)) srtMode = SRTMode.Rendezvous;
-
-                // Thu thập đầy đủ mọi thông số cấu hình luồng SRT
-                int latency = 120;
-                if (int.TryParse(TxtManualLatency?.Text?.Trim(), out int parsedLat))
-                {
-                    latency = parsedLat;
-                }
-
-                int keyLength = CmbKeyLength?.SelectedIndex switch
-                {
-                    0 => 16, // AES-128
-                    1 => 24, // AES-192
-                    2 => 32, // AES-256
-                    _ => 32
-                };
-
-                string codecStr = (CmbVideoCodec?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "H.264 / AVC";
-                string hwEncoder = CmbHardwareEncoder?.SelectedItem?.ToString() ?? "NVIDIA NVENC";
-                string rateControl = (CmbRateControl?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "CBR (Constant Bitrate)";
-                string preset = (CmbEncoderPreset?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Low-Latency / Zerolatency";
-                bool isUll = ChkUltraLowLatency?.IsChecked == true;
-                bool isEncrypted = ChkEnableEncryption?.IsChecked == true;
-                bool isNtpSync = ChkNtpSync?.IsChecked == true;
-                string streamId = TxtSrtStreamId?.Text?.Trim() ?? string.Empty;
-                string passphrase = TxtSrtPassphrase?.Password ?? string.Empty;
-                int bitrateKbps = (int)(SldTargetBitrate?.Value ?? 6000);
-
-                VideoCodecType codecType = VideoCodecType.H264_AVC;
-                if (codecStr.Contains("H.265") || codecStr.Contains("HEVC")) codecType = VideoCodecType.H265_HEVC;
-                else if (codecStr.Contains("AV1")) codecType = VideoCodecType.AV1;
-
-                string normalizedCodec = codecType switch
-                {
-                    VideoCodecType.H265_HEVC => "H.265 / HEVC",
-                    VideoCodecType.AV1 => "AV1",
-                    _ => "H.264 / AVC"
-                };
-
-                var srtConfig = new SRTStreamConfig
-                {
-                    Host = ip,
-                    Port = port,
-                    Mode = srtMode,
-                    StreamId = streamId,
-                    LatencyMs = latency,
-                    AutoLatency = ChkAutoLatency?.IsChecked == true,
-                    EncryptionEnabled = isEncrypted,
-                    Passphrase = passphrase,
-                    KeyLength = keyLength,
-                    VideoCodec = normalizedCodec,
-                    BitrateKbps = bitrateKbps,
-                    HardwareEncoder = hwEncoder,
-                    RateControl = rateControl,
-                    EncoderPreset = preset,
-                    UltraLowLatency = isUll,
-                    GopSeconds = isUll ? 1.0 : 2.0,
-                    BFrames = isUll ? 0 : 2,
-                    NtpSyncEnabled = isNtpSync,
-                    NtpServer = TxtNtpServer?.Text?.Trim() ?? "time.google.com",
-                    AudioChannels = 2,
-                    AudioSampleRate = 48000,
-                    AudioBitrateKbps = 192,
-                    AudioCodec = "AAC"
-                };
-
-                bool isPassthrough = RbPassthrough?.IsChecked == true;
-                if (isPassthrough)
-                {
-                    LogEvent("[PIPELINE]", "⚡ Chế độ luồng: Direct Bitstream Passthrough (Không qua Video Encoder).");
-                }
-                else
-                {
-                    LogEvent("[PIPELINE]", $"🎛️ Chế độ luồng: Encoder Pipeline ({normalizedCodec} via {hwEncoder}).");
-                }
-
-                LogEvent("[SRT]", $"Khởi động luồng phát SRT ({(isPassthrough ? "Passthrough" : normalizedCodec)}) với SRTStreamSession ({srtMode} -> {ip}:{port})...");
-
-                // Khởi tạo và kết nối luồng phát qua SRTStreamSession
-                if (_srtStream != null)
-                {
-                    await _srtStream.StopAsync();
-                    _srtStream.Dispose();
-                    _srtStream = null;
-                }
-
-                _srtStream = new SRTStreamSession(srtConfig);
-                _srtStream.LogEmitted += (tag, msg) => LogEvent(tag, msg);
-                _srtStream.ErrorOccurred += err => LogEvent("[ERROR]", err);
-                _srtStream.StatisticsUpdated += stats =>
-                {
-                    _currentRttMs = stats.RttMs;
-                    _currentPacketLoss = stats.PacketLossPercent;
-                    _currentBitrateKbps = stats.CurrentBitrateKbps > 0 ? stats.CurrentBitrateKbps : bitrateKbps;
-                    _currentFps = stats.CurrentFps;
-                    _totalBytesTransferred = stats.TotalBytesTransferred;
-                };
-
-                bool started = await _srtStream.StartTransmissionAsync();
-                if (!started)
-                {
-                    throw new Exception("Không thể khởi động luồng truyền dẫn SRT.");
-                }
-
-                _isStreaming = true;
-                _streamStartTime = DateTime.UtcNow;
-                _totalBytesTransferred = 0;
-
-                InputSourceType currentSource = _sourceManager.CurrentSource;
-                string currentFilePath = !string.IsNullOrWhiteSpace(_sourceManager.CurrentSourcePath) ? _sourceManager.CurrentSourcePath : TxtFilePath?.Text?.Trim() ?? "";
-
-                if (currentSource == InputSourceType.File && !string.IsNullOrWhiteSpace(currentFilePath) && File.Exists(currentFilePath))
-                {
-                    // Lấy vị trí thời gian hiện tại của Player để đồng bộ thời gian thực chuẩn broadcast
-                    double currentSec = _sourceManager.CurrentPosition.TotalSeconds;
-                    string seekArg = currentSec > 0.05 ? $"-ss {currentSec:F3} " : "";
-
-                    string ffmpegArgs;
-                    if (isPassthrough)
-                    {
-                        ffmpegArgs = $"-hide_banner -loglevel error {seekArg}-re -stream_loop -1 -i \"{currentFilePath}\" -c:v copy -c:a aac -b:a 192k -ar 48000 -ac 2 -f mpegts -mpegts_flags resend_headers -pcr_period 20 pipe:1";
-                        LogEvent("[PIPELINE]", $"🎬 Nạp nguồn Video File (Direct Bitstream Passthrough @ {TimeSpan.FromSeconds(currentSec):hh\\:mm\\:ss\\.fff}) vào SRT Engine: {Path.GetFileName(currentFilePath)}");
-                    }
-                    else
-                    {
-                        string vcodecArg;
-                        if (codecType == VideoCodecType.H265_HEVC)
-                        {
-                            if (hwEncoder.Contains("NVENC", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v hevc_nvenc";
-                            else if (hwEncoder.Contains("QSV", StringComparison.OrdinalIgnoreCase) || hwEncoder.Contains("QuickSync", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v hevc_qsv";
-                            else if (hwEncoder.Contains("AMF", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v hevc_amf";
-                            else vcodecArg = "-c:v libx265 -preset veryfast";
-                        }
-                        else if (codecType == VideoCodecType.AV1)
-                        {
-                            if (hwEncoder.Contains("NVENC", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v av1_nvenc";
-                            else vcodecArg = "-c:v libsvtav1 -preset 8";
-                        }
-                        else
-                        {
-                            if (hwEncoder.Contains("NVENC", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v h264_nvenc";
-                            else if (hwEncoder.Contains("QSV", StringComparison.OrdinalIgnoreCase) || hwEncoder.Contains("QuickSync", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v h264_qsv";
-                            else if (hwEncoder.Contains("AMF", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v h264_amf";
-                            else vcodecArg = "-c:v libx264 -preset veryfast";
-                        }
-
-                        string lowLatencyArg = isUll ? "-tune zerolatency -bf 0 -g 30" : "-g 60";
-                        ffmpegArgs = $"-hide_banner -loglevel error {seekArg}-re -stream_loop -1 -i \"{currentFilePath}\" {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} -c:a aac -b:a 192k -ar 48000 -ac 2 -f mpegts -mpegts_flags resend_headers -pcr_period 20 pipe:1";
-                        LogEvent("[PIPELINE]", $"🎬 Nạp nguồn Video File (Encoder Pipeline @ {TimeSpan.FromSeconds(currentSec):hh\\:mm\\:ss\\.fff}) vào SRT Engine: {Path.GetFileName(currentFilePath)} ({normalizedCodec} via {hwEncoder})");
-                    }
-
-                    LogEvent("[SRT]", $"Khởi động Streaming Worker với tệp: {Path.GetFileName(currentFilePath)} tại vị trí {TimeSpan.FromSeconds(currentSec):hh\\:mm\\:ss\\.fff}");
-
-                    var psi = new ProcessStartInfo
-                    {
-                        FileName = "ffmpeg",
-                        Arguments = ffmpegArgs,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    };
-
-                    _streamProcess = Process.Start(psi);
-                    if (_streamProcess == null)
-                    {
-                        throw new InvalidOperationException("Không thể khởi chạy tiến trình phát luồng FFmpeg.");
-                    }
-
-                    _transmissionCts = new CancellationTokenSource();
-                    var token = _transmissionCts.Token;
-                    var process = _streamProcess;
-
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            using var stdout = process.StandardOutput.BaseStream;
-                            byte[] buffer = new byte[7 * 188]; // 1316 bytes (7 TS packets)
-
-                            while (!token.IsCancellationRequested && _isStreaming && _srtStream != null && !process.HasExited)
-                            {
-                                int totalRead = 0;
-                                while (totalRead < buffer.Length)
-                                {
-                                    int read = await stdout.ReadAsync(buffer.AsMemory(totalRead, buffer.Length - totalRead), token);
-                                    if (read <= 0) break;
-                                    totalRead += read;
-                                }
-
-                                if (totalRead > 0)
-                                {
-                                    if (_srtStream.IsRunning)
-                                    {
-                                        if (totalRead == buffer.Length)
-                                        {
-                                            _srtStream.SendData(buffer);
-                                        }
-                                        else
-                                        {
-                                            byte[] partial = new byte[totalRead];
-                                            Buffer.BlockCopy(buffer, 0, partial, 0, totalRead);
-                                            _srtStream.SendData(partial);
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    await Task.Delay(5, token);
-                                }
-                            }
-                        }
-                        catch (OperationCanceledException) { }
-                        catch (Exception ex)
-                        {
-                            LogEvent("[WARN]", $"Luồng phát tệp video: {ex.Message}");
-                        }
-                    }, token);
-                }
-                else
-                {
-                    // Chế độ Colorbar WYSIWYG Full HD Broadcast
-                    StartMasterProgramStreamingProcess();
-                }
-
-                // Cập nhật trạng thái UI
                 BtnStartStreaming.IsEnabled = false;
                 BtnStopStreaming.IsEnabled = true;
-                LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(76, 175, 80)); // Green
-                TxtSrtStatus.Text = "SRT: TRANSMITTING (LIVE)";
-                TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(76, 175, 80));
 
-                LogEvent("[SRT]", $"✅ [INFO] SRT Connected. Bắt đầu truyền dẫn luồng {normalizedCodec} + AAC ADTS (MPEG-TS PAT/PMT/PCR Validated).");
-                LogEvent("[INFO]", $"Keyframe Sent (IDR Instantaneous Decoder Refresh {normalizedCodec}).");
+                LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(255, 179, 0)); // Amber
+                TxtSrtStatus.Text = "SRT: CONNECTING...";
+                TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(255, 179, 0));
 
                 UpdateTargetSummary();
+
+                _reconnectCts?.Cancel();
+                _reconnectCts?.Dispose();
+                _reconnectCts = new CancellationTokenSource();
+
+                var token = _reconnectCts.Token;
+                _ = Task.Run(() => TransmissionSupervisorLoopAsync(token), token);
             }
             catch (Exception ex)
             {
@@ -1684,8 +1553,284 @@ namespace SRT_ENCODE
             }
         }
 
-        private void StartMasterProgramStreamingProcess()
+        private async Task TransmissionSupervisorLoopAsync(CancellationToken token)
         {
+            LogEvent("[SRT]", "Khởi động tiến trình truyền dẫn SRT (Cơ chế Auto-Reconnect vô hạn KÍCH HOẠT).");
+
+            while (!token.IsCancellationRequested && _isTransmissionActive)
+            {
+                try
+                {
+                    bool isConnected = _srtStream != null && _srtStream.IsRunning && _srtStream.Statistics.IsConnected;
+
+                    if (!isConnected)
+                    {
+                        _reconnectAttempt++;
+
+                        await Dispatcher.InvokeAsync(() =>
+                        {
+                            LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(255, 179, 0)); // Amber
+                            TxtSrtStatus.Text = _reconnectAttempt <= 1
+                                ? "SRT: CONNECTING..."
+                                : $"SRT: RECONNECTING (#{_reconnectAttempt})...";
+                            TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(255, 179, 0));
+                        });
+
+                        if (_reconnectAttempt == 1)
+                        {
+                            LogEvent("[SRT]", $"Khởi tạo kết nối SRT ({_activeSrtConfig?.Mode} -> {_activeSrtConfig?.Host}:{_activeSrtConfig?.Port})...");
+                        }
+                        else
+                        {
+                            LogEvent("[WARN]", $"⚠️ Mất kết nối / Handshake SRT chưa thành công. Tự động kết nối lại lần #{_reconnectAttempt}...");
+                        }
+
+                        // Thu hồi phiên SRT cũ trước khi tạo phiên mới
+                        await CleanupSrtSessionOnlyAsync();
+
+                        if (_activeSrtConfig != null)
+                        {
+                            var newSession = new SRTStreamSession(_activeSrtConfig);
+                            newSession.LogEmitted += (tag, msg) => LogEvent(tag, msg);
+                            newSession.ErrorOccurred += err => LogEvent("[ERROR]", err);
+                            newSession.StatisticsUpdated += stats =>
+                            {
+                                _currentRttMs = stats.RttMs;
+                                _currentPacketLoss = stats.PacketLossPercent;
+                                _currentBitrateKbps = stats.CurrentBitrateKbps > 0 ? stats.CurrentBitrateKbps : (_activeSrtConfig?.BitrateKbps ?? 6000);
+                                _currentFps = stats.CurrentFps;
+                                _totalBytesTransferred = stats.TotalBytesTransferred;
+                            };
+
+                            bool started = await newSession.StartTransmissionAsync();
+                            if (started && newSession.Statistics.IsConnected)
+                            {
+                                _srtStream = newSession;
+                                _isStreaming = true;
+                                _reconnectAttempt = 0;
+                                _streamStartTime = DateTime.UtcNow;
+
+                                await Dispatcher.InvokeAsync(() =>
+                                {
+                                    LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(76, 175, 80)); // Green
+                                    TxtSrtStatus.Text = "SRT: TRANSMITTING (LIVE)";
+                                    TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(76, 175, 80));
+                                    UpdateTargetSummary();
+                                    EnsureStreamingWorkerRunning(token);
+                                });
+
+                                LogEvent("[SRT]", $"✅ [INFO] SRT Connected thành công. Bắt đầu truyền dẫn luồng LIVE.");
+                            }
+                            else
+                            {
+                                try { await newSession.StopAsync(); } catch { }
+                                newSession.Dispose();
+                            }
+                        }
+
+                        if (!token.IsCancellationRequested && _isTransmissionActive)
+                        {
+                            // Delay 1.5 giây giữa các lần thử lại
+                            await Task.Delay(1500, token);
+                        }
+                    }
+                    else
+                    {
+                        // Đang kết nối ổn định: Kiểm tra nếu streaming worker FFmpeg chưa chạy thì kích hoạt
+                        if (_streamProcess == null || _streamProcess.HasExited)
+                        {
+                            await Dispatcher.InvokeAsync(() => EnsureStreamingWorkerRunning(token));
+                        }
+
+                        await Task.Delay(1000, token);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    LogEvent("[WARN]", $"Giám sát truyền dẫn SRT: {ex.Message}");
+                    if (!token.IsCancellationRequested && _isTransmissionActive)
+                    {
+                        await Task.Delay(1500, token);
+                    }
+                }
+            }
+        }
+
+        private async Task CleanupSrtSessionOnlyAsync()
+        {
+            if (_srtStream != null)
+            {
+                try
+                {
+                    await _srtStream.StopAsync();
+                }
+                catch { }
+                _srtStream.Dispose();
+                _srtStream = null;
+            }
+        }
+
+        private void EnsureStreamingWorkerRunning(CancellationToken token)
+        {
+            if (_streamProcess != null && !_streamProcess.HasExited)
+            {
+                return;
+            }
+
+            _transmissionCts?.Cancel();
+            _transmissionCts?.Dispose();
+            _transmissionCts = new CancellationTokenSource();
+
+            InputSourceType currentSource = _sourceManager.CurrentSource;
+            string currentFilePath = !string.IsNullOrWhiteSpace(_sourceManager.CurrentSourcePath) ? _sourceManager.CurrentSourcePath : TxtFilePath?.Text?.Trim() ?? "";
+
+            if (currentSource == InputSourceType.File && !string.IsNullOrWhiteSpace(currentFilePath) && File.Exists(currentFilePath))
+            {
+                StartFileStreamingProcess(_transmissionCts.Token, currentFilePath);
+            }
+            else
+            {
+                StartMasterProgramStreamingProcess(_transmissionCts.Token);
+            }
+        }
+
+        private void StartFileStreamingProcess(CancellationToken token, string currentFilePath)
+        {
+            bool isPassthrough = RbPassthrough?.IsChecked == true;
+            string codecStr = (CmbVideoCodec?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "H.264 / AVC";
+            string hwEncoder = CmbHardwareEncoder?.SelectedItem?.ToString() ?? "NVIDIA NVENC";
+            bool isUll = ChkUltraLowLatency?.IsChecked == true;
+            int bitrateKbps = (int)(SldTargetBitrate?.Value ?? 6000);
+
+            VideoCodecType codecType = VideoCodecType.H264_AVC;
+            if (codecStr.Contains("H.265") || codecStr.Contains("HEVC")) codecType = VideoCodecType.H265_HEVC;
+            else if (codecStr.Contains("AV1")) codecType = VideoCodecType.AV1;
+
+            string normalizedCodec = codecType switch
+            {
+                VideoCodecType.H265_HEVC => "H.265 / HEVC",
+                VideoCodecType.AV1 => "AV1",
+                _ => "H.264 / AVC"
+            };
+
+            double currentSec = _sourceManager.CurrentPosition.TotalSeconds;
+            string seekArg = currentSec > 0.05 ? $"-ss {currentSec:F3} " : "";
+
+            string ffmpegArgs;
+            if (isPassthrough)
+            {
+                ffmpegArgs = $"-hide_banner -loglevel error {seekArg}-re -stream_loop -1 -i \"{currentFilePath}\" -c:v copy -c:a aac -b:a 192k -ar 48000 -ac 2 -f mpegts -mpegts_flags resend_headers -pcr_period 20 pipe:1";
+                LogEvent("[PIPELINE]", $"🎬 Nạp nguồn Video File (Direct Bitstream Passthrough @ {TimeSpan.FromSeconds(currentSec):hh\\:mm\\:ss\\.fff}) vào SRT Engine: {Path.GetFileName(currentFilePath)}");
+            }
+            else
+            {
+                string vcodecArg;
+                if (codecType == VideoCodecType.H265_HEVC)
+                {
+                    if (hwEncoder.Contains("NVENC", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v hevc_nvenc";
+                    else if (hwEncoder.Contains("QSV", StringComparison.OrdinalIgnoreCase) || hwEncoder.Contains("QuickSync", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v hevc_qsv";
+                    else if (hwEncoder.Contains("AMF", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v hevc_amf";
+                    else vcodecArg = "-c:v libx265 -preset veryfast";
+                }
+                else if (codecType == VideoCodecType.AV1)
+                {
+                    if (hwEncoder.Contains("NVENC", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v av1_nvenc";
+                    else vcodecArg = "-c:v libsvtav1 -preset 8";
+                }
+                else
+                {
+                    if (hwEncoder.Contains("NVENC", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v h264_nvenc";
+                    else if (hwEncoder.Contains("QSV", StringComparison.OrdinalIgnoreCase) || hwEncoder.Contains("QuickSync", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v h264_qsv";
+                    else if (hwEncoder.Contains("AMF", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v h264_amf";
+                    else vcodecArg = "-c:v libx264 -preset veryfast";
+                }
+
+                string lowLatencyArg = isUll ? "-tune zerolatency -bf 0 -g 30" : "-g 60";
+                ffmpegArgs = $"-hide_banner -loglevel error {seekArg}-re -stream_loop -1 -i \"{currentFilePath}\" {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} -c:a aac -b:a 192k -ar 48000 -ac 2 -f mpegts -mpegts_flags resend_headers -pcr_period 20 pipe:1";
+                LogEvent("[PIPELINE]", $"🎬 Nạp nguồn Video File (Encoder Pipeline @ {TimeSpan.FromSeconds(currentSec):hh\\:mm\\:ss\\.fff}) vào SRT Engine: {Path.GetFileName(currentFilePath)} ({normalizedCodec} via {hwEncoder})");
+            }
+
+            LogEvent("[SRT]", $"Khởi động Streaming Worker với tệp: {Path.GetFileName(currentFilePath)} tại vị trí {TimeSpan.FromSeconds(currentSec):hh\\:mm\\:ss\\.fff}");
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = "ffmpeg",
+                Arguments = ffmpegArgs,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            _streamProcess = Process.Start(psi);
+            if (_streamProcess == null)
+            {
+                LogEvent("[ERROR]", "Không thể khởi chạy tiến trình phát luồng FFmpeg.");
+                return;
+            }
+
+            var process = _streamProcess;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var stdout = process.StandardOutput.BaseStream;
+                    byte[] buffer = new byte[7 * 188]; // 1316 bytes (7 TS packets)
+
+                    while (!token.IsCancellationRequested && _isTransmissionActive && !process.HasExited)
+                    {
+                        int totalRead = 0;
+                        while (totalRead < buffer.Length)
+                        {
+                            int read = await stdout.ReadAsync(buffer.AsMemory(totalRead, buffer.Length - totalRead), token);
+                            if (read <= 0) break;
+                            totalRead += read;
+                        }
+
+                        if (totalRead > 0)
+                        {
+                            if (_srtStream != null && _srtStream.IsRunning && _srtStream.Statistics.IsConnected)
+                            {
+                                if (totalRead == buffer.Length)
+                                {
+                                    _srtStream.SendData(buffer);
+                                }
+                                else
+                                {
+                                    byte[] partial = new byte[totalRead];
+                                    Buffer.BlockCopy(buffer, 0, partial, 0, totalRead);
+                                    _srtStream.SendData(partial);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            await Task.Delay(5, token);
+                        }
+                    }
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    LogEvent("[WARN]", $"Luồng phát tệp video: {ex.Message}");
+                }
+            }, token);
+        }
+
+        private void StartMasterProgramStreamingProcess(CancellationToken token = default)
+        {
+            if (token == default)
+            {
+                _transmissionCts?.Cancel();
+                _transmissionCts?.Dispose();
+                _transmissionCts = new CancellationTokenSource();
+                token = _transmissionCts.Token;
+            }
+
             RefreshMasterProgramFrameBuffer();
 
             string codecStr = (CmbVideoCodec?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "H.264 / AVC";
@@ -1765,11 +1910,10 @@ namespace SRT_ENCODE
             _streamProcess = Process.Start(psi);
             if (_streamProcess == null)
             {
-                throw new InvalidOperationException("Không thể khởi chạy tiến trình phát luồng FFmpeg cho Master PGM Output.");
+                LogEvent("[ERROR]", "Không thể khởi chạy tiến trình phát luồng FFmpeg cho Master PGM Output.");
+                return;
             }
 
-            _transmissionCts = new CancellationTokenSource();
-            var token = _transmissionCts.Token;
             var process = _streamProcess;
 
             // Task 1: Bơm khung hình 1920x1080 BGRA từ Master Program Bus vào stdin của FFmpeg ở nhịp 30 FPS
@@ -1781,7 +1925,7 @@ namespace SRT_ENCODE
                     var stopwatch = Stopwatch.StartNew();
                     long frameCount = 0;
 
-                    while (!token.IsCancellationRequested && _isStreaming && !process.HasExited)
+                    while (!token.IsCancellationRequested && _isTransmissionActive && !process.HasExited)
                     {
                         byte[]? frameData;
                         lock (_programFrameLock)
@@ -1820,7 +1964,7 @@ namespace SRT_ENCODE
                     using var stdout = process.StandardOutput.BaseStream;
                     byte[] buffer = new byte[7 * 188]; // 1316 bytes (7 TS packets)
 
-                    while (!token.IsCancellationRequested && _isStreaming && _srtStream != null && !process.HasExited)
+                    while (!token.IsCancellationRequested && _isTransmissionActive && !process.HasExited)
                     {
                         int totalRead = 0;
                         while (totalRead < buffer.Length)
@@ -1832,7 +1976,7 @@ namespace SRT_ENCODE
 
                         if (totalRead > 0)
                         {
-                            if (_srtStream.IsRunning)
+                            if (_srtStream != null && _srtStream.IsRunning && _srtStream.Statistics.IsConnected)
                             {
                                 if (totalRead == buffer.Length)
                                 {
@@ -1862,14 +2006,22 @@ namespace SRT_ENCODE
 
         private void BtnStopStreaming_Click(object sender, RoutedEventArgs e)
         {
+            _isTransmissionActive = false;
+            _reconnectCts?.Cancel();
             StopTransmissionInternal();
-            LogEvent("[SRT]", "Đã dừng luồng phát sóng SRT.");
+            LogEvent("[SRT]", "Đã dừng luồng phát sóng SRT theo yêu cầu người dùng.");
         }
 
         private void StopTransmissionInternal()
         {
+            _isTransmissionActive = false;
             _isStreaming = false;
             _currentMuxer = null;
+
+            _reconnectCts?.Cancel();
+            _reconnectCts?.Dispose();
+            _reconnectCts = null;
+
             _transmissionCts?.Cancel();
             _transmissionCts?.Dispose();
             _transmissionCts = null;
@@ -1899,6 +2051,7 @@ namespace SRT_ENCODE
                 _srtStream = null;
             }
 
+            _reconnectAttempt = 0;
             BtnStartStreaming.IsEnabled = true;
             BtnStopStreaming.IsEnabled = false;
 
@@ -1906,6 +2059,7 @@ namespace SRT_ENCODE
             TxtSrtStatus.Text = "SRT: Idle";
             TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(204, 204, 204));
         }
+
 
         private void UpdateTargetSummary()
         {

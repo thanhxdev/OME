@@ -70,11 +70,7 @@ core::Result<std::shared_ptr<core::MediaFrame>> FileSource::PullVideoFrame() {
         av_frame_unref(m_impl->decodedVideoFrame);
         auto result = m_impl->reader.ReadVideoFrame(m_impl->decodedVideoFrame);
         if (!result) {
-            if (result.error().code == core::ErrorCode::EndOfStream && m_impl->loopMode) {
-                m_impl->reader.Seek(0.0);
-                result = m_impl->reader.ReadVideoFrame(m_impl->decodedVideoFrame);
-                if (!result) return std::unexpected(result.error());
-            } else return std::unexpected(result.error());
+            return std::unexpected(result.error());
         }
     }
 
@@ -112,9 +108,7 @@ core::Result<std::shared_ptr<core::MediaFrame>> FileSource::PullAudioFrame() {
         av_frame_unref(m_impl->decodedAudioFrame);
         auto result = m_impl->reader.ReadAudioFrame(m_impl->decodedAudioFrame);
         if (!result) {
-            if (result.error().code == core::ErrorCode::EndOfStream && m_impl->loopMode) {
-                return std::unexpected(result.error());
-            } else return std::unexpected(result.error());
+            return std::unexpected(result.error());
         }
     }
 

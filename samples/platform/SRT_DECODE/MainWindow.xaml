@@ -468,7 +468,7 @@
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                     <TextBlock x:Name="TxtResFpsCam1" Text="1080p59.94" FontSize="10" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <CheckBox x:Name="ChkVuCam1" Content="VU" IsChecked="False" Click="ChkVuCam_Click" Tag="0" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
+                                                    <CheckBox x:Name="ChkVuCam1" Content="VU" IsChecked="True" Click="ChkVuCam_Click" Tag="0" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
                                                     <CheckBox x:Name="ChkMuteCam1" Content="MUTE" IsChecked="True" Click="ChkMuteCam_Click" Tag="0" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
                                                     <Button x:Name="BtnSoloCam1" Content="SOLO" Click="BtnSoloCam_Click" Tag="1" FontSize="9" Padding="4,1" Background="#2C2C33" Foreground="#FFFFFF" Cursor="Hand"/>
                                                 </StackPanel>
@@ -491,7 +491,7 @@
                                                 </StackPanel>
                                             </Border>
                                             <!-- Top-Right Audio VU Meter Overlay (Revealed when UNMUTED) -->
-                                            <Border x:Name="OverlayAudioVuCam1" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
+                                            <Border x:Name="OverlayAudioVuCam1" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Visible">
                                                 <StackPanel Orientation="Vertical">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
                                                         <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC"/>
@@ -533,7 +533,7 @@
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                     <TextBlock x:Name="TxtResFpsCam2" Text="1080p59.94" FontSize="10" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <CheckBox x:Name="ChkVuCam2" Content="VU" IsChecked="False" Click="ChkVuCam_Click" Tag="1" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
+                                                    <CheckBox x:Name="ChkVuCam2" Content="VU" IsChecked="True" Click="ChkVuCam_Click" Tag="1" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
                                                     <CheckBox x:Name="ChkMuteCam2" Content="MUTE" IsChecked="True" Click="ChkMuteCam_Click" Tag="1" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
                                                     <Button x:Name="BtnSoloCam2" Content="SOLO" Click="BtnSoloCam_Click" Tag="2" FontSize="9" Padding="4,1" Background="#2C2C33" Foreground="#FFFFFF" Cursor="Hand"/>
                                                 </StackPanel>
@@ -556,7 +556,7 @@
                                                 </StackPanel>
                                             </Border>
                                             <!-- Top-Right Audio VU Meter Overlay (Revealed when UNMUTED) -->
-                                            <Border x:Name="OverlayAudioVuCam2" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
+                                            <Border x:Name="OverlayAudioVuCam2" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Visible">
                                                 <StackPanel Orientation="Vertical">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
                                                         <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC"/>
@@ -598,7 +598,7 @@
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                     <TextBlock x:Name="TxtResFpsCam3" Text="1080p59.94" FontSize="10" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <CheckBox x:Name="ChkVuCam3" Content="VU" IsChecked="False" Click="ChkVuCam_Click" Tag="2" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
+                                                    <CheckBox x:Name="ChkVuCam3" Content="VU" IsChecked="True" Click="ChkVuCam_Click" Tag="2" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
                                                     <CheckBox x:Name="ChkMuteCam3" Content="MUTE" IsChecked="True" Click="ChkMuteCam_Click" Tag="2" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
                                                     <Button x:Name="BtnSoloCam3" Content="SOLO" Click="BtnSoloCam_Click" Tag="3" FontSize="9" Padding="4,1" Background="#2C2C33" Foreground="#FFFFFF" Cursor="Hand"/>
                                                 </StackPanel>
@@ -621,7 +621,7 @@
                                                 </StackPanel>
                                             </Border>
                                             <!-- Top-Right Audio VU Meter Overlay (Revealed when UNMUTED) -->
-                                            <Border x:Name="OverlayAudioVuCam3" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
+                                            <Border x:Name="OverlayAudioVuCam3" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Visible">
                                                 <StackPanel Orientation="Vertical">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
                                                         <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC"/>
@@ -663,7 +663,7 @@
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                     <TextBlock x:Name="TxtResFpsCam4" Text="1080p59.94" FontSize="10" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <CheckBox x:Name="ChkVuCam4" Content="VU" IsChecked="False" Click="ChkVuCam_Click" Tag="3" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
+                                                    <CheckBox x:Name="ChkVuCam4" Content="VU" IsChecked="True" Click="ChkVuCam_Click" Tag="3" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
                                                     <CheckBox x:Name="ChkMuteCam4" Content="MUTE" IsChecked="True" Click="ChkMuteCam_Click" Tag="3" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
                                                     <Button x:Name="BtnSoloCam4" Content="SOLO" Click="BtnSoloCam_Click" Tag="4" FontSize="9" Padding="4,1" Background="#2C2C33" Foreground="#FFFFFF" Cursor="Hand"/>
                                                 </StackPanel>
@@ -686,7 +686,7 @@
                                                 </StackPanel>
                                             </Border>
                                             <!-- Top-Right Audio VU Meter Overlay (Revealed when UNMUTED) -->
-                                            <Border x:Name="OverlayAudioVuCam4" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
+                                            <Border x:Name="OverlayAudioVuCam4" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Visible">
                                                 <StackPanel Orientation="Vertical">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
                                                         <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC"/>
@@ -728,7 +728,7 @@
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                     <TextBlock x:Name="TxtResFpsCam5" Text="1080p59.94" FontSize="10" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <CheckBox x:Name="ChkVuCam5" Content="VU" IsChecked="False" Click="ChkVuCam_Click" Tag="4" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
+                                                    <CheckBox x:Name="ChkVuCam5" Content="VU" IsChecked="True" Click="ChkVuCam_Click" Tag="4" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
                                                     <CheckBox x:Name="ChkMuteCam5" Content="MUTE" IsChecked="True" Click="ChkMuteCam_Click" Tag="4" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
                                                     <Button x:Name="BtnSoloCam5" Content="SOLO" Click="BtnSoloCam_Click" Tag="5" FontSize="9" Padding="4,1" Background="#2C2C33" Foreground="#FFFFFF" Cursor="Hand"/>
                                                 </StackPanel>
@@ -751,7 +751,7 @@
                                                 </StackPanel>
                                             </Border>
                                             <!-- Top-Right Audio VU Meter Overlay (Revealed when UNMUTED) -->
-                                            <Border x:Name="OverlayAudioVuCam5" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
+                                            <Border x:Name="OverlayAudioVuCam5" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Visible">
                                                 <StackPanel Orientation="Vertical">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
                                                         <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC"/>
@@ -793,7 +793,7 @@
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                     <TextBlock x:Name="TxtResFpsCam6" Text="1080p59.94" FontSize="10" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <CheckBox x:Name="ChkVuCam6" Content="VU" IsChecked="False" Click="ChkVuCam_Click" Tag="5" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
+                                                    <CheckBox x:Name="ChkVuCam6" Content="VU" IsChecked="True" Click="ChkVuCam_Click" Tag="5" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
                                                     <CheckBox x:Name="ChkMuteCam6" Content="MUTE" IsChecked="True" Click="ChkMuteCam_Click" Tag="5" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
                                                     <Button x:Name="BtnSoloCam6" Content="SOLO" Click="BtnSoloCam_Click" Tag="6" FontSize="9" Padding="4,1" Background="#2C2C33" Foreground="#FFFFFF" Cursor="Hand"/>
                                                 </StackPanel>
@@ -816,7 +816,7 @@
                                                 </StackPanel>
                                             </Border>
                                             <!-- Top-Right Audio VU Meter Overlay (Revealed when UNMUTED) -->
-                                            <Border x:Name="OverlayAudioVuCam6" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
+                                            <Border x:Name="OverlayAudioVuCam6" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Visible">
                                                 <StackPanel Orientation="Vertical">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
                                                         <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC"/>
@@ -858,7 +858,7 @@
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                     <TextBlock x:Name="TxtResFpsCam7" Text="1080p59.94" FontSize="10" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <CheckBox x:Name="ChkVuCam7" Content="VU" IsChecked="False" Click="ChkVuCam_Click" Tag="6" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
+                                                    <CheckBox x:Name="ChkVuCam7" Content="VU" IsChecked="True" Click="ChkVuCam_Click" Tag="6" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
                                                     <CheckBox x:Name="ChkMuteCam7" Content="MUTE" IsChecked="True" Click="ChkMuteCam_Click" Tag="6" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
                                                     <Button x:Name="BtnSoloCam7" Content="SOLO" Click="BtnSoloCam_Click" Tag="7" FontSize="9" Padding="4,1" Background="#2C2C33" Foreground="#FFFFFF" Cursor="Hand"/>
                                                 </StackPanel>
@@ -881,7 +881,7 @@
                                                 </StackPanel>
                                             </Border>
                                             <!-- Top-Right Audio VU Meter Overlay (Revealed when UNMUTED) -->
-                                            <Border x:Name="OverlayAudioVuCam7" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
+                                            <Border x:Name="OverlayAudioVuCam7" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Visible">
                                                 <StackPanel Orientation="Vertical">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
                                                         <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC"/>
@@ -923,7 +923,7 @@
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                     <TextBlock x:Name="TxtResFpsCam8" Text="1080p59.94" FontSize="10" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <CheckBox x:Name="ChkVuCam8" Content="VU" IsChecked="False" Click="ChkVuCam_Click" Tag="7" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
+                                                    <CheckBox x:Name="ChkVuCam8" Content="VU" IsChecked="True" Click="ChkVuCam_Click" Tag="7" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
                                                     <CheckBox x:Name="ChkMuteCam8" Content="MUTE" IsChecked="True" Click="ChkMuteCam_Click" Tag="7" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
                                                     <Button x:Name="BtnSoloCam8" Content="SOLO" Click="BtnSoloCam_Click" Tag="8" FontSize="9" Padding="4,1" Background="#2C2C33" Foreground="#FFFFFF" Cursor="Hand"/>
                                                 </StackPanel>
@@ -946,7 +946,7 @@
                                                 </StackPanel>
                                             </Border>
                                             <!-- Top-Right Audio VU Meter Overlay (Revealed when UNMUTED) -->
-                                            <Border x:Name="OverlayAudioVuCam8" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
+                                            <Border x:Name="OverlayAudioVuCam8" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Visible">
                                                 <StackPanel Orientation="Vertical">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
                                                         <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC"/>
@@ -988,7 +988,7 @@
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                     <TextBlock x:Name="TxtResFpsCam9" Text="1080p59.94" FontSize="10" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <CheckBox x:Name="ChkVuCam9" Content="VU" IsChecked="False" Click="ChkVuCam_Click" Tag="8" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
+                                                    <CheckBox x:Name="ChkVuCam9" Content="VU" IsChecked="True" Click="ChkVuCam_Click" Tag="8" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
                                                     <CheckBox x:Name="ChkMuteCam9" Content="MUTE" IsChecked="True" Click="ChkMuteCam_Click" Tag="8" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
                                                     <Button x:Name="BtnSoloCam9" Content="SOLO" Click="BtnSoloCam_Click" Tag="9" FontSize="9" Padding="4,1" Background="#2C2C33" Foreground="#FFFFFF" Cursor="Hand"/>
                                                 </StackPanel>
@@ -1011,7 +1011,7 @@
                                                 </StackPanel>
                                             </Border>
                                             <!-- Top-Right Audio VU Meter Overlay (Revealed when UNMUTED) -->
-                                            <Border x:Name="OverlayAudioVuCam9" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
+                                            <Border x:Name="OverlayAudioVuCam9" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Visible">
                                                 <StackPanel Orientation="Vertical">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
                                                         <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC"/>
@@ -1053,7 +1053,7 @@
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                     <TextBlock x:Name="TxtResFpsCam10" Text="1080p59.94" FontSize="10" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <CheckBox x:Name="ChkVuCam10" Content="VU" IsChecked="False" Click="ChkVuCam_Click" Tag="9" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
+                                                    <CheckBox x:Name="ChkVuCam10" Content="VU" IsChecked="True" Click="ChkVuCam_Click" Tag="9" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
                                                     <CheckBox x:Name="ChkMuteCam10" Content="MUTE" IsChecked="True" Click="ChkMuteCam_Click" Tag="9" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
                                                     <Button x:Name="BtnSoloCam10" Content="SOLO" Click="BtnSoloCam_Click" Tag="10" FontSize="9" Padding="4,1" Background="#2C2C33" Foreground="#FFFFFF" Cursor="Hand"/>
                                                 </StackPanel>
@@ -1076,7 +1076,7 @@
                                                 </StackPanel>
                                             </Border>
                                             <!-- Top-Right Audio VU Meter Overlay (Revealed when UNMUTED) -->
-                                            <Border x:Name="OverlayAudioVuCam10" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
+                                            <Border x:Name="OverlayAudioVuCam10" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Visible">
                                                 <StackPanel Orientation="Vertical">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
                                                         <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC"/>

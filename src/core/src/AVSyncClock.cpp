@@ -15,7 +15,8 @@ void AVSyncClock::UpdateAudioClock(double audioPositionSec) {
 
 AVSyncClock::VideoAction AVSyncClock::EvaluateVideoFrame(const MediaFrame& frame, double effectiveOffsetSec) const {
     double rawVideoPts = PtsToSeconds(frame);
-    if (m_firstVideoPts < 0.0) {
+    if (m_firstVideoPts < 0.0 || (m_firstVideoPts >= 0.0 && rawVideoPts < m_firstVideoPts - 0.5)) {
+        const_cast<AVSyncClock*>(this)->Reset();
         m_firstVideoPts = rawVideoPts;
     }
     double videoPts = rawVideoPts - m_firstVideoPts + effectiveOffsetSec;

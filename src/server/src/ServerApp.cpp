@@ -419,7 +419,12 @@ void ServerApp::RegisterBuiltinHandlers() {
             }
 
             // PoC: start render thread
-            if (!m_impl->pipelineRunning.exchange(true) && m_impl->source) {
+            m_impl->pipelineRunning.store(false);
+            if (m_impl->renderThread.joinable()) {
+                m_impl->renderThread.join();
+            }
+            if (m_impl->source) {
+                m_impl->pipelineRunning.store(true);
                 m_impl->renderThread = std::thread([this, graph]() {
                     m_impl->source->Start();
                     m_impl->source->Seek(0.0);
@@ -433,6 +438,16 @@ void ServerApp::RegisterBuiltinHandlers() {
                     m_impl->audioPlayer->SetVolume(m_impl->audioVolume);
                     if (!m_impl->audioPlayer->Initialize(audioSampleRate, audioChannels)) {
                         core::Logger::SError("ServerApp", "Failed to initialize AudioPlayer on the server");
+                    }
+
+                    bool hasVideo = false;
+                    if (m_impl->source) {
+                        for (const auto& s : m_impl->source->GetStreams()) {
+                            if (s.type == core::MediaType::Video) {
+                                hasVideo = true;
+                                break;
+                            }
+                        }
                     }
 
                     core::AVSyncClock syncClock;
@@ -453,6 +468,7 @@ void ServerApp::RegisterBuiltinHandlers() {
                                 m_impl->audioPlayer->SetVolume(m_impl->audioVolume);
                             }
                             syncClock.Reset();
+                            m_impl->currentPlaybackPositionSec.store(targetSec);
 
                             if (m_impl->pipelinePaused.load() && m_impl->source) {
                                 auto frameRes = m_impl->source->PullVideoFrame();
@@ -468,6 +484,21 @@ void ServerApp::RegisterBuiltinHandlers() {
                                 }
                             }
                         }
+
+                        auto restartLoop = [&]() {
+                            if (m_impl->source) {
+                                m_impl->source->Seek(0.0);
+                            }
+                            pendingVideoFrame = nullptr;
+                            if (m_impl->audioPlayer) {
+                                m_impl->audioPlayer->Stop();
+                                m_impl->audioPlayer->Initialize(audioSampleRate, audioChannels);
+                                m_impl->audioPlayer->SetMuted(m_impl->audioMuted);
+                                m_impl->audioPlayer->SetVolume(m_impl->audioVolume);
+                            }
+                            syncClock.Reset();
+                            m_impl->currentPlaybackPositionSec.store(0.0);
+                        };
 
                         if (m_impl->pipelinePaused.load()) {
                             std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -487,12 +518,9 @@ void ServerApp::RegisterBuiltinHandlers() {
                                 }
                             } else if (audioResult.error().code == core::ErrorCode::EndOfStream) {
                                 if (m_impl->source->GetLoopMode()) {
-                                    m_impl->source->Seek(0.0);
-                                    if (m_impl->audioPlayer) {
-                                        m_impl->audioPlayer->Stop();
-                                        m_impl->audioPlayer->Initialize(audioSampleRate, audioChannels);
+                                    if (!hasVideo) {
+                                        restartLoop();
                                     }
-                                    syncClock.Reset();
                                 } else {
                                     // Do not break immediately, video might still have frames
                                 }
@@ -509,15 +537,17 @@ void ServerApp::RegisterBuiltinHandlers() {
                             auto frameRes = m_impl->source->PullVideoFrame();
                             if (frameRes && *frameRes) {
                                 pendingVideoFrame = *frameRes;
-                            } else if (m_impl->source->GetLoopMode()) {
-                                // Loop mode handled primarily in audio branch, but just in case
-                                m_impl->source->Seek(0.0);
-                                auto retryRes = m_impl->source->PullVideoFrame();
-                                if (retryRes && *retryRes) {
-                                    pendingVideoFrame = *retryRes;
-                                }
                             } else if (!frameRes && frameRes.error().code == core::ErrorCode::EndOfStream) {
-                                break;
+                                if (m_impl->source->GetLoopMode()) {
+                                    core::Logger::SInfo("ServerApp", "Video reached EOF with loopMode enabled. Looping to start.");
+                                    restartLoop();
+                                    auto retryRes = m_impl->source->PullVideoFrame();
+                                    if (retryRes && *retryRes) {
+                                        pendingVideoFrame = *retryRes;
+                                    }
+                                } else {
+                                    break;
+                                }
                             }
                         }
 
@@ -649,10 +679,9 @@ void ServerApp::RegisterBuiltinHandlers() {
             m_impl->pipelinePaused.store(false);
 
             // PoC: stop render thread cleanly
-            if (m_impl->pipelineRunning.exchange(false)) {
-                if (m_impl->renderThread.joinable()) {
-                    m_impl->renderThread.join();
-                }
+            m_impl->pipelineRunning.store(false);
+            if (m_impl->renderThread.joinable()) {
+                m_impl->renderThread.join();
             }
 
             if (m_impl->source) {
@@ -689,10 +718,9 @@ void ServerApp::RegisterBuiltinHandlers() {
 
             std::ignore = graph->Stop();
 
-            if (m_impl->pipelineRunning.exchange(false)) {
-                if (m_impl->renderThread.joinable()) {
-                    m_impl->renderThread.join();
-                }
+            m_impl->pipelineRunning.store(false);
+            if (m_impl->renderThread.joinable()) {
+                m_impl->renderThread.join();
             }
 
             if (m_impl->source) {
@@ -817,6 +845,11 @@ void ServerApp::RegisterBuiltinHandlers() {
             if (configIt != m_impl->pipelineConfigs.end()) {
                 targetWidth = configIt->second.width;
                 targetHeight = configIt->second.height;
+            }
+
+            m_impl->pipelineRunning.store(false);
+            if (m_impl->renderThread.joinable()) {
+                m_impl->renderThread.join();
             }
 
             if (m_impl->source) {

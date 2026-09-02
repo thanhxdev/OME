@@ -214,12 +214,16 @@ namespace SRT_DECODE
                 _audioManager.ChannelPanChanged += (ch, pan) => Dispatcher.InvokeAsync(() => OnChannelPanChanged(ch, pan));
                 _audioManager.ChannelMuteChanged += (ch, muted) => Dispatcher.InvokeAsync(() => OnChannelMuteChanged(ch, muted));
 
-                // Set initial VU meter overlay visibility (all default to Collapsed until VU checkbox is toggled)
+                // Set initial VU meter overlay visibility (default to Enabled / Visible)
                 for (int i = 0; i < _overlayAudioVuCams.Length; i++)
                 {
                     if (_overlayAudioVuCams[i] != null)
                     {
-                        _overlayAudioVuCams[i].Visibility = Visibility.Collapsed;
+                        _overlayAudioVuCams[i].Visibility = Visibility.Visible;
+                    }
+                    if (i < _chkVuCams.Length && _chkVuCams[i] != null)
+                    {
+                        _chkVuCams[i].IsChecked = true;
                     }
                 }
 

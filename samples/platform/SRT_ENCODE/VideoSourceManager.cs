@@ -59,11 +59,28 @@ namespace SRT_ENCODE
         private InputSourceType _currentSource = InputSourceType.Colorbar;
         private string _currentSourcePath = string.Empty;
         private bool _isPreviewEnabled = true;
-        private bool _isAudioMonitorEnabled = true;
+        private bool _isAudioMonitorEnabled = false;
         private double _monitorVolume = 0.4;
+        private bool _isLoopPlayback = true;
         private Stretch _currentStretch = Stretch.Uniform;
         private readonly VideoSourceTelemetry _currentTelemetry = new();
         private SRTStreamSession? _srtStreamSource;
+
+        /// <summary>
+        /// Gets or sets whether video file playback should loop continuously.
+        /// </summary>
+        public bool IsLoopPlayback
+        {
+            get => _isLoopPlayback;
+            set
+            {
+                _isLoopPlayback = value;
+                if (_player != null)
+                {
+                    _player.IsLooping = value;
+                }
+            }
+        }
 
         public PlatformMediaPlayer? Player => _player;
         public TimeSpan CurrentPosition => _player?.Position ?? TimeSpan.Zero;
@@ -119,6 +136,7 @@ namespace SRT_ENCODE
                 }
 
                 _player = new PlatformMediaPlayer();
+                _player.IsLooping = _isLoopPlayback;
                 if (_reviewView != null)
                 {
                     _player.AttachPreview(_reviewView);
@@ -209,10 +227,12 @@ namespace SRT_ENCODE
 
                 if (_player != null)
                 {
+                    _player.IsLooping = _isLoopPlayback;
                     _player.Volume = _monitorVolume;
                     _player.IsMuted = !_isAudioMonitorEnabled;
 
                     await _player.OpenAsync(filePath);
+                    _player.IsLooping = _isLoopPlayback;
                     _player.Volume = _monitorVolume;
                     _player.IsMuted = !_isAudioMonitorEnabled;
                     await _player.PlayAsync();
