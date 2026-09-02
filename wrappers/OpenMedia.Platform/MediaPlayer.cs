@@ -505,6 +505,26 @@ namespace OpenMedia.Platform
             }
         }
 
+        /// <summary>
+        /// Retrieves the real-time audio VU levels (Peak, RMS, Clip) from the media engine backend.
+        /// </summary>
+        public async Task<NativeBridge.AudioChannelMeterData[]?> GetAudioLevelsAsync()
+        {
+            if (!_pipelineCreated || !OpenMediaRuntime.IsConnected) return null;
+
+            try
+            {
+                var payload = IPCCommandBuilder.GetAudioLevels(_pipelineId);
+                var response = await OpenMediaRuntime.SendCommandAsync(CommandType.GetAudioLevels, payload);
+                return IPCCommandBuilder.ParseAudioLevels(response);
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"[MediaPlayer] Failed to get audio levels: {ex.Message}");
+                return null;
+            }
+        }
+
         private void StartPositionTracking()
         {
             StopPositionTracking();

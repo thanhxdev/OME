@@ -39,9 +39,11 @@ namespace SRT_ENCODE
         private SoundPlayer? _soundPlayer;
         private MemoryStream? _audioWavStream;
         private bool _isAudioTonePlaying = false;
-        private bool _isAudioMonitorEnabled = false;
+        private bool _isAudioMonitorEnabled = true;
         private double _monitorVolume = 0.4;
         private readonly object _audioLock = new();
+
+        public bool IsAudioTonePlaying => _isAudioTonePlaying;
 
         public ColorbarPatternType CurrentPattern
         {

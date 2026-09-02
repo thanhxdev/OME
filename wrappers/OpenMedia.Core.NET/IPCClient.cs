@@ -26,7 +26,8 @@ namespace OpenMedia.SDK
         SetLayerProperties = 0x0303,
         ShareD3D11Texture = 0x0704,
         SetAVDelay = 0x0108,
-        SetVideoPTSOffset = 0x0109
+        SetVideoPTSOffset = 0x0109,
+        GetAudioLevels = 0x0110
     }
 
     // C++ struct MessageHeader

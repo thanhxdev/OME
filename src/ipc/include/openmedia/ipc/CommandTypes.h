@@ -32,6 +32,7 @@ enum class CommandType : uint32_t {
     GetPipelineState = 0x0106,
     GetPipelineInfo = 0x0107,
     SetAVDelay = 0x0108,
+    GetAudioLevels = 0x0110,
 
     // Source commands (0x0200-0x02FF)
     OpenSource = 0x0200,

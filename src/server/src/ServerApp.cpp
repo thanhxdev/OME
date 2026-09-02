@@ -10,6 +10,7 @@
 #include <openmedia/ipc/D3D11SharedTexturePoolPoC.h>
 #include <openmedia/core/MediaFrame.h>
 #include <openmedia/audio/AudioPlayer.h>
+#include <openmedia/audio/AudioMeter.h>
 #include <openmedia/core/AVSyncClock.h>
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -69,6 +70,7 @@ struct ServerApp::Impl {
     std::atomic<bool> seekRequested{false};
     std::atomic<double> seekTargetSec{0.0};
     std::shared_ptr<audio::AudioPlayer> audioPlayer;
+    OpenMedia::Audio::AudioMeter audioMeter;
     std::atomic<bool> audioMuted{false};
     std::atomic<float> audioVolume{1.0f};
     std::atomic<double> currentPlaybackPositionSec{0.0};
@@ -478,6 +480,7 @@ void ServerApp::RegisterBuiltinHandlers() {
                             auto audioResult = m_impl->source->PullAudioFrame();
                             if (audioResult && *audioResult) {
                                 auto audioFrame = *audioResult;
+                                m_impl->audioMeter.ProcessSamples(audioFrame.get());
                                 if (m_impl->audioPlayer) {
                                     m_impl->audioPlayer->SetMuted(m_impl->audioMuted);
                                     m_impl->audioPlayer->PlayFrame(audioFrame);
@@ -770,6 +773,28 @@ void ServerApp::RegisterBuiltinHandlers() {
             builder.WriteF64(5.0); // latency
             builder.WriteF64(1.5); // cpu usage
             
+            return builder.Finish();
+        });
+
+    // Pipeline: GetAudioLevels
+    dispatcher.Register(ipc::CommandType::GetAudioLevels,
+        [this](uint32_t, const std::vector<uint8_t>& payload)
+            -> core::Result<std::vector<uint8_t>> {
+            ipc::MessageReader reader(payload);
+            uint32_t id = reader.ReadU32();
+            (void)id;
+            
+            auto channelData = m_impl->audioMeter.GetChannelData();
+            ipc::MessageBuilder builder;
+            uint32_t channelCount = static_cast<uint32_t>(channelData.size());
+            builder.WriteU32(channelCount);
+            for (uint32_t i = 0; i < channelCount; ++i) {
+                builder.WriteF32(channelData[i].peak_db);
+                builder.WriteF32(channelData[i].rms_db);
+                builder.WriteF32(channelData[i].lufs);
+                builder.WriteBool(channelData[i].clipping);
+                builder.WriteF32(channelData[i].peak_db);
+            }
             return builder.Finish();
         });
 

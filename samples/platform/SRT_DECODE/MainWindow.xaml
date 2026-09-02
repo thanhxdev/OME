@@ -1077,8 +1077,20 @@
                             <Button x:Name="BtnDissolveTransition" Content="DISSOLVE (1.0s)" Click="BtnDissolveTransition_Click" Background="#25252A" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="10.5" Padding="8,5" Cursor="Hand"/>
                         </StackPanel>
 
-                        <!-- Audio Monitoring & Master VU Meter -->
+                        <!-- Audio Monitoring & Master Multi-Channel VU Meter -->
                         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <!-- Channel Configuration Selector (Stereo / 4CH / 5.1 / 7.1 / 16CH) -->
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                                <TextBlock Text="CH:" FontSize="10.5" Foreground="#8E8E93" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <ComboBox x:Name="CmbAudioChannels" Width="130" Height="26" SelectionChanged="CmbAudioChannels_SelectionChanged" ToolTip="Cấu hình kênh âm thanh giám sát (Stereo, 5.1, 7.1, 16CH SDI)">
+                                    <ComboBoxItem Content="Stereo (2CH)" IsSelected="True"/>
+                                    <ComboBoxItem Content="4-Channel (4CH)"/>
+                                    <ComboBoxItem Content="5.1 Surround (6CH)"/>
+                                    <ComboBoxItem Content="7.1 Surround (8CH)"/>
+                                    <ComboBoxItem Content="16-Ch SDI Embedded"/>
+                                </ComboBox>
+                            </StackPanel>
+
                             <!-- Solo Audio Label -->
                             <Border Background="#141418" BorderBrush="#2C2C34" BorderThickness="1" CornerRadius="3" Padding="6,3" Margin="0,0,8,0">
                                 <StackPanel Orientation="Horizontal">
@@ -1087,11 +1099,30 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- Master Program Stereo VU Bars -->
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
-                                <ProgressBar x:Name="VuMasterL" Width="4" Height="26" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,2,0"/>
-                                <ProgressBar x:Name="VuMasterR" Width="4" Height="26" Style="{StaticResource VuMeterBarStyle}"/>
-                            </StackPanel>
+                            <!-- Master Multi-Channel VU Bars (16 Channels) -->
+                            <Border Background="#111114" BorderBrush="#2A2A30" BorderThickness="1" CornerRadius="3" Padding="4,2" Margin="0,0,8,0">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,4,0">
+                                        <ProgressBar x:Name="VuMasterL" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0"/>
+                                        <ProgressBar x:Name="VuMasterR" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0"/>
+                                        <ProgressBar x:Name="VuMaster3" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                        <ProgressBar x:Name="VuMaster4" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                        <ProgressBar x:Name="VuMaster5" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                        <ProgressBar x:Name="VuMaster6" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                        <ProgressBar x:Name="VuMaster7" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                        <ProgressBar x:Name="VuMaster8" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                        <ProgressBar x:Name="VuMaster9" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                        <ProgressBar x:Name="VuMaster10" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                        <ProgressBar x:Name="VuMaster11" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                        <ProgressBar x:Name="VuMaster12" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                        <ProgressBar x:Name="VuMaster13" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                        <ProgressBar x:Name="VuMaster14" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                        <ProgressBar x:Name="VuMaster15" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                        <ProgressBar x:Name="VuMaster16" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Visibility="Collapsed"/>
+                                    </StackPanel>
+                                    <TextBlock x:Name="TxtMasterPeakDb" Text="-18.0 dB" FontFamily="Consolas" FontWeight="Bold" FontSize="10" Foreground="#22C55E" VerticalAlignment="Center" Margin="2,0,0,0"/>
+                                </StackPanel>
+                            </Border>
 
                             <!-- Mute All Button -->
                             <Button x:Name="BtnMuteAll" Content="MUTE ALL" Click="BtnMuteAll_Click" Background="#333338" Foreground="#E0E0E0" FontWeight="SemiBold" FontSize="10" Padding="8,5" Cursor="Hand"/>

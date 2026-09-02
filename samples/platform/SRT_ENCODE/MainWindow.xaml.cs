@@ -57,7 +57,11 @@ namespace SRT_ENCODE
         private ProgressBar[] _vuBars = Array.Empty<ProgressBar>();
         private StackPanel[] _vuCols = Array.Empty<StackPanel>();
         private TextBlock[] _vuLabels = Array.Empty<TextBlock>();
+        private System.Windows.Shapes.Ellipse[] _vuClipLeds = Array.Empty<System.Windows.Shapes.Ellipse>();
         private readonly double[] _channelLevels16 = new double[16];
+        private readonly double[] _channelRmsLevels16 = new double[16];
+        private readonly bool[] _channelClipping16 = new bool[16];
+        private readonly AudioMeterService _audioMeterService = new();
 
         public MainWindow()
         {
@@ -80,6 +84,7 @@ namespace SRT_ENCODE
                 _vuBars = new[] { VuBar1, VuBar2, VuBar3, VuBar4, VuBar5, VuBar6, VuBar7, VuBar8, VuBar9, VuBar10, VuBar11, VuBar12, VuBar13, VuBar14, VuBar15, VuBar16 };
                 _vuCols = new[] { ColVu1, ColVu2, ColVu3, ColVu4, ColVu5, ColVu6, ColVu7, ColVu8, ColVu9, ColVu10, ColVu11, ColVu12, ColVu13, ColVu14, ColVu15, ColVu16 };
                 _vuLabels = new[] { LblVu1, LblVu2, LblVu3, LblVu4, LblVu5, LblVu6, LblVu7, LblVu8, LblVu9, LblVu10, LblVu11, LblVu12, LblVu13, LblVu14, LblVu15, LblVu16 };
+                _vuClipLeds = new[] { ClipLed1, ClipLed2, ClipLed3, ClipLed4, ClipLed5, ClipLed6, ClipLed7, ClipLed8, ClipLed9, ClipLed10, ClipLed11, ClipLed12, ClipLed13, ClipLed14, ClipLed15, ClipLed16 };
 
                 // Flush any early pending logs (Newest on Top)
                 if (_pendingLogs.Count > 0 && TxtLogConsole != null)
@@ -188,6 +193,7 @@ namespace SRT_ENCODE
                 _vuMeterTimer?.Stop();
 
                 _sourceManager.Dispose();
+                _audioMeterService.Dispose();
 
                 _mixer?.Dispose();
                 _mixer = null;
@@ -316,95 +322,149 @@ namespace SRT_ENCODE
 
         private void UpdateAudioVuLevels()
         {
-            if (_vuBars.Length == 0) return;
+            int activeSourceIndex = CmbInputSource?.SelectedIndex ?? 3;
+            bool isColorbar = (activeSourceIndex == 3);
 
-            if (ChkEnableAudioMonitor?.IsChecked != true && !_isStreaming)
+            bool isSourcePlaying = isColorbar
+                ? _colorbarEngine.IsAudioTonePlaying
+                : (_sourceManager.Player != null && _sourceManager.Player.State == OpenMedia.Platform.PlaybackState.Playing);
+
+            int configuredChannels = _sourceManager.ActiveAudioChannels;
+            if (activeSourceIndex == 0)
             {
-                // Idle low levels: Disable / Dim all 16 channels
-                for (int i = 0; i < 16; i++)
-                {
-                    UpdateChannelVu16(i, -60.0);
-                }
-                if (TxtAudioPeakSummary != null)
-                {
-                    TxtAudioPeakSummary.Text = "Peak: MUTE";
-                }
-                return;
+                string sdiCh = (CmbSdiAudioCh?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Stereo (2 Ch)";
+                if (sdiCh.Contains("16 Channels") || sdiCh.Contains("16 Ch")) configuredChannels = 16;
+                else if (sdiCh.Contains("8 Channels") || sdiCh.Contains("8 Ch")) configuredChannels = 8;
+                else if (sdiCh.Contains("4 Channels") || sdiCh.Contains("4 Ch")) configuredChannels = 4;
+                else configuredChannels = 2;
             }
 
-            for (int i = 0; i < 16; i++)
+            if (isSourcePlaying)
+            {
+                // Tapping luồng PCM tương ứng của từng loại nguồn
+                switch ((InputSourceType)activeSourceIndex)
+                {
+                    case InputSourceType.Colorbar:
+                        _audioMeterService.TapColorbarTone(_colorbarEngine.CurrentTone, SldMonitorVolume?.Value ?? 1.0, configuredChannels);
+                        break;
+
+                    case InputSourceType.File:
+                    case InputSourceType.SDI:
+                    case InputSourceType.NDI:
+                    case InputSourceType.SRT:
+                        _ = _audioMeterService.TapPlayerAudioAsync(_sourceManager.Player, configuredChannels);
+                        break;
+                }
+            }
+
+            // Trích xuất mảng số liệu Peak, RMS và Clipping từ AudioMeterService
+            _audioMeterService.GetPreviewAudioLevels(_channelLevels16, _channelRmsLevels16, _channelClipping16, isSourcePlaying);
+
+            // Mute các kênh vượt quá số kênh hoạt động
+            for (int i = configuredChannels; i < 16; i++)
             {
                 _channelLevels16[i] = -60.0;
+                _channelRmsLevels16[i] = -60.0;
+                _channelClipping16[i] = false;
             }
 
-            if (CmbInputSource?.SelectedIndex == 3)
+            // Cập nhật nhãn tổng số kênh
+            if (TxtVuChannelCountBadge != null)
             {
-                // Retrieve exact test tone levels from ColorbarEngine
-                _colorbarEngine.GetAudioToneLevels16(_channelLevels16);
-            }
-            else
-            {
-                // Live audio modulation
-                double baseDb = -18.0;
-                _channelLevels16[0] = baseDb;
-                _channelLevels16[1] = baseDb;
-
-                string sdiCh = (CmbSdiAudioCh?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Stereo (2 Ch)";
-                int activeCount = 2;
-                if (sdiCh.Contains("4 Channels")) activeCount = 4;
-                else if (sdiCh.Contains("8 Channels")) activeCount = 8;
-                else if (sdiCh.Contains("16 Channels")) activeCount = 16;
-
-                for (int i = 2; i < activeCount; i++)
+                string tag = configuredChannels switch
                 {
-                    _channelLevels16[i] = baseDb - 6.0 - (i * 2.0);
-                }
+                    1 => "1-CH MONO",
+                    2 => "2-CH STEREO",
+                    4 => "4-CH SDI EMBEDDED",
+                    8 => "8-CH SDI EMBEDDED",
+                    16 => "16-CH SDI EMBEDDED",
+                    _ => $"{configuredChannels}-CH MULTI"
+                };
+                TxtVuChannelCountBadge.Text = tag;
             }
 
+            // Cập nhật 16 cột đo âm thanh
             for (int i = 0; i < 16; i++)
             {
-                UpdateChannelVu16(i, _channelLevels16[i]);
+                bool isChannelActive = (i < configuredChannels);
+                UpdateChannelVu16(i, _channelLevels16[i], _channelRmsLevels16[i], _channelClipping16[i], isChannelActive, configuredChannels);
             }
 
             if (TxtAudioPeakSummary != null)
             {
-                string lStr = _channelLevels16[0] > -50 ? $"{_channelLevels16[0]:F1} dB" : "OFF";
-                string rStr = _channelLevels16[1] > -50 ? $"{_channelLevels16[1]:F1} dB" : "OFF";
-                TxtAudioPeakSummary.Text = $"Peak: L {lStr} | R {rStr}";
+                if (isSourcePlaying && (_channelLevels16[0] > -55.0 || (configuredChannels > 1 && _channelLevels16[1] > -55.0)))
+                {
+                    string lStr = _channelLevels16[0] > -55.0 ? $"{_channelLevels16[0]:F1} dB" : "-∞";
+                    string rStr = (configuredChannels > 1 && _channelLevels16[1] > -55.0) ? $"{_channelLevels16[1]:F1} dB" : "-∞";
+                    TxtAudioPeakSummary.Text = (configuredChannels == 2) 
+                        ? $"Peak: L {lStr} | R {rStr}" 
+                        : $"Peak: CH1 {lStr} | CH2 {rStr}";
+                }
+                else
+                {
+                    TxtAudioPeakSummary.Text = isSourcePlaying ? "Peak: SILENT" : "Peak: OFF";
+                }
             }
         }
 
-        private void UpdateChannelVu16(int index, double dbValue)
+        private void UpdateChannelVu16(int index, double peakDb, double rmsDb, bool isClip, bool isChannelEnabled, int totalActiveChannels)
         {
             if (index < 0 || index >= _vuBars.Length || index >= _vuCols.Length || index >= _vuLabels.Length) return;
 
-            const double NoiseFloorCutoff = -50.0;
-            bool hasSignal = dbValue > NoiseFloorCutoff;
+            // Auto-scale layout: Thu gọn hoặc mở rộng số cột tương ứng
+            _vuCols[index].Visibility = isChannelEnabled ? Visibility.Visible : Visibility.Collapsed;
 
-            if (!hasSignal)
+            // Nhãn hiển thị kênh (L/R cho Stereo, 1..16 cho Multi-channel)
+            if (totalActiveChannels == 2)
             {
-                // Inactive / Disabled channel: dim and mute
-                _vuCols[index].Opacity = 0.2;
-                _vuBars[index].Value = -60.0;
-                _vuBars[index].Foreground = new SolidColorBrush(Color.FromRgb(40, 40, 40));
-                _vuLabels[index].Foreground = new SolidColorBrush(Color.FromRgb(80, 80, 80));
+                if (index == 0) _vuLabels[0].Text = "L";
+                else if (index == 1) _vuLabels[1].Text = "R";
             }
             else
             {
-                // Active channel with signal: bright & lively
+                _vuLabels[index].Text = (index + 1).ToString();
+            }
+
+            // Đèn LED báo Clip (0 dBFS)
+            if (index < _vuClipLeds.Length && _vuClipLeds[index] != null)
+            {
+                _vuClipLeds[index].Fill = isClip
+                    ? new SolidColorBrush(Color.FromRgb(244, 67, 54))  // Bright Red Clip Warning
+                    : new SolidColorBrush(Color.FromRgb(42, 42, 46));   // Inactive Dark
+            }
+
+            const double NoiseFloorCutoff = -55.0;
+            bool hasSignal = isChannelEnabled && peakDb > NoiseFloorCutoff;
+
+            if (!isChannelEnabled)
+            {
+                _vuCols[index].Opacity = 0.15;
+                _vuBars[index].Value = -60.0;
+                _vuBars[index].Foreground = new SolidColorBrush(Color.FromRgb(30, 30, 30));
+                _vuLabels[index].Foreground = new SolidColorBrush(Color.FromRgb(70, 70, 70));
+            }
+            else if (!hasSignal)
+            {
+                _vuCols[index].Opacity = 0.45;
+                _vuBars[index].Value = -60.0;
+                _vuBars[index].Foreground = new SolidColorBrush(Color.FromRgb(45, 45, 45));
+                _vuLabels[index].Foreground = new SolidColorBrush(Color.FromRgb(140, 140, 140));
+            }
+            else
+            {
                 _vuCols[index].Opacity = 1.0;
-                _vuBars[index].Value = dbValue;
-                var colorBrush = GetVuMeterColorBrush(dbValue);
+                _vuBars[index].Value = peakDb;
+                var colorBrush = GetVuMeterColorBrush(peakDb, isClip);
                 _vuBars[index].Foreground = colorBrush;
-                _vuLabels[index].Foreground = new SolidColorBrush(Color.FromRgb(240, 240, 240));
+                _vuLabels[index].Foreground = new SolidColorBrush(Color.FromRgb(255, 255, 255));
             }
         }
 
-        private static SolidColorBrush GetVuMeterColorBrush(double db)
+        private static SolidColorBrush GetVuMeterColorBrush(double db, bool isClip = false)
         {
-            if (db >= -3.0)
+            if (isClip || db >= -1.0)
             {
-                return new SolidColorBrush(Color.FromRgb(244, 67, 54)); // Red (Clipping Warning)
+                return new SolidColorBrush(Color.FromRgb(244, 67, 54)); // Red (Clip / Peak Alert)
             }
             if (db >= -18.0)
             {

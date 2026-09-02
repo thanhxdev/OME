@@ -39,6 +39,11 @@ namespace OpenMedia.Platform
         public static Version? EngineVersion => _engineVersion;
 
         /// <summary>
+        /// The Process ID of the active OpenMediaServer instance. <c>null</c> if not launched as child process.
+        /// </summary>
+        public static int? ServerProcessId => _serverProcess != null && !_serverProcess.HasExited ? _serverProcess.Id : null;
+
+        /// <summary>
         /// Raised when the server process disconnects unexpectedly.
         /// Events are dispatched on the captured <see cref="SynchronizationContext"/>.
         /// </summary>

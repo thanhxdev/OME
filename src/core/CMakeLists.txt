@@ -53,9 +53,14 @@ if(SRT_INCLUDE_DIR AND SRT_LIBRARY)
         ${CMAKE_SOURCE_DIR}/src/protocols/srt/src/SRTEngine.cpp
         ${CMAKE_SOURCE_DIR}/src/protocols/srt/src/SRTSource.cpp
         ${CMAKE_SOURCE_DIR}/src/protocols/srt/src/SRTOutput.cpp
+        ${CMAKE_SOURCE_DIR}/src/audio/src/AudioMeter.cpp
     )
     target_include_directories(OpenMedia.Core PRIVATE ${SRT_INCLUDE_DIR})
     target_link_libraries(OpenMedia.Core PRIVATE ${SRT_LIBRARY} ws2_32.lib)
+else()
+    target_sources(OpenMedia.Core PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/audio/src/AudioMeter.cpp
+    )
 endif()
 
 target_compile_definitions(OpenMedia.Core

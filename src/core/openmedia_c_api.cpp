@@ -141,6 +141,56 @@ OME_API bool ome_audio_mixer_set_channel_volume(ome_audio_mixer_t mixer, int cha
     return true; // Mock
 }
 
+#include <openmedia/audio/AudioMeter.h>
+
+OME_API ome_audio_meter_t ome_audio_meter_create() {
+    return reinterpret_cast<ome_audio_meter_t>(new OpenMedia::Audio::AudioMeter());
+}
+
+OME_API void ome_audio_meter_destroy(ome_audio_meter_t meter) {
+    if (meter) {
+        delete reinterpret_cast<OpenMedia::Audio::AudioMeter*>(meter);
+    }
+}
+
+OME_API bool ome_audio_meter_process_pcm(ome_audio_meter_t meter, const void* data, uint32_t sample_count, uint32_t channel_count, uint32_t sample_format, uint32_t sample_rate) {
+    if (!meter || !data || sample_count == 0 || channel_count == 0) return false;
+    auto* am = reinterpret_cast<OpenMedia::Audio::AudioMeter*>(meter);
+    
+    // For interleaved or raw buffer pointer
+    const void* const channelPtrs[16] = {
+        data, data, data, data, data, data, data, data,
+        data, data, data, data, data, data, data, data
+    };
+    auto format = static_cast<openmedia::core::SampleFormat>(sample_format);
+    auto res = am->ProcessRaw(channelPtrs, sample_count, channel_count, format, sample_rate);
+    return res.has_value();
+}
+
+OME_API bool ome_audio_meter_get_channel_data(ome_audio_meter_t meter, ome_audio_channel_meter_t* out_data, uint32_t max_channels, uint32_t* actual_channels) {
+    if (!meter || !out_data || max_channels == 0) return false;
+    auto* am = reinterpret_cast<OpenMedia::Audio::AudioMeter*>(meter);
+    auto channelData = am->GetChannelData();
+    uint32_t count = std::min(static_cast<uint32_t>(channelData.size()), max_channels);
+    for (uint32_t i = 0; i < count; ++i) {
+        out_data[i].peak_db = channelData[i].peak_db;
+        out_data[i].rms_db = channelData[i].rms_db;
+        out_data[i].lufs = channelData[i].lufs;
+        out_data[i].clipping = channelData[i].clipping;
+    }
+    if (actual_channels) {
+        *actual_channels = static_cast<uint32_t>(channelData.size());
+    }
+    return true;
+}
+
+OME_API void ome_audio_meter_reset(ome_audio_meter_t meter) {
+    if (meter) {
+        auto* am = reinterpret_cast<OpenMedia::Audio::AudioMeter*>(meter);
+        am->Reset();
+    }
+}
+
 OME_API ome_overlay_t ome_clock_overlay_create() {
     return reinterpret_cast<ome_overlay_t>(new int(3)); // Mock
 }

@@ -53,6 +53,22 @@ OME_API ome_audio_mixer_t ome_audio_mixer_create();
 OME_API void ome_audio_mixer_destroy(ome_audio_mixer_t mixer);
 OME_API bool ome_audio_mixer_set_channel_volume(ome_audio_mixer_t mixer, int channel, float volume);
 
+// Audio Meter API
+typedef void* ome_audio_meter_t;
+
+typedef struct {
+    float peak_db;
+    float rms_db;
+    float lufs;
+    bool clipping;
+} ome_audio_channel_meter_t;
+
+OME_API ome_audio_meter_t ome_audio_meter_create();
+OME_API void ome_audio_meter_destroy(ome_audio_meter_t meter);
+OME_API bool ome_audio_meter_process_pcm(ome_audio_meter_t meter, const void* data, uint32_t sample_count, uint32_t channel_count, uint32_t sample_format, uint32_t sample_rate);
+OME_API bool ome_audio_meter_get_channel_data(ome_audio_meter_t meter, ome_audio_channel_meter_t* out_data, uint32_t max_channels, uint32_t* actual_channels);
+OME_API void ome_audio_meter_reset(ome_audio_meter_t meter);
+
 // Overlay API
 typedef void* ome_overlay_t;
 OME_API ome_overlay_t ome_clock_overlay_create();

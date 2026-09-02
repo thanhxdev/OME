@@ -33,6 +33,7 @@ namespace OpenMedia.SDK
         public void WriteU32(uint value) => _writer.Write(value);
         public void WriteU64(ulong value) => _writer.Write(value);
         public void WriteF64(double value) => _writer.Write(value);
+        public void WriteF32(float value) => _writer.Write(value);
         public void WriteBool(bool value) => _writer.Write(value);
         public void WriteI32(int value) => _writer.Write(value);
 
@@ -60,8 +61,10 @@ namespace OpenMedia.SDK
 
         public uint ReadU32() => _reader.ReadUInt32();
         public int ReadI32() => _reader.ReadInt32();
+        public float ReadF32() => _reader.ReadSingle();
         public double ReadF64() => _reader.ReadDouble();
         public ulong ReadU64() => _reader.ReadUInt64();
+        public bool ReadBool() => _reader.ReadBoolean();
     }
 
     public class SDKEngine

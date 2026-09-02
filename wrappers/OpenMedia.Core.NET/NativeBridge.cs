@@ -67,6 +67,31 @@ namespace OpenMedia.SDK
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         public static extern bool ome_audio_mixer_set_channel_volume(IntPtr mixer, int channel, float volume);
 
+        [StructLayout(LayoutKind.Sequential)]
+        public struct AudioChannelMeterData
+        {
+            public float PeakDb;
+            public float RmsDb;
+            public float Lufs;
+            [MarshalAs(UnmanagedType.I1)]
+            public bool Clipping;
+        }
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr ome_audio_meter_create();
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void ome_audio_meter_destroy(IntPtr meter);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern bool ome_audio_meter_process_pcm(IntPtr meter, IntPtr data, uint sample_count, uint channel_count, uint sample_format, uint sample_rate);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern bool ome_audio_meter_get_channel_data(IntPtr meter, [In, Out] AudioChannelMeterData[] out_data, uint max_channels, out uint actual_channels);
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void ome_audio_meter_reset(IntPtr meter);
+
         [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr ome_clock_overlay_create();
 

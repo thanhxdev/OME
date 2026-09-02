@@ -226,5 +226,38 @@ namespace OpenMedia.Platform.Internal
             b.WriteI32(offsetMs);
             return b.ToArray();
         }
+
+        /// <summary>
+        /// Builds a GetAudioLevels command payload.
+        /// </summary>
+        internal static byte[] GetAudioLevels(uint pipelineId)
+        {
+            var b = new MessageBuilder();
+            b.WriteU32(pipelineId);
+            return b.ToArray();
+        }
+
+        /// <summary>
+        /// Parses a GetAudioLevels response into an array of AudioChannelMeterData.
+        /// </summary>
+        internal static NativeBridge.AudioChannelMeterData[]? ParseAudioLevels(byte[]? response)
+        {
+            if (response == null || response.Length < 4) return null;
+            var reader = new MessageReader(response);
+            uint channelCount = reader.ReadU32();
+            if (channelCount == 0 || channelCount > 32) return Array.Empty<NativeBridge.AudioChannelMeterData>();
+
+            var result = new NativeBridge.AudioChannelMeterData[channelCount];
+            for (int i = 0; i < channelCount; i++)
+            {
+                result[i].PeakDb = (float)reader.ReadF32();
+                result[i].RmsDb = (float)reader.ReadF32();
+                result[i].Lufs = (float)reader.ReadF32();
+                result[i].Clipping = reader.ReadBool();
+                // Read peakHoldDb
+                _ = reader.ReadF32();
+            }
+            return result;
+        }
     }
 }

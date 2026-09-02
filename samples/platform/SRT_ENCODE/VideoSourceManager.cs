@@ -59,7 +59,7 @@ namespace SRT_ENCODE
         private InputSourceType _currentSource = InputSourceType.Colorbar;
         private string _currentSourcePath = string.Empty;
         private bool _isPreviewEnabled = true;
-        private bool _isAudioMonitorEnabled = false;
+        private bool _isAudioMonitorEnabled = true;
         private double _monitorVolume = 0.4;
         private Stretch _currentStretch = Stretch.Uniform;
         private readonly VideoSourceTelemetry _currentTelemetry = new();
@@ -72,6 +72,12 @@ namespace SRT_ENCODE
         public InputSourceType CurrentSource => _currentSource;
         public string CurrentSourcePath => _currentSourcePath;
         public VideoSourceTelemetry CurrentTelemetry => _currentTelemetry;
+        private int _activeAudioChannels = 2;
+        public int ActiveAudioChannels
+        {
+            get => _activeAudioChannels;
+            set => _activeAudioChannels = Math.Clamp(value, 1, 16);
+        }
 
         public event Action<string, string>? LogRequested;
         public event Action<InputSourceType, string>? SourceChanged;
@@ -235,15 +241,17 @@ namespace SRT_ENCODE
 
             if (info != null && info.Width > 0 && info.Height > 0)
             {
+                _activeAudioChannels = (info.AudioChannels > 0) ? Math.Clamp(info.AudioChannels, 1, 16) : 2;
                 string resTag = (info.Width >= 3840) ? "4K UHD" : (info.Width >= 1920) ? "1080p FHD" : $"{info.Height}p HD";
                 _currentTelemetry.Resolution = $"{info.Width} x {info.Height} ({resTag})";
                 _currentTelemetry.FrameRate = info.FrameRate > 0 ? $"{info.FrameRate:F2} FPS" : "59.94 FPS";
                 _currentTelemetry.VideoCodec = !string.IsNullOrEmpty(info.VideoCodec) ? info.VideoCodec.ToUpper() : "H.264 / AVC (Hardware Decoded)";
                 _currentTelemetry.Bitrate = info.BitrateKbps > 0 ? $"{(info.BitrateKbps / 1000.0):F1} Mbps ({info.BitrateKbps:N0} kbps)" : "Dynamic Bitrate";
-                _currentTelemetry.AudioFormat = $"{info.AudioChannels} Ch @ {(info.AudioSampleRate > 0 ? info.AudioSampleRate / 1000.0 : 48.0):F1} kHz ({(!string.IsNullOrEmpty(info.AudioCodec) ? info.AudioCodec.ToUpper() : "AAC")})";
+                _currentTelemetry.AudioFormat = $"{_activeAudioChannels} Ch @ {(info.AudioSampleRate > 0 ? info.AudioSampleRate / 1000.0 : 48.0):F1} kHz ({(!string.IsNullOrEmpty(info.AudioCodec) ? info.AudioCodec.ToUpper() : "AAC")})";
             }
             else
             {
+                _activeAudioChannels = 2;
                 long fileSizeBytes = 0;
                 try { fileSizeBytes = new FileInfo(filePath).Length; } catch { }
 
@@ -329,6 +337,11 @@ namespace SRT_ENCODE
         {
             string mode = videoMode ?? "1080p 59.94 fps";
             string audio = audioCh ?? "Stereo (2 Ch)";
+
+            if (audio.Contains("16 Ch") || audio.Contains("16 Channels")) _activeAudioChannels = 16;
+            else if (audio.Contains("8 Ch") || audio.Contains("8 Channels")) _activeAudioChannels = 8;
+            else if (audio.Contains("4 Ch") || audio.Contains("4 Channels")) _activeAudioChannels = 4;
+            else _activeAudioChannels = 2;
 
             _currentTelemetry.SourceName = deviceName;
             _currentTelemetry.SourceType = "SDI / DECKLINK";

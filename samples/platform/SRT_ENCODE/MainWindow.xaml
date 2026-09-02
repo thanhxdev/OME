@@ -497,97 +497,127 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- 16-Channel Audio VU Meter Overlay (Bottom-Left of Video Screen) -->
-                        <Border x:Name="OverlayAudioVu" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="12,0,0,12" Background="#D5101014" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="6" Padding="8,6" Visibility="Collapsed">
+                        <!-- Multi-Channel Audio VU Meter Overlay (Bottom-Left of Video Screen) -->
+                        <Border x:Name="OverlayAudioVu" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="12,0,0,12" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1.5" CornerRadius="6" Padding="8,6" Visibility="Visible">
                             <StackPanel>
-                                <!-- Header & Peak Summary -->
-                                <Grid Margin="0,0,0,4">
+                                <!-- Header & Channel Info Summary -->
+                                <Grid Margin="0,0,0,5">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock Text="🔊 AUDIO VU" FontSize="10" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,4,0"/>
-                                        <TextBlock Text="(16-CH)" FontSize="9" FontWeight="SemiBold" Foreground="#888888"/>
+                                        <TextBlock Text="🔊 AUDIO VU METER" FontSize="10.5" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,5,0"/>
+                                        <Border Background="#1E3A5F" CornerRadius="3" Padding="4,1">
+                                            <TextBlock x:Name="TxtVuChannelCountBadge" Text="16-CH EMBEDDED" FontSize="8.5" FontWeight="Bold" Foreground="#64B5F6"/>
+                                        </Border>
                                     </StackPanel>
-                                    <TextBlock x:Name="TxtAudioPeakSummary" Text="Peak: L -18.0 | R -18.0" HorizontalAlignment="Right" FontSize="9" FontWeight="SemiBold" Foreground="#4EC9B0"/>
+                                    <TextBlock x:Name="TxtAudioPeakSummary" Text="Peak: SILENT" HorizontalAlignment="Right" FontSize="9.5" FontWeight="SemiBold" Foreground="#4EC9B0"/>
                                 </Grid>
 
-                                <!-- 16 Channel Strips in 8 Pairs -->
+                                <!-- VU Channels with dB Scale Ruler -->
                                 <StackPanel Orientation="Horizontal">
-                                    <!-- Pair 1-2 -->
-                                    <StackPanel x:Name="ColVu1" Width="12" Margin="0,0,1,0">
-                                        <ProgressBar x:Name="VuBar1" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                    <!-- Vertical dB Scale Legend -->
+                                    <Grid Height="65" Margin="0,8,4,14" VerticalAlignment="Bottom">
+                                        <TextBlock Text="0" FontSize="7.5" FontWeight="Bold" Foreground="#F44336" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,0,0"/>
+                                        <TextBlock Text="-6" FontSize="7.5" Foreground="#FFB74D" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,9,0,0"/>
+                                        <TextBlock Text="-12" FontSize="7.5" Foreground="#FFD54F" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,20,0,0"/>
+                                        <TextBlock Text="-18" FontSize="7.5" FontWeight="Bold" Foreground="#00E676" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,32,0,0"/>
+                                        <TextBlock Text="-24" FontSize="7.5" Foreground="#81C784" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,42,0,0"/>
+                                        <TextBlock Text="-40" FontSize="7.5" Foreground="#666666" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,0,8"/>
+                                        <TextBlock Text="-60" FontSize="7.5" Foreground="#444444" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,0,-2"/>
+                                    </Grid>
+
+                                    <!-- 16 Channel Strips in Pairs -->
+                                    <!-- Pair 1-2 (Ch 1-2 / Left-Right) -->
+                                    <StackPanel x:Name="ColVu1" Width="13" Margin="0,0,1,0">
+                                        <Ellipse x:Name="ClipLed1" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                        <ProgressBar x:Name="VuBar1" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
                                         <TextBlock x:Name="LblVu1" Text="1" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
                                     </StackPanel>
-                                    <StackPanel x:Name="ColVu2" Width="12" Margin="0,0,4,0">
-                                        <ProgressBar x:Name="VuBar2" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                    <StackPanel x:Name="ColVu2" Width="13" Margin="0,0,4,0">
+                                        <Ellipse x:Name="ClipLed2" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                        <ProgressBar x:Name="VuBar2" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
                                         <TextBlock x:Name="LblVu2" Text="2" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
                                     </StackPanel>
 
                                     <!-- Pair 3-4 -->
-                                    <StackPanel x:Name="ColVu3" Width="12" Margin="0,0,1,0">
-                                        <ProgressBar x:Name="VuBar3" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                    <StackPanel x:Name="ColVu3" Width="13" Margin="0,0,1,0">
+                                        <Ellipse x:Name="ClipLed3" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                        <ProgressBar x:Name="VuBar3" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
                                         <TextBlock x:Name="LblVu3" Text="3" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
                                     </StackPanel>
-                                    <StackPanel x:Name="ColVu4" Width="12" Margin="0,0,4,0">
-                                        <ProgressBar x:Name="VuBar4" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                    <StackPanel x:Name="ColVu4" Width="13" Margin="0,0,4,0">
+                                        <Ellipse x:Name="ClipLed4" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                        <ProgressBar x:Name="VuBar4" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
                                         <TextBlock x:Name="LblVu4" Text="4" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
                                     </StackPanel>
 
                                     <!-- Pair 5-6 -->
-                                    <StackPanel x:Name="ColVu5" Width="12" Margin="0,0,1,0">
-                                        <ProgressBar x:Name="VuBar5" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                    <StackPanel x:Name="ColVu5" Width="13" Margin="0,0,1,0">
+                                        <Ellipse x:Name="ClipLed5" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                        <ProgressBar x:Name="VuBar5" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
                                         <TextBlock x:Name="LblVu5" Text="5" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
                                     </StackPanel>
-                                    <StackPanel x:Name="ColVu6" Width="12" Margin="0,0,4,0">
-                                        <ProgressBar x:Name="VuBar6" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                    <StackPanel x:Name="ColVu6" Width="13" Margin="0,0,4,0">
+                                        <Ellipse x:Name="ClipLed6" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                        <ProgressBar x:Name="VuBar6" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
                                         <TextBlock x:Name="LblVu6" Text="6" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
                                     </StackPanel>
 
                                     <!-- Pair 7-8 -->
-                                    <StackPanel x:Name="ColVu7" Width="12" Margin="0,0,1,0">
-                                        <ProgressBar x:Name="VuBar7" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                    <StackPanel x:Name="ColVu7" Width="13" Margin="0,0,1,0">
+                                        <Ellipse x:Name="ClipLed7" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                        <ProgressBar x:Name="VuBar7" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
                                         <TextBlock x:Name="LblVu7" Text="7" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
                                     </StackPanel>
-                                    <StackPanel x:Name="ColVu8" Width="12" Margin="0,0,4,0">
-                                        <ProgressBar x:Name="VuBar8" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                    <StackPanel x:Name="ColVu8" Width="13" Margin="0,0,4,0">
+                                        <Ellipse x:Name="ClipLed8" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                        <ProgressBar x:Name="VuBar8" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
                                         <TextBlock x:Name="LblVu8" Text="8" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
                                     </StackPanel>
 
                                     <!-- Pair 9-10 -->
-                                    <StackPanel x:Name="ColVu9" Width="12" Margin="0,0,1,0">
-                                        <ProgressBar x:Name="VuBar9" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                    <StackPanel x:Name="ColVu9" Width="13" Margin="0,0,1,0">
+                                        <Ellipse x:Name="ClipLed9" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                        <ProgressBar x:Name="VuBar9" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
                                         <TextBlock x:Name="LblVu9" Text="9" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
                                     </StackPanel>
-                                    <StackPanel x:Name="ColVu10" Width="12" Margin="0,0,4,0">
-                                        <ProgressBar x:Name="VuBar10" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                    <StackPanel x:Name="ColVu10" Width="13" Margin="0,0,4,0">
+                                        <Ellipse x:Name="ClipLed10" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                        <ProgressBar x:Name="VuBar10" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
                                         <TextBlock x:Name="LblVu10" Text="10" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
                                     </StackPanel>
 
                                     <!-- Pair 11-12 -->
-                                    <StackPanel x:Name="ColVu11" Width="12" Margin="0,0,1,0">
-                                        <ProgressBar x:Name="VuBar11" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                    <StackPanel x:Name="ColVu11" Width="13" Margin="0,0,1,0">
+                                        <Ellipse x:Name="ClipLed11" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                        <ProgressBar x:Name="VuBar11" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
                                         <TextBlock x:Name="LblVu11" Text="11" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
                                     </StackPanel>
-                                    <StackPanel x:Name="ColVu12" Width="12" Margin="0,0,4,0">
-                                        <ProgressBar x:Name="VuBar12" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                    <StackPanel x:Name="ColVu12" Width="13" Margin="0,0,4,0">
+                                        <Ellipse x:Name="ClipLed12" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                        <ProgressBar x:Name="VuBar12" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
                                         <TextBlock x:Name="LblVu12" Text="12" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
                                     </StackPanel>
 
                                     <!-- Pair 13-14 -->
-                                    <StackPanel x:Name="ColVu13" Width="12" Margin="0,0,1,0">
-                                        <ProgressBar x:Name="VuBar13" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                    <StackPanel x:Name="ColVu13" Width="13" Margin="0,0,1,0">
+                                        <Ellipse x:Name="ClipLed13" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                        <ProgressBar x:Name="VuBar13" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
                                         <TextBlock x:Name="LblVu13" Text="13" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
                                     </StackPanel>
-                                    <StackPanel x:Name="ColVu14" Width="12" Margin="0,0,4,0">
-                                        <ProgressBar x:Name="VuBar14" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                    <StackPanel x:Name="ColVu14" Width="13" Margin="0,0,4,0">
+                                        <Ellipse x:Name="ClipLed14" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                        <ProgressBar x:Name="VuBar14" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
                                         <TextBlock x:Name="LblVu14" Text="14" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
                                     </StackPanel>
 
                                     <!-- Pair 15-16 -->
-                                    <StackPanel x:Name="ColVu15" Width="12" Margin="0,0,1,0">
-                                        <ProgressBar x:Name="VuBar15" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                    <StackPanel x:Name="ColVu15" Width="13" Margin="0,0,1,0">
+                                        <Ellipse x:Name="ClipLed15" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                        <ProgressBar x:Name="VuBar15" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
                                         <TextBlock x:Name="LblVu15" Text="15" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
                                     </StackPanel>
-                                    <StackPanel x:Name="ColVu16" Width="12">
-                                        <ProgressBar x:Name="VuBar16" Orientation="Vertical" Height="60" Width="7" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#1C1C1E" BorderThickness="0"/>
+                                    <StackPanel x:Name="ColVu16" Width="13">
+                                        <Ellipse x:Name="ClipLed16" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                        <ProgressBar x:Name="VuBar16" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
                                         <TextBlock x:Name="LblVu16" Text="16" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/>
                                     </StackPanel>
                                 </StackPanel>
@@ -612,7 +642,7 @@
                         <CheckBox x:Name="ChkEnableVideoPreview" Grid.Column="0" Content="Video Preview" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkEnableVideoPreview_Changed" Unchecked="ChkEnableVideoPreview_Changed" Margin="0,0,12,0"/>
 
                         <!-- Toggle Audio Monitor -->
-                        <CheckBox x:Name="ChkEnableAudioMonitor" Grid.Column="1" Content="Audio Monitor" Style="{StaticResource ToggleSwitchStyle}" IsChecked="False" Checked="ChkEnableAudioMonitor_Changed" Unchecked="ChkEnableAudioMonitor_Changed" Margin="0,0,12,0"/>
+                        <CheckBox x:Name="ChkEnableAudioMonitor" Grid.Column="1" Content="Audio Monitor" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkEnableAudioMonitor_Changed" Unchecked="ChkEnableAudioMonitor_Changed" Margin="0,0,12,0"/>
 
                         <!-- Toggle Telemetry HUD -->
                         <CheckBox x:Name="ChkShowTelemetry" Grid.Column="2" Content="Telemetry HUD" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkShowTelemetry_Changed" Unchecked="ChkShowTelemetry_Changed" Margin="0,0,12,0"/>

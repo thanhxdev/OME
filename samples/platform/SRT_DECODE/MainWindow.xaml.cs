@@ -58,6 +58,7 @@ namespace SRT_DECODE
         private TextBlock[] _statusTexts = Array.Empty<TextBlock>();
         private ProgressBar[] _vuBarsL = Array.Empty<ProgressBar>();
         private ProgressBar[] _vuBarsR = Array.Empty<ProgressBar>();
+        private ProgressBar[] _vuMasterBars = Array.Empty<ProgressBar>();
         private Border[] _ingestCards = Array.Empty<Border>();
         private Border[] _driftRows = Array.Empty<Border>();
         private Border[] _telemetryCards = Array.Empty<Border>();
@@ -150,6 +151,8 @@ namespace SRT_DECODE
                 _statusTexts = new[] { TxtStatusCam1, TxtStatusCam2, TxtStatusCam3, TxtStatusCam4, TxtStatusCam5, TxtStatusCam6, TxtStatusCam7, TxtStatusCam8, TxtStatusCam9, TxtStatusCam10 };
                 _vuBarsL = new[] { VuCam1L, VuCam2L, VuCam3L, VuCam4L, VuCam5L, VuCam6L, VuCam7L, VuCam8L, VuCam9L, VuCam10L };
                 _vuBarsR = new[] { VuCam1R, VuCam2R, VuCam3R, VuCam4R, VuCam5R, VuCam6R, VuCam7R, VuCam8R, VuCam9R, VuCam10R };
+                _vuMasterBars = new[] { VuMasterL, VuMasterR, VuMaster3, VuMaster4, VuMaster5, VuMaster6, VuMaster7, VuMaster8, VuMaster9, VuMaster10, VuMaster11, VuMaster12, VuMaster13, VuMaster14, VuMaster15, VuMaster16 };
+                UpdateMasterVuVisibility();
                 _ingestCards = new[] { CardCam1, CardCam2, CardCam3, CardCam4, CardCam5, CardCam6, CardCam7, CardCam8, CardCam9, CardCam10 };
                 _driftRows = new[] { RowDriftCam1, RowDriftCam2, RowDriftCam3, RowDriftCam4, RowDriftCam5, RowDriftCam6, RowDriftCam7, RowDriftCam8, RowDriftCam9, RowDriftCam10 };
                 _telemetryCards = new[] { CardTelemetryCam1, CardTelemetryCam2, CardTelemetryCam3, CardTelemetryCam4, CardTelemetryCam5, CardTelemetryCam6, CardTelemetryCam7, CardTelemetryCam8, CardTelemetryCam9, CardTelemetryCam10 };
@@ -870,18 +873,68 @@ namespace SRT_DECODE
         {
             Dispatcher.InvokeAsync(() =>
             {
-                VuMasterL.Value = pgm.LeftPercent;
-                VuMasterR.Value = pgm.RightPercent;
+                int count = _audioManager.ConfiguredChannelCount;
+                for (int i = 0; i < _vuMasterBars.Length; i++)
+                {
+                    if (i < count)
+                    {
+                        _vuMasterBars[i].Value = pgm.PeakPercent[i];
+                        _vuMasterBars[i].Foreground = pgm.IsChannelClipping[i] ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
+                    }
+                    else
+                    {
+                        _vuMasterBars[i].Value = 0;
+                    }
+                }
 
-                VuMasterL.Foreground = pgm.IsClipping ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
-                VuMasterR.Foreground = pgm.IsClipping ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
+                if (TxtMasterPeakDb != null)
+                {
+                    double maxPk = AudioMeterService.MIN_DBFS;
+                    for (int i = 0; i < count; i++)
+                    {
+                        if (pgm.PeakDb[i] > maxPk) maxPk = pgm.PeakDb[i];
+                    }
+                    TxtMasterPeakDb.Text = (maxPk > -55.0) ? $"{maxPk:F1} dB" : "-∞ dB";
+                    TxtMasterPeakDb.Foreground = pgm.IsClipping ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
+                }
 
                 // Also update top PGM screen VU meters
-                VuPgmTopL.Value = pgm.LeftPercent;
-                VuPgmTopR.Value = pgm.RightPercent;
-                VuPgmTopL.Foreground = pgm.IsClipping ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
-                VuPgmTopR.Foreground = pgm.IsClipping ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
+                if (VuPgmTopL != null)
+                {
+                    VuPgmTopL.Value = pgm.PeakPercent[0];
+                    VuPgmTopL.Foreground = pgm.IsChannelClipping[0] ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
+                }
+                if (VuPgmTopR != null)
+                {
+                    VuPgmTopR.Value = pgm.PeakPercent[1];
+                    VuPgmTopR.Foreground = pgm.IsChannelClipping[1] ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
+                }
             }, DispatcherPriority.Render);
+        }
+
+        private void CmbAudioChannels_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized || CmbAudioChannels == null) return;
+            _audioManager.ChannelConfig = CmbAudioChannels.SelectedIndex switch
+            {
+                0 => AudioChannelConfiguration.Stereo2Ch,
+                1 => AudioChannelConfiguration.Channels4Ch,
+                2 => AudioChannelConfiguration.Surround51_6Ch,
+                3 => AudioChannelConfiguration.Surround71_8Ch,
+                4 => AudioChannelConfiguration.SdiEmbedded16Ch,
+                _ => AudioChannelConfiguration.Stereo2Ch
+            };
+
+            UpdateMasterVuVisibility();
+        }
+
+        private void UpdateMasterVuVisibility()
+        {
+            int chCount = _audioManager.ConfiguredChannelCount;
+            for (int i = 0; i < _vuMasterBars.Length; i++)
+            {
+                _vuMasterBars[i].Visibility = (i < chCount) ? Visibility.Visible : Visibility.Collapsed;
+            }
         }
 
         private void BtnSoloCam_Click(object sender, RoutedEventArgs e)
