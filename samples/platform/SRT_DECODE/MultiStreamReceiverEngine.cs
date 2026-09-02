@@ -58,7 +58,7 @@ namespace SRT_DECODE
                     Host = "0.0.0.0", // Default listener binds to all local interfaces
                     Port = port,
                     Mode = SRTMode.Listener,
-                    LatencyMs = 120,
+                    LatencyMs = 200, // Standard Broadcast SRT Latency (allows 2-3 ARQ retransmissions on jittery WAN)
                     AutoLatency = false, // Default: Disable Auto Latency
                     EncryptionEnabled = false,
                     Passphrase = string.Empty,

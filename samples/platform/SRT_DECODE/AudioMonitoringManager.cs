@@ -94,9 +94,14 @@ namespace SRT_DECODE
     }
 
     /// <summary>
-    /// Multi-Channel Audio Monitoring Manager for SRT Multi-Decoder.
-    /// Supports up to 16 audio channels per stream (Stereo, 4CH, 5.1, 7.1, 16CH SDI Embedded),
-    /// real-time True Peak / RMS EWMA VU meters, Solo listen routing, and Master monitor muting.
+    /// Professional Multi-Channel Software Audio Mixer & Monitoring Manager for SRT Multi-Decoder.
+    /// Features:
+    /// - Jitter ring buffers per camera channel for zero-drift packet absorption
+    /// - Sample-accurate real-time multi-track summing mixer (0% alternating pops)
+    /// - Per-channel faders (-60 dB to +12 dB) with slew-rate parameter smoothing (zero zipper noise)
+    /// - Equal-power stereo panning (L/C/R)
+    /// - Anti-pop 10ms micro-fade ramping on Mute/Unmute/Solo changes
+    /// - Soft-knee peak limiter to eliminate clipping distortion
     /// </summary>
     public sealed class AudioMonitoringManager : IDisposable
     {
@@ -108,17 +113,40 @@ namespace SRT_DECODE
         private readonly AudioMeterService[] _camMeters = new AudioMeterService[MaxCameras];
         private readonly AudioMeterService _programMeter = new();
 
+        private readonly AudioRingBuffer[] _camRingBuffers = new AudioRingBuffer[MaxCameras];
+        private readonly double[] _channelGainDb = new double[MaxCameras];
+        private readonly double[] _channelPan = new double[MaxCameras];
+        private readonly bool[] _channelMuted = new bool[MaxCameras];
+
+        // DSP runtime per-channel state
+        private readonly float[] _currentGain = new float[MaxCameras];
+        private readonly float[] _targetGain = new float[MaxCameras];
+        private readonly float[] _currentMuteRamp = new float[MaxCameras];
+        private readonly float[] _targetMuteRamp = new float[MaxCameras];
+        private readonly long[] _lastPcmReceivedTicks = new long[MaxCameras];
+
         private SoloAudioSource _soloSource = SoloAudioSource.ProgramMaster;
         private AudioChannelConfiguration _channelConfig = AudioChannelConfiguration.Stereo2Ch;
         private bool _isMuteAll = false;
         private double _monitorVolumePercent = 80.0;
-        private readonly Random _rand = new();
-        private readonly bool[] _channelMuted = new bool[MaxCameras];
+        private float _currentMasterRamp = 0.8f;
+        private int _currentProgramIndex = 0;
         private bool _disposed;
 
+        private readonly AudioOutputDevice _audioOutput = new();
+
+        // Scratch buffers for mixer loop to prevent GC allocations
+        private readonly byte[] _tempChannelPcm = new byte[9600];
+        private readonly float[] _mixL = new float[2400];
+        private readonly float[] _mixR = new float[2400];
+
+        // Events
         public event Action<ChannelAudioLevels[]>? CamLevelsUpdated;
         public event Action<ChannelAudioLevels>? ProgramLevelsUpdated;
         public event Action<string, string>? LogEmitted;
+        public event Action<int, double>? ChannelGainChanged;
+        public event Action<int, double>? ChannelPanChanged;
+        public event Action<int, bool>? ChannelMuteChanged;
 
         public AudioChannelConfiguration ChannelConfig
         {
@@ -138,6 +166,12 @@ namespace SRT_DECODE
 
         public int ConfiguredChannelCount => (int)_channelConfig;
 
+        public int CurrentProgramIndex
+        {
+            get => _currentProgramIndex;
+            set => _currentProgramIndex = Math.Clamp(value, 0, MaxCameras - 1);
+        }
+
         public bool IsChannelMuted(int channelIndex)
         {
             if (channelIndex < 0 || channelIndex >= MaxCameras) return false;
@@ -148,14 +182,44 @@ namespace SRT_DECODE
         {
             if (channelIndex < 0 || channelIndex >= MaxCameras) return;
             _channelMuted[channelIndex] = isMuted;
-            if (isMuted)
-            {
-                _audioOutput.ClearQueue();
-            }
+
             string name = !string.IsNullOrEmpty(channelName) ? channelName : $"CAM {channelIndex + 1}";
             Log("[AUDIO]", isMuted 
-                ? $"🔇 ĐÃ TẮT TIẾNG (MUTE) luồng SRT Ingest: {name}" 
-                : $"🔊 ĐÃ BẬT TIẾNG (UNMUTE) luồng SRT Ingest: {name}");
+                ? $"🔇 MUTE kênh âm thanh: {name}" 
+                : $"🔊 UNMUTE kênh âm thanh: {name}");
+
+            ChannelMuteChanged?.Invoke(channelIndex, isMuted);
+            _audioOutput.Wake();
+        }
+
+        public double GetChannelGain(int channelIndex)
+        {
+            if (channelIndex < 0 || channelIndex >= MaxCameras) return 0.0;
+            return _channelGainDb[channelIndex];
+        }
+
+        public void SetChannelGain(int channelIndex, double gainDb)
+        {
+            if (channelIndex < 0 || channelIndex >= MaxCameras) return;
+            double clamped = Math.Clamp(gainDb, -60.0, 12.0);
+            _channelGainDb[channelIndex] = clamped;
+            ChannelGainChanged?.Invoke(channelIndex, clamped);
+            _audioOutput.Wake();
+        }
+
+        public double GetChannelPan(int channelIndex)
+        {
+            if (channelIndex < 0 || channelIndex >= MaxCameras) return 0.0;
+            return _channelPan[channelIndex];
+        }
+
+        public void SetChannelPan(int channelIndex, double pan)
+        {
+            if (channelIndex < 0 || channelIndex >= MaxCameras) return;
+            double clamped = Math.Clamp(pan, -1.0, 1.0);
+            _channelPan[channelIndex] = clamped;
+            ChannelPanChanged?.Invoke(channelIndex, clamped);
+            _audioOutput.Wake();
         }
 
         public SoloAudioSource SoloSource
@@ -164,8 +228,8 @@ namespace SRT_DECODE
             set
             {
                 _soloSource = value;
-                _audioOutput.ClearQueue();
                 Log("[AUDIO]", $"Kiểm âm Solo chuyển sang: {GetSoloLabel(value)}");
+                _audioOutput.Wake();
             }
         }
 
@@ -175,22 +239,20 @@ namespace SRT_DECODE
             set
             {
                 _isMuteAll = value;
-                if (_isMuteAll)
-                {
-                    _audioOutput.ClearQueue();
-                }
-                Log("[AUDIO]", _isMuteAll ? "🔇 ĐÃ TẮT TIẾNG TẤT CẢ LOA KIỂM ÂM (MUTE ALL)" : "🔊 ĐÃ BẬT LẠI TIẾNG LOA KIỂM ÂM");
+                Log("[AUDIO]", _isMuteAll ? "🔇 MUTE ALL kiểm âm Master" : "🔊 UNMUTE kiểm âm Master");
+                _audioOutput.Wake();
             }
         }
 
         public double MonitorVolumePercent
         {
             get => _monitorVolumePercent;
-            set => _monitorVolumePercent = Math.Clamp(value, 0.0, 100.0);
+            set
+            {
+                _monitorVolumePercent = Math.Clamp(value, 0.0, 100.0);
+                _audioOutput.Wake();
+            }
         }
-
-        private readonly AudioOutputDevice _audioOutput = new();
-        private readonly long[] _lastPcmReceivedTicks = new long[MaxCameras];
 
         public AudioMonitoringManager()
         {
@@ -198,25 +260,23 @@ namespace SRT_DECODE
             {
                 _camLevels[i] = new ChannelAudioLevels();
                 _camMeters[i] = new AudioMeterService();
-                _channelMuted[i] = true; // Mặc định mọi màn hình preview đều được mute kiểm âm
+                _camRingBuffers[i] = new AudioRingBuffer(capacityBytes: 96000, preRollMs: 50); // 500ms buffer capacity with 50ms adaptive jitter pre-roll
+                _channelMuted[i] = true; // Mặc định các preview màn hình ingest đều được Mute
+                _channelGainDb[i] = 0.0; // Mặc định 0 dB (Unity gain)
+                _channelPan[i] = 0.0;    // Mặc định Center
+                _currentGain[i] = 1.0f;
+                _targetGain[i] = 1.0f;
+                _currentMuteRamp[i] = 0.0f;
+                _targetMuteRamp[i] = 0.0f;
             }
-        }
 
-        private int _currentProgramIndex = 0;
-        public int CurrentProgramIndex
-        {
-            get => _currentProgramIndex;
-            set => _currentProgramIndex = Math.Clamp(value, 0, MaxCameras - 1);
+            // Kết nối bộ trộn thời gian thực DSP vào phần cứng phát âm thanh
+            _audioOutput.MixerReader = ReadMixedPcm;
         }
-
-        private readonly object _mixLock = new();
-        private byte[]? _pendingMixBuf;
-        private int _pendingMixCam = -1;
-        private long _pendingMixTime = 0;
 
         /// <summary>
-        /// Processes real decoded 48kHz 16-bit stereo PCM audio from SRT channel decoder.
-        /// Feeds audio meter for preview VU meters and routes active/unmuted audio to speakers.
+        /// Feed decoded 48kHz 16-bit stereo PCM audio from SRT channel decoder.
+        /// Feeds camera VU meter and writes to the camera's dedicated jitter ring buffer.
         /// </summary>
         public void ProcessDecodedPcm(int camIndex, byte[] pcmData, int count)
         {
@@ -227,87 +287,11 @@ namespace SRT_DECODE
             // 1. Phân tích mức âm thanh thực vào AudioMeterService của camera
             _camMeters[camIndex].ProcessPcmBytes(pcmData, 0, count, 16, 2, 48000, isFloat: false);
 
-            // 2. Định tuyến âm thanh ra loa / tai nghe kiểm âm theo chế độ Mute & Solo
-            if (_isMuteAll) return;
+            // 2. Đẩy PCM vào RingBuffer của camera
+            _camRingBuffers[camIndex].Write(pcmData, 0, count);
 
-            bool shouldPlay = false;
-            if (_soloSource != SoloAudioSource.ProgramMaster)
-            {
-                // Khi bật SOLO một camera cụ thể, chỉ phát duy nhất camera đó
-                shouldPlay = (camIndex == ((int)_soloSource - 1));
-            }
-            else
-            {
-                // Ở chế độ Master:
-                // - Camera đang on-air ở Program Master LUÔN được xuất âm thanh ra Master
-                // - HOẶC bất kỳ camera nào được Unmute trên bảng điều khiển Ingest
-                shouldPlay = (camIndex == _currentProgramIndex) || !_channelMuted[camIndex];
-            }
-
-            if (!shouldPlay) return;
-
-            double vol = _monitorVolumePercent / 100.0;
-
-            // Kiểm tra số lượng camera đang đồng thời phát ra loa
-            int unmutedActiveCount = 0;
-            long now = Environment.TickCount64;
-            for (int i = 0; i < MaxCameras; i++)
-            {
-                bool chShouldPlay = (_soloSource != SoloAudioSource.ProgramMaster)
-                    ? (i == ((int)_soloSource - 1))
-                    : (i == _currentProgramIndex || !_channelMuted[i]);
-
-                if (chShouldPlay && (now - _lastPcmReceivedTicks[i]) < 1000)
-                {
-                    unmutedActiveCount++;
-                }
-            }
-
-            if (unmutedActiveCount <= 1)
-            {
-                // 1 luồng duy nhất: Pass-through trực tiếp 100% âm thanh gốc từ SRT
-                _audioOutput.PlayPcm(pcmData, 0, count, vol);
-            }
-            else
-            {
-                // Nhiều luồng cùng phát: Trộn mẫu âm thanh (Soft-Limiter Mixer)
-                MixAndPlayPcm(camIndex, pcmData, count, vol, now);
-            }
-        }
-
-        private void MixAndPlayPcm(int camIndex, byte[] pcmData, int count, double vol, long now)
-        {
-            lock (_mixLock)
-            {
-                if (_pendingMixBuf != null && _pendingMixCam != camIndex && (now - _pendingMixTime) < 25)
-                {
-                    int len = Math.Min(count, _pendingMixBuf.Length);
-                    byte[] mixed = new byte[len];
-                    for (int i = 0; i < len; i += 2)
-                    {
-                        short s1 = BitConverter.ToInt16(_pendingMixBuf, i);
-                        short s2 = BitConverter.ToInt16(pcmData, i);
-                        int sum = s1 + s2;
-                        short clipped = (short)Math.Clamp(sum, short.MinValue, short.MaxValue);
-                        mixed[i] = (byte)(clipped & 0xFF);
-                        mixed[i + 1] = (byte)((clipped >> 8) & 0xFF);
-                    }
-                    _pendingMixBuf = null;
-                    _pendingMixCam = -1;
-                    _audioOutput.PlayPcm(mixed, 0, len, vol);
-                }
-                else
-                {
-                    if (_pendingMixBuf != null)
-                    {
-                        _audioOutput.PlayPcm(_pendingMixBuf, 0, _pendingMixBuf.Length, vol);
-                    }
-                    _pendingMixBuf = new byte[count];
-                    Buffer.BlockCopy(pcmData, 0, _pendingMixBuf, 0, count);
-                    _pendingMixCam = camIndex;
-                    _pendingMixTime = now;
-                }
-            }
+            // Đánh thức thread phát âm thanh nếu đang chờ
+            _audioOutput.Wake();
         }
 
         /// <summary>
@@ -318,6 +302,141 @@ namespace SRT_DECODE
             if (camIndex < 0 || camIndex >= MaxCameras) return;
             _lastPcmReceivedTicks[camIndex] = Environment.TickCount64;
             _camMeters[camIndex].ProcessPcmFloat(samples, channels, sampleRate);
+        }
+
+        /// <summary>
+        /// Core Real-time Multi-Channel Summing Mixer.
+        /// Pulled directly by AudioOutputDevice playback thread at 48000Hz.
+        /// Performs sample-accurate mixing across all unmuted channels, parameter smoothing,
+        /// equal-power panning, and soft-knee peak limiting.
+        /// </summary>
+        private int ReadMixedPcm(byte[] destination, int offset, int count)
+        {
+            if (destination == null || count <= 0) return 0;
+
+            int frameCount = count / 4; // 2 channels * 2 bytes = 4 bytes per frame
+            if (frameCount > _mixL.Length) frameCount = _mixL.Length;
+
+            // Clear mixer accumulators
+            Array.Clear(_mixL, 0, frameCount);
+            Array.Clear(_mixR, 0, frameCount);
+
+            long now = Environment.TickCount64;
+
+            // Determine which channels are active/audible
+            for (int i = 0; i < MaxCameras; i++)
+            {
+                bool chShouldPlay = false;
+                if (_soloSource != SoloAudioSource.ProgramMaster)
+                {
+                    chShouldPlay = (i == ((int)_soloSource - 1));
+                }
+                else
+                {
+                    chShouldPlay = (i == _currentProgramIndex || !_channelMuted[i]);
+                }
+
+                bool streamAlive = (now - _lastPcmReceivedTicks[i]) < 1000;
+                _targetMuteRamp[i] = (chShouldPlay && streamAlive && !_isMuteAll) ? 1.0f : 0.0f;
+
+                // Calculate target linear gain from dB (-60 dB to +12 dB)
+                if (_channelGainDb[i] <= -58.0)
+                {
+                    _targetGain[i] = 0.0f;
+                }
+                else
+                {
+                    _targetGain[i] = (float)Math.Pow(10.0, _channelGainDb[i] / 20.0);
+                }
+
+                // If channel is completely silent and not transitioning, skip to save CPU
+                if (_currentMuteRamp[i] <= 0.001f && _targetMuteRamp[i] <= 0.001f)
+                {
+                    // Discard old samples in buffer if buffer grows too large while muted
+                    if (_camRingBuffers[i].AvailableBytes > 19200)
+                    {
+                        _camRingBuffers[i].Clear();
+                    }
+                    continue;
+                }
+
+                // Read audio samples from camera's jitter ring buffer
+                int bytesRead = _camRingBuffers[i].Read(_tempChannelPcm, 0, count, padSilence: true);
+                if (bytesRead > 0 || _currentMuteRamp[i] > 0.001f)
+                {
+                    // Equal-power stereo pan calculation
+                    float pan = (float)Math.Clamp(_channelPan[i], -1.0, 1.0);
+                    float panAngle = (pan + 1.0f) * 0.25f * (float)Math.PI;
+                    float panL = (float)Math.Cos(panAngle) * 1.4142f;
+                    float panR = (float)Math.Sin(panAngle) * 1.4142f;
+
+                    // Sample-by-sample summing with slew-rate parameter smoothing
+                    for (int n = 0; n < frameCount; n++)
+                    {
+                        // 10ms smooth ramp for mute/unmute and fader movements (zero clicks & zipper noise)
+                        _currentMuteRamp[i] += (_targetMuteRamp[i] - _currentMuteRamp[i]) * 0.005f;
+                        _currentGain[i] += (_targetGain[i] - _currentGain[i]) * 0.005f;
+
+                        float effGain = _currentGain[i] * _currentMuteRamp[i];
+
+                        int byteIdx = n * 4;
+                        short rawL = BitConverter.ToInt16(_tempChannelPcm, byteIdx);
+                        short rawR = BitConverter.ToInt16(_tempChannelPcm, byteIdx + 2);
+
+                        float normL = rawL / 32768.0f;
+                        float normR = rawR / 32768.0f;
+
+                        _mixL[n] += normL * effGain * panL;
+                        _mixR[n] += normR * effGain * panR;
+                    }
+                }
+            }
+
+            // Master Output Stage: Apply master volume fader & soft-knee peak limiter
+            float targetMasterRamp = _isMuteAll ? 0.0f : (float)(_monitorVolumePercent / 100.0);
+
+            for (int n = 0; n < frameCount; n++)
+            {
+                _currentMasterRamp += (targetMasterRamp - _currentMasterRamp) * 0.005f;
+                float sampleL = _mixL[n] * _currentMasterRamp;
+                float sampleR = _mixR[n] * _currentMasterRamp;
+
+                // Soft-Knee Saturation Limiter: Transparent up to 0.85 (-1.4 dBFS),
+                // smoothly saturates peaks above 0.85 without hard clipping or pops
+                sampleL = SoftLimit(sampleL);
+                sampleR = SoftLimit(sampleR);
+
+                short outL = (short)Math.Clamp(sampleL * 32767.0f, short.MinValue, short.MaxValue);
+                short outR = (short)Math.Clamp(sampleR * 32767.0f, short.MinValue, short.MaxValue);
+
+                int destIdx = offset + (n * 4);
+                destination[destIdx] = (byte)(outL & 0xFF);
+                destination[destIdx + 1] = (byte)((outL >> 8) & 0xFF);
+                destination[destIdx + 2] = (byte)(outR & 0xFF);
+                destination[destIdx + 3] = (byte)((outR >> 8) & 0xFF);
+            }
+
+            // Feed actual mixed PCM into program meter
+            _programMeter.ProcessPcmBytes(destination, offset, count, 16, 2, 48000, isFloat: false);
+
+            return count;
+        }
+
+        /// <summary>
+        /// Smooth-knee saturation limiter protecting against digital clipping while preserving dynamics.
+        /// </summary>
+        private static float SoftLimit(float x)
+        {
+            const float threshold = 0.85f;
+            if (x > threshold)
+            {
+                return threshold + (1.0f - threshold) * (float)Math.Tanh((x - threshold) / (1.0f - threshold));
+            }
+            if (x < -threshold)
+            {
+                return -threshold - (1.0f - threshold) * (float)Math.Tanh((-x - threshold) / (1.0f - threshold));
+            }
+            return x;
         }
 
         /// <summary>
@@ -348,7 +467,6 @@ namespace SRT_DECODE
                 bool hasRealPcm = (now - _lastPcmReceivedTicks[i]) < 1000;
                 if (i < count && channelActive[i] && hasRealPcm)
                 {
-                    // 100% dữ liệu thực tế đã decode, không dùng dữ liệu mô phỏng
                     _camMeters[i].GetPreviewAudioLevels(camExtractedPeaks[i], camExtractedRms[i], camExtractedClips[i], isAudioActive: true);
                     _camLevels[i].CopyFrom(camExtractedPeaks[i], camExtractedRms[i], camExtractedClips[i], configuredChannels);
                 }
@@ -360,40 +478,9 @@ namespace SRT_DECODE
                 }
             }
 
-            // Xác định kênh âm thanh được định tuyến kiểm âm ra Master / Solo Monitor
-            int monitorIndex = -1;
-            bool monitorActive = false;
-
-            if (_soloSource != SoloAudioSource.ProgramMaster)
+            // Fetch Master Program meter levels (which are fed continuously from the real mixer output)
+            if (!_isMuteAll)
             {
-                int soloIdx = (int)_soloSource - 1; // Solo Cam 1..10
-                if (soloIdx >= 0 && soloIdx < count && channelActive[soloIdx])
-                {
-                    monitorIndex = soloIdx;
-                    monitorActive = true;
-                }
-            }
-            else
-            {
-                // Cổng Audio Master: Luôn xuất và kiểm âm kênh Program Master
-                if (programIndex >= 0 && programIndex < count && channelActive[programIndex])
-                {
-                    monitorIndex = programIndex;
-                    monitorActive = true;
-                }
-            }
-
-            if (monitorActive && monitorIndex >= 0 && !_isMuteAll)
-            {
-                double[] monPeaks = new double[configuredChannels];
-                double[] monRms = new double[configuredChannels];
-                for (int ch = 0; ch < configuredChannels; ch++)
-                {
-                    monPeaks[ch] = camExtractedPeaks[monitorIndex][ch];
-                    monRms[ch] = camExtractedRms[monitorIndex][ch];
-                }
-
-                _programMeter.FeedChannelLevels(monPeaks, monRms, configuredChannels);
                 _programMeter.GetPreviewAudioLevels(tempPeaks, tempRms, tempClips, isAudioActive: true);
                 _programLevels.CopyFrom(tempPeaks, tempRms, tempClips, configuredChannels);
             }
@@ -469,6 +556,7 @@ namespace SRT_DECODE
             for (int i = 0; i < MaxCameras; i++)
             {
                 _camMeters[i].Dispose();
+                _camRingBuffers[i].Clear();
             }
             _programMeter.Dispose();
             _audioOutput.Dispose();

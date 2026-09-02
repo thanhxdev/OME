@@ -46,7 +46,7 @@ namespace SRT_DECODE
                 // - -map 0:a? maps the first available audio track without failing if audio PES is delayed
                 // - nobuffer and low_delay flags eliminate internal latency
                 // - s16le 48000Hz 2ch directly matches Windows sound card / mixer output
-                string args = "-hide_banner -loglevel warning -probesize 1000000 -analyzeduration 1000000 -fflags nobuffer+flush_packets -flags low_delay -f mpegts -i pipe:0 -map 0:a? -vn -sn -dn -f s16le -ar 48000 -ac 2 pipe:1";
+                string args = "-hide_banner -loglevel warning -err_detect ignore_err -probesize 1000000 -analyzeduration 1000000 -fflags nobuffer+flush_packets -flags low_delay -f mpegts -i pipe:0 -map 0:a? -vn -sn -dn -f s16le -ar 48000 -ac 2 pipe:1";
 
                 var psi = new ProcessStartInfo
                 {
@@ -94,20 +94,57 @@ namespace SRT_DECODE
                     catch { }
                 }, token);
 
-                // Drain stdout audio chunks (48000 Hz * 2ch * 2 bytes * 0.02s = 3840 bytes per 20ms chunk)
+                // Drain stdout audio chunks (48000 Hz * 2ch * 2 bytes = 4 bytes per frame)
+                // Ensures 100% 4-byte stereo frame alignment to prevent channel swap and sample corruption
                 _ = Task.Run(async () =>
                 {
-                    byte[] buffer = new byte[3840];
+                    byte[] readBuffer = new byte[4096];
+                    byte[] remainder = new byte[4];
+                    int remainderCount = 0;
+
                     try
                     {
                         while (!token.IsCancellationRequested && _isRunning && !proc.HasExited)
                         {
-                            int read = await stdout.ReadAsync(buffer.AsMemory(0, buffer.Length), token).ConfigureAwait(false);
-                            if (read > 0)
+                            int bytesRead = await stdout.ReadAsync(readBuffer.AsMemory(0, readBuffer.Length), token).ConfigureAwait(false);
+                            if (bytesRead > 0)
                             {
-                                byte[] chunk = new byte[read];
-                                Buffer.BlockCopy(buffer, 0, chunk, 0, read);
-                                PcmAudioDecoded?.Invoke(_channelIndex, chunk, read);
+                                int totalBytes = remainderCount + bytesRead;
+                                int alignedBytes = totalBytes - (totalBytes % 4); // Always 4-byte frame aligned
+
+                                if (alignedBytes > 0)
+                                {
+                                    byte[] chunk = new byte[alignedBytes];
+                                    int destOffset = 0;
+
+                                    if (remainderCount > 0)
+                                    {
+                                        Buffer.BlockCopy(remainder, 0, chunk, 0, remainderCount);
+                                        destOffset = remainderCount;
+                                    }
+
+                                    int fromRead = alignedBytes - remainderCount;
+                                    if (fromRead > 0)
+                                    {
+                                        Buffer.BlockCopy(readBuffer, 0, chunk, destOffset, fromRead);
+                                    }
+
+                                    // Save any new remainder (< 4 bytes)
+                                    int newRemainderCount = totalBytes - alignedBytes;
+                                    if (newRemainderCount > 0)
+                                    {
+                                        Buffer.BlockCopy(readBuffer, fromRead, remainder, 0, newRemainderCount);
+                                    }
+                                    remainderCount = newRemainderCount;
+
+                                    PcmAudioDecoded?.Invoke(_channelIndex, chunk, alignedBytes);
+                                }
+                                else
+                                {
+                                    // Less than 4 bytes accumulated in total, just store in remainder
+                                    Buffer.BlockCopy(readBuffer, 0, remainder, remainderCount, bytesRead);
+                                    remainderCount += bytesRead;
+                                }
                             }
                             else
                             {

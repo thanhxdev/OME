@@ -494,8 +494,8 @@
                                             <Border x:Name="OverlayAudioVuCam1" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
                                                 <StackPanel Orientation="Vertical">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
-                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,3,0"/>
-                                                        <TextBlock x:Name="TxtAudioPeakCam1" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0"/>
+                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC"/>
+                                                        <TextBlock x:Name="TxtAudioPeakCam1" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0" Visibility="Collapsed"/>
                                                     </StackPanel>
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                         <StackPanel Width="10" Margin="0,0,2,0">
@@ -559,8 +559,8 @@
                                             <Border x:Name="OverlayAudioVuCam2" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
                                                 <StackPanel Orientation="Vertical">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
-                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,3,0"/>
-                                                        <TextBlock x:Name="TxtAudioPeakCam2" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0"/>
+                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC"/>
+                                                        <TextBlock x:Name="TxtAudioPeakCam2" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0" Visibility="Collapsed"/>
                                                     </StackPanel>
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                         <StackPanel Width="10" Margin="0,0,2,0">
@@ -624,8 +624,8 @@
                                             <Border x:Name="OverlayAudioVuCam3" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
                                                 <StackPanel Orientation="Vertical">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
-                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,3,0"/>
-                                                        <TextBlock x:Name="TxtAudioPeakCam3" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0"/>
+                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC"/>
+                                                        <TextBlock x:Name="TxtAudioPeakCam3" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0" Visibility="Collapsed"/>
                                                     </StackPanel>
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                         <StackPanel Width="10" Margin="0,0,2,0">
@@ -689,8 +689,8 @@
                                             <Border x:Name="OverlayAudioVuCam4" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
                                                 <StackPanel Orientation="Vertical">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
-                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,3,0"/>
-                                                        <TextBlock x:Name="TxtAudioPeakCam4" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0"/>
+                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC"/>
+                                                        <TextBlock x:Name="TxtAudioPeakCam4" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0" Visibility="Collapsed"/>
                                                     </StackPanel>
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                         <StackPanel Width="10" Margin="0,0,2,0">
@@ -754,8 +754,8 @@
                                             <Border x:Name="OverlayAudioVuCam5" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
                                                 <StackPanel Orientation="Vertical">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
-                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,3,0"/>
-                                                        <TextBlock x:Name="TxtAudioPeakCam5" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0"/>
+                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC"/>
+                                                        <TextBlock x:Name="TxtAudioPeakCam5" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0" Visibility="Collapsed"/>
                                                     </StackPanel>
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                         <StackPanel Width="10" Margin="0,0,2,0">
@@ -819,8 +819,8 @@
                                             <Border x:Name="OverlayAudioVuCam6" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
                                                 <StackPanel Orientation="Vertical">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
-                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,3,0"/>
-                                                        <TextBlock x:Name="TxtAudioPeakCam6" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0"/>
+                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC"/>
+                                                        <TextBlock x:Name="TxtAudioPeakCam6" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0" Visibility="Collapsed"/>
                                                     </StackPanel>
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                         <StackPanel Width="10" Margin="0,0,2,0">
@@ -884,8 +884,8 @@
                                             <Border x:Name="OverlayAudioVuCam7" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
                                                 <StackPanel Orientation="Vertical">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
-                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,3,0"/>
-                                                        <TextBlock x:Name="TxtAudioPeakCam7" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0"/>
+                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC"/>
+                                                        <TextBlock x:Name="TxtAudioPeakCam7" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0" Visibility="Collapsed"/>
                                                     </StackPanel>
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                         <StackPanel Width="10" Margin="0,0,2,0">
@@ -949,8 +949,8 @@
                                             <Border x:Name="OverlayAudioVuCam8" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
                                                 <StackPanel Orientation="Vertical">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
-                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,3,0"/>
-                                                        <TextBlock x:Name="TxtAudioPeakCam8" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0"/>
+                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC"/>
+                                                        <TextBlock x:Name="TxtAudioPeakCam8" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0" Visibility="Collapsed"/>
                                                     </StackPanel>
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                         <StackPanel Width="10" Margin="0,0,2,0">
@@ -1014,8 +1014,8 @@
                                             <Border x:Name="OverlayAudioVuCam9" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
                                                 <StackPanel Orientation="Vertical">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
-                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,3,0"/>
-                                                        <TextBlock x:Name="TxtAudioPeakCam9" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0"/>
+                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC"/>
+                                                        <TextBlock x:Name="TxtAudioPeakCam9" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0" Visibility="Collapsed"/>
                                                     </StackPanel>
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                         <StackPanel Width="10" Margin="0,0,2,0">
@@ -1079,8 +1079,8 @@
                                             <Border x:Name="OverlayAudioVuCam10" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
                                                 <StackPanel Orientation="Vertical">
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
-                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,3,0"/>
-                                                        <TextBlock x:Name="TxtAudioPeakCam10" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0"/>
+                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC"/>
+                                                        <TextBlock x:Name="TxtAudioPeakCam10" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0" Visibility="Collapsed"/>
                                                     </StackPanel>
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                         <StackPanel Width="10" Margin="0,0,2,0">
@@ -1180,7 +1180,7 @@
                                         <ProgressBar x:Name="VuMaster15" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
                                         <ProgressBar x:Name="VuMaster16" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Visibility="Collapsed"/>
                                     </StackPanel>
-                                    <TextBlock x:Name="TxtMasterPeakDb" Text="-18.0 dB" FontFamily="Consolas" FontWeight="Bold" FontSize="10" Foreground="#22C55E" VerticalAlignment="Center" Margin="2,0,0,0"/>
+                                    <TextBlock x:Name="TxtMasterPeakDb" Text="-18.0 dB" FontFamily="Consolas" FontWeight="Bold" FontSize="10" Foreground="#22C55E" VerticalAlignment="Center" Margin="2,0,0,0" Visibility="Collapsed"/>
                                 </StackPanel>
                             </Border>
 
@@ -1245,7 +1245,6 @@
                                                     <TextBlock x:Name="TxtStreamCountBadge" Text="Active: 1/10" FontWeight="Bold" FontSize="10.5" Foreground="#FFFFFF"/>
                                                 </Border>
                                             </StackPanel>
-                                            <TextBlock Text="Cấu hình nhận luồng SRT Ingest động (tối đa 10 luồng)" FontSize="10.5" Foreground="#888888" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                         </Grid>
                                         <!-- Buttons moved to bottom row -->
                                         <Grid>
@@ -1922,9 +1921,7 @@
                                                 </Border>
                                                 <TextBlock Text="KHUNG OUTPUT TỪNG SRT RECEIVER" FontWeight="Bold" FontSize="12.5" Foreground="#FFFFFF"/>
                                             </StackPanel>
-                                            <TextBlock Text="Tự động tạo theo luồng Ingest" FontSize="10.5" Foreground="#888888" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                         </Grid>
-                                        <TextBlock Text="Cấu hình xuất cổng SDI port#, NDI, SRT Re-transmitter, File Recording ISO và Codec Video riêng cho từng luồng SRT" FontSize="10.5" Foreground="#888888"/>
                                     </StackPanel>
                                 </Border>
 
@@ -3372,7 +3369,6 @@
                                                 <TextBlock Text="PGM BUS PLAYOUT" FontWeight="Bold" FontSize="10" Foreground="#EF4444"/>
                                             </Border>
                                         </Grid>
-                                        <TextBlock Text="Cấu hình xuất tín hiệu tổng Program Master (SDI, NDI, SRT Bridge, Master Rec) &amp; Codec Video Output" FontSize="10.5" Foreground="#888888" Margin="0,0,0,8"/>
 
                                         <!-- 1. Master Video Codec Output Settings -->
                                         <Border Style="{StaticResource SubCardBorderStyle}" Background="#16161B" BorderBrush="#383845">
@@ -3550,7 +3546,6 @@
                                 <Border Style="{StaticResource CardBorderStyle}">
                                     <StackPanel>
                                         <CheckBox x:Name="ChkMasterSync" Content="Multi-Camera Master Synchronization" Checked="ChkMasterSync_Changed" Unchecked="ChkMasterSync_Changed" Style="{StaticResource ToggleSwitchStyle}" FontWeight="Bold" FontSize="13" Foreground="#00FFCC"/>
-                                        <TextBlock Text="Đồng bộ mốc thời gian thực NTP &amp; PTS giữa tất cả các góc máy trước bộ trộn" FontSize="10.5" Foreground="#888888" Margin="0,4,0,0"/>
                                     </StackPanel>
                                 </Border>
 
@@ -3963,6 +3958,452 @@
                                             </StackPanel>
                                         </Border>
 
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- ══════════════════════════════════════════════════════ -->
+                    <!-- TAB 6: STUDIO AUDIO MIXER CONSOLE                      -->
+                    <!-- ══════════════════════════════════════════════════════ -->
+                    <TabItem Header="6. 🎚️ Audio Mixer">
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+                            <StackPanel Margin="2">
+                                <!-- Top Toolbar Card -->
+                                <Border Style="{StaticResource CardBorderStyle}" Background="#1C1C22" BorderBrush="#007ACC" Margin="0,0,0,6" Padding="8,6">
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="🎚️ STUDIO AUDIO MIXER" FontWeight="Bold" FontSize="11.5" Foreground="#FFFFFF"/>
+                                            <Border Background="#007ACC" CornerRadius="3" Padding="4,1" Margin="6,0,0,0">
+                                                <TextBlock Text="2x6 CONSOLE" FontWeight="Bold" FontSize="9" Foreground="#FFFFFF"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- 2 Hàng Dải Kênh Audio Mixer (Mỗi hàng 6 khung, chiều ngang siêu gọn 48px) -->
+                                <Border Background="#121216" BorderBrush="#25252C" BorderThickness="1" CornerRadius="6" Padding="6">
+                                    <StackPanel>
+                                        <!-- HÀNG 1: Tối đa 6 khung Audio (Cam 1 đến Cam 6) -->
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+
+                                            <!-- ─── STRIP CAM 1 (Visible mặc định) ────────── -->
+                                            <Border x:Name="StripMixerCam1" Width="48" Background="#18181E" BorderBrush="#DC2626" BorderThickness="1.5" CornerRadius="4" Margin="0,0,4,0" Padding="2,4" Visibility="Visible">
+                                                <StackPanel>
+                                                    <Border x:Name="TallyMixerCam1" Background="#DC2626" CornerRadius="2" Padding="2,1" Margin="0,0,0,1">
+                                                        <TextBlock x:Name="TxtTallyMixerCam1" Text="PGM" FontWeight="Bold" FontSize="8" Foreground="#FFFFFF" HorizontalAlignment="Center"/>
+                                                    </Border>
+                                                    <TextBlock x:Name="TxtMixerNameCam1" Text="CAM 1" FontWeight="Bold" FontSize="8.5" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,0,0,2" TextTrimming="CharacterEllipsis"/>
+                                                    <Grid Height="112">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,2,0" VerticalAlignment="Center">
+                                                            <StackPanel Width="5" Margin="0,0,1,0">
+                                                                <Ellipse x:Name="ClipMixerCam1_L" Width="3" Height="3" Fill="#2A2A2E" Margin="0,0,0,1" HorizontalAlignment="Center"/>
+                                                                <ProgressBar x:Name="VuMixerCam1L" Orientation="Vertical" Height="100" Width="3.5" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            </StackPanel>
+                                                            <StackPanel Width="5">
+                                                                <Ellipse x:Name="ClipMixerCam1_R" Width="3" Height="3" Fill="#2A2A2E" Margin="0,0,0,1" HorizontalAlignment="Center"/>
+                                                                <ProgressBar x:Name="VuMixerCam1R" Orientation="Vertical" Height="100" Width="3.5" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <TextBlock x:Name="TxtGainDbCam1" Text="0.0" FontSize="8" FontFamily="Consolas" FontWeight="Bold" Foreground="#00FFCC" HorizontalAlignment="Center" Margin="0,0,0,1"/>
+                                                            <Slider x:Name="FaderCam1" Orientation="Vertical" Height="96" Width="18" Minimum="-60" Maximum="12" Value="0" TickFrequency="6" IsSnapToTickEnabled="False" Tag="0" ValueChanged="MixerFader_ValueChanged" MouseDoubleClick="MixerFader_MouseDoubleClick" ToolTip="Kéo để chỉnh âm lượng (-60 đến +12 dB). Nhấp đúp reset 0 dB" Cursor="Hand"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <StackPanel Margin="0,2,0,2">
+                                                        <TextBlock x:Name="TxtPanCam1" Text="C" FontSize="7.5" FontWeight="Bold" Foreground="#4EC9B0" HorizontalAlignment="Center"/>
+                                                        <Slider x:Name="PanCam1" Width="40" Minimum="-1" Maximum="1" Value="0" Tag="0" ValueChanged="MixerPan_ValueChanged" MouseDoubleClick="MixerPan_MouseDoubleClick" ToolTip="Pan L/R (Nhấp đúp reset C)" Cursor="Hand"/>
+                                                    </StackPanel>
+                                                    <Button x:Name="BtnMixerMuteCam1" Content="M" Width="40" Height="16" Background="#EF4444" Foreground="#FFFFFF" Tag="0" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
+                                                    <Button x:Name="BtnMixerSoloCam1" Content="S" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="1" Click="BtnMixerSolo_Click" FontSize="8" FontWeight="Bold" Padding="0" Cursor="Hand" ToolTip="SOLO"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- ─── STRIP CAM 2 (Collapsed) ──────────────── -->
+                                            <Border x:Name="StripMixerCam2" Width="48" Background="#18181E" BorderBrush="#2C2C36" BorderThickness="1" CornerRadius="4" Margin="0,0,4,0" Padding="2,4" Visibility="Collapsed">
+                                                <StackPanel>
+                                                    <Border x:Name="TallyMixerCam2" Background="#333338" CornerRadius="2" Padding="2,1" Margin="0,0,0,1">
+                                                        <TextBlock x:Name="TxtTallyMixerCam2" Text="CAM 2" FontWeight="Bold" FontSize="8" Foreground="#AAAAAA" HorizontalAlignment="Center"/>
+                                                    </Border>
+                                                    <TextBlock x:Name="TxtMixerNameCam2" Text="CAM 2" FontWeight="Bold" FontSize="8.5" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,0,0,2" TextTrimming="CharacterEllipsis"/>
+                                                    <Grid Height="112">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,2,0" VerticalAlignment="Center">
+                                                            <StackPanel Width="5" Margin="0,0,1,0">
+                                                                <Ellipse x:Name="ClipMixerCam2_L" Width="3" Height="3" Fill="#2A2A2E" Margin="0,0,0,1" HorizontalAlignment="Center"/>
+                                                                <ProgressBar x:Name="VuMixerCam2L" Orientation="Vertical" Height="100" Width="3.5" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            </StackPanel>
+                                                            <StackPanel Width="5">
+                                                                <Ellipse x:Name="ClipMixerCam2_R" Width="3" Height="3" Fill="#2A2A2E" Margin="0,0,0,1" HorizontalAlignment="Center"/>
+                                                                <ProgressBar x:Name="VuMixerCam2R" Orientation="Vertical" Height="100" Width="3.5" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <TextBlock x:Name="TxtGainDbCam2" Text="0.0" FontSize="8" FontFamily="Consolas" FontWeight="Bold" Foreground="#00FFCC" HorizontalAlignment="Center" Margin="0,0,0,1"/>
+                                                            <Slider x:Name="FaderCam2" Orientation="Vertical" Height="96" Width="18" Minimum="-60" Maximum="12" Value="0" TickFrequency="6" IsSnapToTickEnabled="False" Tag="1" ValueChanged="MixerFader_ValueChanged" MouseDoubleClick="MixerFader_MouseDoubleClick" ToolTip="Kéo để chỉnh âm lượng (-60 đến +12 dB). Nhấp đúp reset 0 dB" Cursor="Hand"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <StackPanel Margin="0,2,0,2">
+                                                        <TextBlock x:Name="TxtPanCam2" Text="C" FontSize="7.5" FontWeight="Bold" Foreground="#4EC9B0" HorizontalAlignment="Center"/>
+                                                        <Slider x:Name="PanCam2" Width="40" Minimum="-1" Maximum="1" Value="0" Tag="1" ValueChanged="MixerPan_ValueChanged" MouseDoubleClick="MixerPan_MouseDoubleClick" ToolTip="Pan L/R (Nhấp đúp reset C)" Cursor="Hand"/>
+                                                    </StackPanel>
+                                                    <Button x:Name="BtnMixerMuteCam2" Content="M" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="1" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
+                                                    <Button x:Name="BtnMixerSoloCam2" Content="S" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="2" Click="BtnMixerSolo_Click" FontSize="8" FontWeight="Bold" Padding="0" Cursor="Hand" ToolTip="SOLO"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- ─── STRIP CAM 3 (Collapsed) ──────────────── -->
+                                            <Border x:Name="StripMixerCam3" Width="48" Background="#18181E" BorderBrush="#2C2C36" BorderThickness="1" CornerRadius="4" Margin="0,0,4,0" Padding="2,4" Visibility="Collapsed">
+                                                <StackPanel>
+                                                    <Border x:Name="TallyMixerCam3" Background="#333338" CornerRadius="2" Padding="2,1" Margin="0,0,0,1">
+                                                        <TextBlock x:Name="TxtTallyMixerCam3" Text="CAM 3" FontWeight="Bold" FontSize="8" Foreground="#AAAAAA" HorizontalAlignment="Center"/>
+                                                    </Border>
+                                                    <TextBlock x:Name="TxtMixerNameCam3" Text="CAM 3" FontWeight="Bold" FontSize="8.5" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,0,0,2" TextTrimming="CharacterEllipsis"/>
+                                                    <Grid Height="112">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,2,0" VerticalAlignment="Center">
+                                                            <StackPanel Width="5" Margin="0,0,1,0">
+                                                                <Ellipse x:Name="ClipMixerCam3_L" Width="3" Height="3" Fill="#2A2A2E" Margin="0,0,0,1" HorizontalAlignment="Center"/>
+                                                                <ProgressBar x:Name="VuMixerCam3L" Orientation="Vertical" Height="100" Width="3.5" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            </StackPanel>
+                                                            <StackPanel Width="5">
+                                                                <Ellipse x:Name="ClipMixerCam3_R" Width="3" Height="3" Fill="#2A2A2E" Margin="0,0,0,1" HorizontalAlignment="Center"/>
+                                                                <ProgressBar x:Name="VuMixerCam3R" Orientation="Vertical" Height="100" Width="3.5" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <TextBlock x:Name="TxtGainDbCam3" Text="0.0" FontSize="8" FontFamily="Consolas" FontWeight="Bold" Foreground="#00FFCC" HorizontalAlignment="Center" Margin="0,0,0,1"/>
+                                                            <Slider x:Name="FaderCam3" Orientation="Vertical" Height="96" Width="18" Minimum="-60" Maximum="12" Value="0" TickFrequency="6" IsSnapToTickEnabled="False" Tag="2" ValueChanged="MixerFader_ValueChanged" MouseDoubleClick="MixerFader_MouseDoubleClick" ToolTip="Kéo để chỉnh âm lượng (-60 đến +12 dB). Nhấp đúp reset 0 dB" Cursor="Hand"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <StackPanel Margin="0,2,0,2">
+                                                        <TextBlock x:Name="TxtPanCam3" Text="C" FontSize="7.5" FontWeight="Bold" Foreground="#4EC9B0" HorizontalAlignment="Center"/>
+                                                        <Slider x:Name="PanCam3" Width="40" Minimum="-1" Maximum="1" Value="0" Tag="2" ValueChanged="MixerPan_ValueChanged" MouseDoubleClick="MixerPan_MouseDoubleClick" ToolTip="Pan L/R (Nhấp đúp reset C)" Cursor="Hand"/>
+                                                    </StackPanel>
+                                                    <Button x:Name="BtnMixerMuteCam3" Content="M" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="2" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
+                                                    <Button x:Name="BtnMixerSoloCam3" Content="S" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="3" Click="BtnMixerSolo_Click" FontSize="8" FontWeight="Bold" Padding="0" Cursor="Hand" ToolTip="SOLO"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- ─── STRIP CAM 4 (Collapsed) ──────────────── -->
+                                            <Border x:Name="StripMixerCam4" Width="48" Background="#18181E" BorderBrush="#2C2C36" BorderThickness="1" CornerRadius="4" Margin="0,0,4,0" Padding="2,4" Visibility="Collapsed">
+                                                <StackPanel>
+                                                    <Border x:Name="TallyMixerCam4" Background="#333338" CornerRadius="2" Padding="2,1" Margin="0,0,0,1">
+                                                        <TextBlock x:Name="TxtTallyMixerCam4" Text="CAM 4" FontWeight="Bold" FontSize="8" Foreground="#AAAAAA" HorizontalAlignment="Center"/>
+                                                    </Border>
+                                                    <TextBlock x:Name="TxtMixerNameCam4" Text="CAM 4" FontWeight="Bold" FontSize="8.5" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,0,0,2" TextTrimming="CharacterEllipsis"/>
+                                                    <Grid Height="112">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,2,0" VerticalAlignment="Center">
+                                                            <StackPanel Width="5" Margin="0,0,1,0">
+                                                                <Ellipse x:Name="ClipMixerCam4_L" Width="3" Height="3" Fill="#2A2A2E" Margin="0,0,0,1" HorizontalAlignment="Center"/>
+                                                                <ProgressBar x:Name="VuMixerCam4L" Orientation="Vertical" Height="100" Width="3.5" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            </StackPanel>
+                                                            <StackPanel Width="5">
+                                                                <Ellipse x:Name="ClipMixerCam4_R" Width="3" Height="3" Fill="#2A2A2E" Margin="0,0,0,1" HorizontalAlignment="Center"/>
+                                                                <ProgressBar x:Name="VuMixerCam4R" Orientation="Vertical" Height="100" Width="3.5" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <TextBlock x:Name="TxtGainDbCam4" Text="0.0" FontSize="8" FontFamily="Consolas" FontWeight="Bold" Foreground="#00FFCC" HorizontalAlignment="Center" Margin="0,0,0,1"/>
+                                                            <Slider x:Name="FaderCam4" Orientation="Vertical" Height="96" Width="18" Minimum="-60" Maximum="12" Value="0" TickFrequency="6" IsSnapToTickEnabled="False" Tag="3" ValueChanged="MixerFader_ValueChanged" MouseDoubleClick="MixerFader_MouseDoubleClick" ToolTip="Kéo để chỉnh âm lượng (-60 đến +12 dB). Nhấp đúp reset 0 dB" Cursor="Hand"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <StackPanel Margin="0,2,0,2">
+                                                        <TextBlock x:Name="TxtPanCam4" Text="C" FontSize="7.5" FontWeight="Bold" Foreground="#4EC9B0" HorizontalAlignment="Center"/>
+                                                        <Slider x:Name="PanCam4" Width="40" Minimum="-1" Maximum="1" Value="0" Tag="3" ValueChanged="MixerPan_ValueChanged" MouseDoubleClick="MixerPan_MouseDoubleClick" ToolTip="Pan L/R (Nhấp đúp reset C)" Cursor="Hand"/>
+                                                    </StackPanel>
+                                                    <Button x:Name="BtnMixerMuteCam4" Content="M" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="3" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
+                                                    <Button x:Name="BtnMixerSoloCam4" Content="S" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="4" Click="BtnMixerSolo_Click" FontSize="8" FontWeight="Bold" Padding="0" Cursor="Hand" ToolTip="SOLO"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- ─── STRIP CAM 5 (Collapsed) ──────────────── -->
+                                            <Border x:Name="StripMixerCam5" Width="48" Background="#18181E" BorderBrush="#2C2C36" BorderThickness="1" CornerRadius="4" Margin="0,0,4,0" Padding="2,4" Visibility="Collapsed">
+                                                <StackPanel>
+                                                    <Border x:Name="TallyMixerCam5" Background="#333338" CornerRadius="2" Padding="2,1" Margin="0,0,0,1">
+                                                        <TextBlock x:Name="TxtTallyMixerCam5" Text="CAM 5" FontWeight="Bold" FontSize="8" Foreground="#AAAAAA" HorizontalAlignment="Center"/>
+                                                    </Border>
+                                                    <TextBlock x:Name="TxtMixerNameCam5" Text="CAM 5" FontWeight="Bold" FontSize="8.5" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,0,0,2" TextTrimming="CharacterEllipsis"/>
+                                                    <Grid Height="112">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,2,0" VerticalAlignment="Center">
+                                                            <StackPanel Width="5" Margin="0,0,1,0">
+                                                                <Ellipse x:Name="ClipMixerCam5_L" Width="3" Height="3" Fill="#2A2A2E" Margin="0,0,0,1" HorizontalAlignment="Center"/>
+                                                                <ProgressBar x:Name="VuMixerCam5L" Orientation="Vertical" Height="100" Width="3.5" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            </StackPanel>
+                                                            <StackPanel Width="5">
+                                                                <Ellipse x:Name="ClipMixerCam5_R" Width="3" Height="3" Fill="#2A2A2E" Margin="0,0,0,1" HorizontalAlignment="Center"/>
+                                                                <ProgressBar x:Name="VuMixerCam5R" Orientation="Vertical" Height="100" Width="3.5" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <TextBlock x:Name="TxtGainDbCam5" Text="0.0" FontSize="8" FontFamily="Consolas" FontWeight="Bold" Foreground="#00FFCC" HorizontalAlignment="Center" Margin="0,0,0,1"/>
+                                                            <Slider x:Name="FaderCam5" Orientation="Vertical" Height="96" Width="18" Minimum="-60" Maximum="12" Value="0" TickFrequency="6" IsSnapToTickEnabled="False" Tag="4" ValueChanged="MixerFader_ValueChanged" MouseDoubleClick="MixerFader_MouseDoubleClick" ToolTip="Kéo để chỉnh âm lượng (-60 đến +12 dB). Nhấp đúp reset 0 dB" Cursor="Hand"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <StackPanel Margin="0,2,0,2">
+                                                        <TextBlock x:Name="TxtPanCam5" Text="C" FontSize="7.5" FontWeight="Bold" Foreground="#4EC9B0" HorizontalAlignment="Center"/>
+                                                        <Slider x:Name="PanCam5" Width="40" Minimum="-1" Maximum="1" Value="0" Tag="4" ValueChanged="MixerPan_ValueChanged" MouseDoubleClick="MixerPan_MouseDoubleClick" ToolTip="Pan L/R (Nhấp đúp reset C)" Cursor="Hand"/>
+                                                    </StackPanel>
+                                                    <Button x:Name="BtnMixerMuteCam5" Content="M" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="4" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
+                                                    <Button x:Name="BtnMixerSoloCam5" Content="S" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="5" Click="BtnMixerSolo_Click" FontSize="8" FontWeight="Bold" Padding="0" Cursor="Hand" ToolTip="SOLO"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- ─── STRIP CAM 6 (Collapsed) ──────────────── -->
+                                            <Border x:Name="StripMixerCam6" Width="48" Background="#18181E" BorderBrush="#2C2C36" BorderThickness="1" CornerRadius="4" Margin="0,0,4,0" Padding="2,4" Visibility="Collapsed">
+                                                <StackPanel>
+                                                    <Border x:Name="TallyMixerCam6" Background="#333338" CornerRadius="2" Padding="2,1" Margin="0,0,0,1">
+                                                        <TextBlock x:Name="TxtTallyMixerCam6" Text="CAM 6" FontWeight="Bold" FontSize="8" Foreground="#AAAAAA" HorizontalAlignment="Center"/>
+                                                    </Border>
+                                                    <TextBlock x:Name="TxtMixerNameCam6" Text="CAM 6" FontWeight="Bold" FontSize="8.5" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,0,0,2" TextTrimming="CharacterEllipsis"/>
+                                                    <Grid Height="112">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,2,0" VerticalAlignment="Center">
+                                                            <StackPanel Width="5" Margin="0,0,1,0">
+                                                                <Ellipse x:Name="ClipMixerCam6_L" Width="3" Height="3" Fill="#2A2A2E" Margin="0,0,0,1" HorizontalAlignment="Center"/>
+                                                                <ProgressBar x:Name="VuMixerCam6L" Orientation="Vertical" Height="100" Width="3.5" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            </StackPanel>
+                                                            <StackPanel Width="5">
+                                                                <Ellipse x:Name="ClipMixerCam6_R" Width="3" Height="3" Fill="#2A2A2E" Margin="0,0,0,1" HorizontalAlignment="Center"/>
+                                                                <ProgressBar x:Name="VuMixerCam6R" Orientation="Vertical" Height="100" Width="3.5" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <TextBlock x:Name="TxtGainDbCam6" Text="0.0" FontSize="8" FontFamily="Consolas" FontWeight="Bold" Foreground="#00FFCC" HorizontalAlignment="Center" Margin="0,0,0,1"/>
+                                                            <Slider x:Name="FaderCam6" Orientation="Vertical" Height="96" Width="18" Minimum="-60" Maximum="12" Value="0" TickFrequency="6" IsSnapToTickEnabled="False" Tag="5" ValueChanged="MixerFader_ValueChanged" MouseDoubleClick="MixerFader_MouseDoubleClick" ToolTip="Kéo để chỉnh âm lượng (-60 đến +12 dB). Nhấp đúp reset 0 dB" Cursor="Hand"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <StackPanel Margin="0,2,0,2">
+                                                        <TextBlock x:Name="TxtPanCam6" Text="C" FontSize="7.5" FontWeight="Bold" Foreground="#4EC9B0" HorizontalAlignment="Center"/>
+                                                        <Slider x:Name="PanCam6" Width="40" Minimum="-1" Maximum="1" Value="0" Tag="5" ValueChanged="MixerPan_ValueChanged" MouseDoubleClick="MixerPan_MouseDoubleClick" ToolTip="Pan L/R (Nhấp đúp reset C)" Cursor="Hand"/>
+                                                    </StackPanel>
+                                                    <Button x:Name="BtnMixerMuteCam6" Content="M" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="5" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
+                                                    <Button x:Name="BtnMixerSoloCam6" Content="S" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="6" Click="BtnMixerSolo_Click" FontSize="8" FontWeight="Bold" Padding="0" Cursor="Hand" ToolTip="SOLO"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                        </StackPanel>
+
+                                        <!-- HÀNG 2: Tối đa 6 khung Audio (Cam 7 đến Cam 10 + Master + Quick Tools) -->
+                                        <StackPanel Orientation="Horizontal">
+
+
+                                            <!-- ─── STRIP CAM 7 (Collapsed) ──────────────── -->
+                                            <Border x:Name="StripMixerCam7" Width="48" Background="#18181E" BorderBrush="#2C2C36" BorderThickness="1" CornerRadius="4" Margin="0,0,4,0" Padding="2,4" Visibility="Collapsed">
+                                                <StackPanel>
+                                                    <Border x:Name="TallyMixerCam7" Background="#333338" CornerRadius="2" Padding="2,1" Margin="0,0,0,1">
+                                                        <TextBlock x:Name="TxtTallyMixerCam7" Text="CAM 7" FontWeight="Bold" FontSize="8" Foreground="#AAAAAA" HorizontalAlignment="Center"/>
+                                                    </Border>
+                                                    <TextBlock x:Name="TxtMixerNameCam7" Text="CAM 7" FontWeight="Bold" FontSize="8.5" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,0,0,2" TextTrimming="CharacterEllipsis"/>
+                                                    <Grid Height="112">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,2,0" VerticalAlignment="Center">
+                                                            <StackPanel Width="5" Margin="0,0,1,0">
+                                                                <Ellipse x:Name="ClipMixerCam7_L" Width="3" Height="3" Fill="#2A2A2E" Margin="0,0,0,1" HorizontalAlignment="Center"/>
+                                                                <ProgressBar x:Name="VuMixerCam7L" Orientation="Vertical" Height="100" Width="3.5" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            </StackPanel>
+                                                            <StackPanel Width="5">
+                                                                <Ellipse x:Name="ClipMixerCam7_R" Width="3" Height="3" Fill="#2A2A2E" Margin="0,0,0,1" HorizontalAlignment="Center"/>
+                                                                <ProgressBar x:Name="VuMixerCam7R" Orientation="Vertical" Height="100" Width="3.5" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <TextBlock x:Name="TxtGainDbCam7" Text="0.0" FontSize="8" FontFamily="Consolas" FontWeight="Bold" Foreground="#00FFCC" HorizontalAlignment="Center" Margin="0,0,0,1"/>
+                                                            <Slider x:Name="FaderCam7" Orientation="Vertical" Height="96" Width="18" Minimum="-60" Maximum="12" Value="0" TickFrequency="6" IsSnapToTickEnabled="False" Tag="6" ValueChanged="MixerFader_ValueChanged" MouseDoubleClick="MixerFader_MouseDoubleClick" ToolTip="Kéo để chỉnh âm lượng (-60 đến +12 dB). Nhấp đúp reset 0 dB" Cursor="Hand"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <StackPanel Margin="0,2,0,2">
+                                                        <TextBlock x:Name="TxtPanCam7" Text="C" FontSize="7.5" FontWeight="Bold" Foreground="#4EC9B0" HorizontalAlignment="Center"/>
+                                                        <Slider x:Name="PanCam7" Width="40" Minimum="-1" Maximum="1" Value="0" Tag="6" ValueChanged="MixerPan_ValueChanged" MouseDoubleClick="MixerPan_MouseDoubleClick" ToolTip="Pan L/R (Nhấp đúp reset C)" Cursor="Hand"/>
+                                                    </StackPanel>
+                                                    <Button x:Name="BtnMixerMuteCam7" Content="M" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="6" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
+                                                    <Button x:Name="BtnMixerSoloCam7" Content="S" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="7" Click="BtnMixerSolo_Click" FontSize="8" FontWeight="Bold" Padding="0" Cursor="Hand" ToolTip="SOLO"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- ─── STRIP CAM 8 (Collapsed) ──────────────── -->
+                                            <Border x:Name="StripMixerCam8" Width="48" Background="#18181E" BorderBrush="#2C2C36" BorderThickness="1" CornerRadius="4" Margin="0,0,4,0" Padding="2,4" Visibility="Collapsed">
+                                                <StackPanel>
+                                                    <Border x:Name="TallyMixerCam8" Background="#333338" CornerRadius="2" Padding="2,1" Margin="0,0,0,1">
+                                                        <TextBlock x:Name="TxtTallyMixerCam8" Text="CAM 8" FontWeight="Bold" FontSize="8" Foreground="#AAAAAA" HorizontalAlignment="Center"/>
+                                                    </Border>
+                                                    <TextBlock x:Name="TxtMixerNameCam8" Text="CAM 8" FontWeight="Bold" FontSize="8.5" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,0,0,2" TextTrimming="CharacterEllipsis"/>
+                                                    <Grid Height="112">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,2,0" VerticalAlignment="Center">
+                                                            <StackPanel Width="5" Margin="0,0,1,0">
+                                                                <Ellipse x:Name="ClipMixerCam8_L" Width="3" Height="3" Fill="#2A2A2E" Margin="0,0,0,1" HorizontalAlignment="Center"/>
+                                                                <ProgressBar x:Name="VuMixerCam8L" Orientation="Vertical" Height="100" Width="3.5" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            </StackPanel>
+                                                            <StackPanel Width="5">
+                                                                <Ellipse x:Name="ClipMixerCam8_R" Width="3" Height="3" Fill="#2A2A2E" Margin="0,0,0,1" HorizontalAlignment="Center"/>
+                                                                <ProgressBar x:Name="VuMixerCam8R" Orientation="Vertical" Height="100" Width="3.5" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <TextBlock x:Name="TxtGainDbCam8" Text="0.0" FontSize="8" FontFamily="Consolas" FontWeight="Bold" Foreground="#00FFCC" HorizontalAlignment="Center" Margin="0,0,0,1"/>
+                                                            <Slider x:Name="FaderCam8" Orientation="Vertical" Height="96" Width="18" Minimum="-60" Maximum="12" Value="0" TickFrequency="6" IsSnapToTickEnabled="False" Tag="7" ValueChanged="MixerFader_ValueChanged" MouseDoubleClick="MixerFader_MouseDoubleClick" ToolTip="Kéo để chỉnh âm lượng (-60 đến +12 dB). Nhấp đúp reset 0 dB" Cursor="Hand"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <StackPanel Margin="0,2,0,2">
+                                                        <TextBlock x:Name="TxtPanCam8" Text="C" FontSize="7.5" FontWeight="Bold" Foreground="#4EC9B0" HorizontalAlignment="Center"/>
+                                                        <Slider x:Name="PanCam8" Width="40" Minimum="-1" Maximum="1" Value="0" Tag="7" ValueChanged="MixerPan_ValueChanged" MouseDoubleClick="MixerPan_MouseDoubleClick" ToolTip="Pan L/R (Nhấp đúp reset C)" Cursor="Hand"/>
+                                                    </StackPanel>
+                                                    <Button x:Name="BtnMixerMuteCam8" Content="M" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="7" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
+                                                    <Button x:Name="BtnMixerSoloCam8" Content="S" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="8" Click="BtnMixerSolo_Click" FontSize="8" FontWeight="Bold" Padding="0" Cursor="Hand" ToolTip="SOLO"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- ─── STRIP CAM 9 (Collapsed) ──────────────── -->
+                                            <Border x:Name="StripMixerCam9" Width="48" Background="#18181E" BorderBrush="#2C2C36" BorderThickness="1" CornerRadius="4" Margin="0,0,4,0" Padding="2,4" Visibility="Collapsed">
+                                                <StackPanel>
+                                                    <Border x:Name="TallyMixerCam9" Background="#333338" CornerRadius="2" Padding="2,1" Margin="0,0,0,1">
+                                                        <TextBlock x:Name="TxtTallyMixerCam9" Text="CAM 9" FontWeight="Bold" FontSize="8" Foreground="#AAAAAA" HorizontalAlignment="Center"/>
+                                                    </Border>
+                                                    <TextBlock x:Name="TxtMixerNameCam9" Text="CAM 9" FontWeight="Bold" FontSize="8.5" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,0,0,2" TextTrimming="CharacterEllipsis"/>
+                                                    <Grid Height="112">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,2,0" VerticalAlignment="Center">
+                                                            <StackPanel Width="5" Margin="0,0,1,0">
+                                                                <Ellipse x:Name="ClipMixerCam9_L" Width="3" Height="3" Fill="#2A2A2E" Margin="0,0,0,1" HorizontalAlignment="Center"/>
+                                                                <ProgressBar x:Name="VuMixerCam9L" Orientation="Vertical" Height="100" Width="3.5" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            </StackPanel>
+                                                            <StackPanel Width="5">
+                                                                <Ellipse x:Name="ClipMixerCam9_R" Width="3" Height="3" Fill="#2A2A2E" Margin="0,0,0,1" HorizontalAlignment="Center"/>
+                                                                <ProgressBar x:Name="VuMixerCam9R" Orientation="Vertical" Height="100" Width="3.5" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <TextBlock x:Name="TxtGainDbCam9" Text="0.0" FontSize="8" FontFamily="Consolas" FontWeight="Bold" Foreground="#00FFCC" HorizontalAlignment="Center" Margin="0,0,0,1"/>
+                                                            <Slider x:Name="FaderCam9" Orientation="Vertical" Height="96" Width="18" Minimum="-60" Maximum="12" Value="0" TickFrequency="6" IsSnapToTickEnabled="False" Tag="8" ValueChanged="MixerFader_ValueChanged" MouseDoubleClick="MixerFader_MouseDoubleClick" ToolTip="Kéo để chỉnh âm lượng (-60 đến +12 dB). Nhấp đúp reset 0 dB" Cursor="Hand"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <StackPanel Margin="0,2,0,2">
+                                                        <TextBlock x:Name="TxtPanCam9" Text="C" FontSize="7.5" FontWeight="Bold" Foreground="#4EC9B0" HorizontalAlignment="Center"/>
+                                                        <Slider x:Name="PanCam9" Width="40" Minimum="-1" Maximum="1" Value="0" Tag="8" ValueChanged="MixerPan_ValueChanged" MouseDoubleClick="MixerPan_MouseDoubleClick" ToolTip="Pan L/R (Nhấp đúp reset C)" Cursor="Hand"/>
+                                                    </StackPanel>
+                                                    <Button x:Name="BtnMixerMuteCam9" Content="M" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="8" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
+                                                    <Button x:Name="BtnMixerSoloCam9" Content="S" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="9" Click="BtnMixerSolo_Click" FontSize="8" FontWeight="Bold" Padding="0" Cursor="Hand" ToolTip="SOLO"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- ─── STRIP CAM 10 (Collapsed) ─────────────── -->
+                                            <Border x:Name="StripMixerCam10" Width="48" Background="#18181E" BorderBrush="#2C2C36" BorderThickness="1" CornerRadius="4" Margin="0,0,4,0" Padding="2,4" Visibility="Collapsed">
+                                                <StackPanel>
+                                                    <Border x:Name="TallyMixerCam10" Background="#333338" CornerRadius="2" Padding="2,1" Margin="0,0,0,1">
+                                                        <TextBlock x:Name="TxtTallyMixerCam10" Text="CAM 10" FontWeight="Bold" FontSize="8" Foreground="#AAAAAA" HorizontalAlignment="Center"/>
+                                                    </Border>
+                                                    <TextBlock x:Name="TxtMixerNameCam10" Text="CAM 10" FontWeight="Bold" FontSize="8.5" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,0,0,2" TextTrimming="CharacterEllipsis"/>
+                                                    <Grid Height="112">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,2,0" VerticalAlignment="Center">
+                                                            <StackPanel Width="5" Margin="0,0,1,0">
+                                                                <Ellipse x:Name="ClipMixerCam10_L" Width="3" Height="3" Fill="#2A2A2E" Margin="0,0,0,1" HorizontalAlignment="Center"/>
+                                                                <ProgressBar x:Name="VuMixerCam10L" Orientation="Vertical" Height="100" Width="3.5" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            </StackPanel>
+                                                            <StackPanel Width="5">
+                                                                <Ellipse x:Name="ClipMixerCam10_R" Width="3" Height="3" Fill="#2A2A2E" Margin="0,0,0,1" HorizontalAlignment="Center"/>
+                                                                <ProgressBar x:Name="VuMixerCam10R" Orientation="Vertical" Height="100" Width="3.5" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <TextBlock x:Name="TxtGainDbCam10" Text="0.0" FontSize="8" FontFamily="Consolas" FontWeight="Bold" Foreground="#00FFCC" HorizontalAlignment="Center" Margin="0,0,0,1"/>
+                                                            <Slider x:Name="FaderCam10" Orientation="Vertical" Height="96" Width="18" Minimum="-60" Maximum="12" Value="0" TickFrequency="6" IsSnapToTickEnabled="False" Tag="9" ValueChanged="MixerFader_ValueChanged" MouseDoubleClick="MixerFader_MouseDoubleClick" ToolTip="Kéo để chỉnh âm lượng (-60 đến +12 dB). Nhấp đúp reset 0 dB" Cursor="Hand"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <StackPanel Margin="0,2,0,2">
+                                                        <TextBlock x:Name="TxtPanCam10" Text="C" FontSize="7.5" FontWeight="Bold" Foreground="#4EC9B0" HorizontalAlignment="Center"/>
+                                                        <Slider x:Name="PanCam10" Width="40" Minimum="-1" Maximum="1" Value="0" Tag="9" ValueChanged="MixerPan_ValueChanged" MouseDoubleClick="MixerPan_MouseDoubleClick" ToolTip="Pan L/R (Nhấp đúp reset C)" Cursor="Hand"/>
+                                                    </StackPanel>
+                                                    <Button x:Name="BtnMixerMuteCam10" Content="M" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="9" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
+                                                    <Button x:Name="BtnMixerSoloCam10" Content="S" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="10" Click="BtnMixerSolo_Click" FontSize="8" FontWeight="Bold" Padding="0" Cursor="Hand" ToolTip="SOLO"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- ─── STRIP MASTER (PGM) ─────────────────────── -->
+                                            <Border x:Name="StripMixerMaster" Width="48" Background="#1E1A1A" BorderBrush="#007ACC" BorderThickness="1.5" CornerRadius="4" Margin="0,0,4,0" Padding="2,4" Visibility="Visible">
+                                                <StackPanel>
+                                                    <Border Background="#007ACC" CornerRadius="2" Padding="2,1" Margin="0,0,0,1">
+                                                        <TextBlock Text="MASTER" FontWeight="Bold" FontSize="7.5" Foreground="#FFFFFF" HorizontalAlignment="Center"/>
+                                                    </Border>
+                                                    <TextBlock Text="PGM" FontWeight="Bold" FontSize="8.5" Foreground="#00FFCC" HorizontalAlignment="Center" Margin="0,0,0,2"/>
+                                                    <Grid Height="112">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,2,0" VerticalAlignment="Center">
+                                                            <StackPanel Width="5" Margin="0,0,1,0">
+                                                                <ProgressBar x:Name="VuMixerMasterL" Orientation="Vertical" Height="104" Width="3.5" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            </StackPanel>
+                                                            <StackPanel Width="5">
+                                                                <ProgressBar x:Name="VuMixerMasterR" Orientation="Vertical" Height="104" Width="3.5" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <TextBlock x:Name="TxtGainDbMaster" Text="80%" FontSize="8" FontFamily="Consolas" FontWeight="Bold" Foreground="#00FFCC" HorizontalAlignment="Center" Margin="0,0,0,1"/>
+                                                            <Slider x:Name="FaderMaster" Orientation="Vertical" Height="96" Width="18" Minimum="0" Maximum="100" Value="80" TickFrequency="10" IsSnapToTickEnabled="False" ValueChanged="MixerMasterFader_ValueChanged" MouseDoubleClick="MixerMasterFader_MouseDoubleClick" ToolTip="Master Volume (0-100%)" Cursor="Hand"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <StackPanel Margin="0,4,0,0">
+                                                        <Button x:Name="BtnMixerMuteAll" Content="MUTE" Width="40" Height="16" Background="#333338" Foreground="#E0E0E0" Click="BtnMuteAll_Click" FontSize="8" FontWeight="Bold" Padding="0" Cursor="Hand" Margin="0,0,0,2" ToolTip="Mute All Channels"/>
+                                                        <TextBlock x:Name="TxtMixerMasterPeak" Text="-∞ dB" FontSize="7.5" Foreground="#22C55E" HorizontalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- ─── STRIP QUICK TOOLS ─────────────────────── -->
+                                            <Border x:Name="BoxMixerTools" Width="48" Background="#18181E" BorderBrush="#2C2C36" BorderThickness="1" CornerRadius="4" Padding="2,4" Visibility="Visible">
+                                                <StackPanel>
+                                                    <Border Background="#33333E" CornerRadius="2" Padding="2,1" Margin="0,0,0,1">
+                                                        <TextBlock Text="TOOLS" FontWeight="Bold" FontSize="7.5" Foreground="#FFFFFF" HorizontalAlignment="Center"/>
+                                                    </Border>
+                                                    <TextBlock Text="ACTIONS" FontWeight="Bold" FontSize="8" Foreground="#888888" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                                                    <Button x:Name="BtnMixerResetAll" Content="0 dB" Width="40" Height="22" Background="#2A2A32" Foreground="#CCCCCC" Click="BtnMixerResetAll_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,4" Padding="0" Cursor="Hand" ToolTip="Reset All Faders to 0 dB"/>
+                                                    <Button x:Name="BtnMixerMuteInactive" Content="M.INA" Width="40" Height="22" Background="#2A2A32" Foreground="#CCCCCC" Click="BtnMixerMuteInactive_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,4" Padding="0" Cursor="Hand" ToolTip="Mute Inactive SRT Channels"/>
+                                                    <Border Background="#162216" BorderBrush="#22C55E" BorderThickness="1" CornerRadius="2" Padding="2,2" Margin="0,8,0,0">
+                                                        <TextBlock Text="LIMIT&#x0a;ON" FontSize="7.5" Foreground="#22C55E" HorizontalAlignment="Center" TextAlignment="Center" FontWeight="Bold"/>
+                                                    </Border>
+                                                </StackPanel>
+                                            </Border>
+
+                                        </StackPanel>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>

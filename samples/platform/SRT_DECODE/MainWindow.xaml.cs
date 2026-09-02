@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
@@ -75,6 +76,22 @@ namespace SRT_DECODE
         private CheckBox[] _chkVuCams = Array.Empty<CheckBox>();
         private Button[] _btnSoloCams = Array.Empty<Button>();
         private OpenMediaVideoView[] _videoViews = Array.Empty<OpenMediaVideoView>();
+
+        // ─── Studio Audio Mixer Arrays ──────────────────────────────
+        private Border[] _mixerStrips = Array.Empty<Border>();
+        private Border[] _mixerTallyBadges = Array.Empty<Border>();
+        private TextBlock[] _mixerTallyTexts = Array.Empty<TextBlock>();
+        private TextBlock[] _mixerNameTexts = Array.Empty<TextBlock>();
+        private ProgressBar[] _mixerVuBarsL = Array.Empty<ProgressBar>();
+        private ProgressBar[] _mixerVuBarsR = Array.Empty<ProgressBar>();
+        private Ellipse[] _mixerClipLedsL = Array.Empty<Ellipse>();
+        private Ellipse[] _mixerClipLedsR = Array.Empty<Ellipse>();
+        private TextBlock[] _mixerGainTexts = Array.Empty<TextBlock>();
+        private Slider[] _mixerFaders = Array.Empty<Slider>();
+        private Slider[] _mixerPans = Array.Empty<Slider>();
+        private TextBlock[] _mixerPanTexts = Array.Empty<TextBlock>();
+        private Button[] _mixerMuteButtons = Array.Empty<Button>();
+        private Button[] _mixerSoloButtons = Array.Empty<Button>();
 
         // TextBlock & HUD array references
         private TextBlock[] _hudRtt = Array.Empty<TextBlock>();
@@ -176,6 +193,26 @@ namespace SRT_DECODE
                 _chkVuCams = new[] { ChkVuCam1, ChkVuCam2, ChkVuCam3, ChkVuCam4, ChkVuCam5, ChkVuCam6, ChkVuCam7, ChkVuCam8, ChkVuCam9, ChkVuCam10 };
                 _btnSoloCams = new[] { BtnSoloCam1, BtnSoloCam2, BtnSoloCam3, BtnSoloCam4, BtnSoloCam5, BtnSoloCam6, BtnSoloCam7, BtnSoloCam8, BtnSoloCam9, BtnSoloCam10 };
                 _videoViews = new[] { VideoViewCam1, VideoViewCam2, VideoViewCam3, VideoViewCam4, VideoViewCam5, VideoViewCam6, VideoViewCam7, VideoViewCam8, VideoViewCam9, VideoViewCam10 };
+
+                // Cache Studio Audio Mixer Elements
+                _mixerStrips = new[] { StripMixerCam1, StripMixerCam2, StripMixerCam3, StripMixerCam4, StripMixerCam5, StripMixerCam6, StripMixerCam7, StripMixerCam8, StripMixerCam9, StripMixerCam10 };
+                _mixerTallyBadges = new[] { TallyMixerCam1, TallyMixerCam2, TallyMixerCam3, TallyMixerCam4, TallyMixerCam5, TallyMixerCam6, TallyMixerCam7, TallyMixerCam8, TallyMixerCam9, TallyMixerCam10 };
+                _mixerTallyTexts = new[] { TxtTallyMixerCam1, TxtTallyMixerCam2, TxtTallyMixerCam3, TxtTallyMixerCam4, TxtTallyMixerCam5, TxtTallyMixerCam6, TxtTallyMixerCam7, TxtTallyMixerCam8, TxtTallyMixerCam9, TxtTallyMixerCam10 };
+                _mixerNameTexts = new[] { TxtMixerNameCam1, TxtMixerNameCam2, TxtMixerNameCam3, TxtMixerNameCam4, TxtMixerNameCam5, TxtMixerNameCam6, TxtMixerNameCam7, TxtMixerNameCam8, TxtMixerNameCam9, TxtMixerNameCam10 };
+                _mixerVuBarsL = new[] { VuMixerCam1L, VuMixerCam2L, VuMixerCam3L, VuMixerCam4L, VuMixerCam5L, VuMixerCam6L, VuMixerCam7L, VuMixerCam8L, VuMixerCam9L, VuMixerCam10L };
+                _mixerVuBarsR = new[] { VuMixerCam1R, VuMixerCam2R, VuMixerCam3R, VuMixerCam4R, VuMixerCam5R, VuMixerCam6R, VuMixerCam7R, VuMixerCam8R, VuMixerCam9R, VuMixerCam10R };
+                _mixerClipLedsL = new[] { ClipMixerCam1_L, ClipMixerCam2_L, ClipMixerCam3_L, ClipMixerCam4_L, ClipMixerCam5_L, ClipMixerCam6_L, ClipMixerCam7_L, ClipMixerCam8_L, ClipMixerCam9_L, ClipMixerCam10_L };
+                _mixerClipLedsR = new[] { ClipMixerCam1_R, ClipMixerCam2_R, ClipMixerCam3_R, ClipMixerCam4_R, ClipMixerCam5_R, ClipMixerCam6_R, ClipMixerCam7_R, ClipMixerCam8_R, ClipMixerCam9_R, ClipMixerCam10_R };
+                _mixerGainTexts = new[] { TxtGainDbCam1, TxtGainDbCam2, TxtGainDbCam3, TxtGainDbCam4, TxtGainDbCam5, TxtGainDbCam6, TxtGainDbCam7, TxtGainDbCam8, TxtGainDbCam9, TxtGainDbCam10 };
+                _mixerFaders = new[] { FaderCam1, FaderCam2, FaderCam3, FaderCam4, FaderCam5, FaderCam6, FaderCam7, FaderCam8, FaderCam9, FaderCam10 };
+                _mixerPans = new[] { PanCam1, PanCam2, PanCam3, PanCam4, PanCam5, PanCam6, PanCam7, PanCam8, PanCam9, PanCam10 };
+                _mixerPanTexts = new[] { TxtPanCam1, TxtPanCam2, TxtPanCam3, TxtPanCam4, TxtPanCam5, TxtPanCam6, TxtPanCam7, TxtPanCam8, TxtPanCam9, TxtPanCam10 };
+                _mixerMuteButtons = new[] { BtnMixerMuteCam1, BtnMixerMuteCam2, BtnMixerMuteCam3, BtnMixerMuteCam4, BtnMixerMuteCam5, BtnMixerMuteCam6, BtnMixerMuteCam7, BtnMixerMuteCam8, BtnMixerMuteCam9, BtnMixerMuteCam10 };
+                _mixerSoloButtons = new[] { BtnMixerSoloCam1, BtnMixerSoloCam2, BtnMixerSoloCam3, BtnMixerSoloCam4, BtnMixerSoloCam5, BtnMixerSoloCam6, BtnMixerSoloCam7, BtnMixerSoloCam8, BtnMixerSoloCam9, BtnMixerSoloCam10 };
+
+                _audioManager.ChannelGainChanged += (ch, db) => Dispatcher.InvokeAsync(() => OnChannelGainChanged(ch, db));
+                _audioManager.ChannelPanChanged += (ch, pan) => Dispatcher.InvokeAsync(() => OnChannelPanChanged(ch, pan));
+                _audioManager.ChannelMuteChanged += (ch, muted) => Dispatcher.InvokeAsync(() => OnChannelMuteChanged(ch, muted));
 
                 // Set initial VU meter overlay visibility (all default to Collapsed until VU checkbox is toggled)
                 for (int i = 0; i < _overlayAudioVuCams.Length; i++)
@@ -334,6 +371,10 @@ namespace SRT_DECODE
             {
                 _badgeCamTexts[idx].Text = _channelNames[idx];
             }
+            if (idx < _mixerNameTexts.Length && _mixerNameTexts[idx] != null)
+            {
+                _mixerNameTexts[idx].Text = _channelNames[idx];
+            }
             if (idx < _badgeOutputTexts.Length && _badgeOutputTexts[idx] != null)
             {
                 _badgeOutputTexts[idx].Text = $"{_channelNames[idx]} - ISO CHANNEL OUTPUT ROUTING";
@@ -426,6 +467,12 @@ namespace SRT_DECODE
                 _pgmButtons[i].Visibility = isActive ? Visibility.Visible : Visibility.Collapsed;
                 _driftRows[i].Visibility = isActive ? Visibility.Visible : Visibility.Collapsed;
                 _telemetryCards[i].Visibility = isActive ? Visibility.Visible : Visibility.Collapsed;
+
+                // Sync audio mixer strips with active streams
+                if (i < _mixerStrips.Length && _mixerStrips[i] != null)
+                {
+                    _mixerStrips[i].Visibility = isActive ? Visibility.Visible : Visibility.Collapsed;
+                }
             }
 
             // Re-apply Multiviewer layout (View vs PGM+View)
@@ -844,6 +891,35 @@ namespace SRT_DECODE
                     _pgmButtons[i].Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x2E));
                     _pgmButtons[i].Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
                 }
+
+                // Sync to Audio Mixer Console Strip
+                if (i < _mixerTallyBadges.Length && _mixerTallyBadges[i] != null)
+                {
+                    if (i == _currentProgramIndex)
+                    {
+                        _mixerTallyBadges[i].Background = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26));
+                        _mixerTallyTexts[i].Text = "PGM";
+                        _mixerTallyTexts[i].Foreground = Brushes.White;
+                        if (i < _mixerStrips.Length && _mixerStrips[i] != null)
+                            _mixerStrips[i].BorderBrush = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26));
+                    }
+                    else if (!_audioManager.IsChannelMuted(i))
+                    {
+                        _mixerTallyBadges[i].Background = new SolidColorBrush(Color.FromRgb(0x16, 0xA3, 0x4A));
+                        _mixerTallyTexts[i].Text = "ON-AIR";
+                        _mixerTallyTexts[i].Foreground = Brushes.White;
+                        if (i < _mixerStrips.Length && _mixerStrips[i] != null)
+                            _mixerStrips[i].BorderBrush = new SolidColorBrush(Color.FromRgb(0x16, 0xA3, 0x4A));
+                    }
+                    else
+                    {
+                        _mixerTallyBadges[i].Background = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x38));
+                        _mixerTallyTexts[i].Text = _channelNames[i];
+                        _mixerTallyTexts[i].Foreground = new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA));
+                        if (i < _mixerStrips.Length && _mixerStrips[i] != null)
+                            _mixerStrips[i].BorderBrush = new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x36));
+                    }
+                }
             }
         }
 
@@ -922,6 +998,17 @@ namespace SRT_DECODE
                             double maxDb = Math.Max(levels[i].LeftDb, levels[i].RightDb);
                             _txtAudioPeakCams[i].Text = (maxDb > -55.0) ? $"{maxDb:F1}" : "-∞";
                         }
+
+                        // Sync to Studio Audio Mixer Strips
+                        if (i < _mixerVuBarsL.Length && _mixerVuBarsL[i] != null)
+                        {
+                            _mixerVuBarsL[i].Value = leftDb;
+                            _mixerVuBarsR[i].Value = rightDb;
+                            _mixerVuBarsL[i].Foreground = GetVuMeterColorBrush(leftDb, clipL);
+                            _mixerVuBarsR[i].Foreground = GetVuMeterColorBrush(rightDb, clipR);
+                            if (_mixerClipLedsL[i] != null) _mixerClipLedsL[i].Fill = clipL ? _brushLedClip : _brushLedOff;
+                            if (_mixerClipLedsR[i] != null) _mixerClipLedsR[i].Fill = clipR ? _brushLedClip : _brushLedOff;
+                        }
                     }
                     else
                     {
@@ -936,6 +1023,14 @@ namespace SRT_DECODE
 
                         if (i < _txtAudioPeakCams.Length && _txtAudioPeakCams[i] != null)
                             _txtAudioPeakCams[i].Text = "-∞";
+
+                        if (i < _mixerVuBarsL.Length && _mixerVuBarsL[i] != null)
+                        {
+                            _mixerVuBarsL[i].Value = -60;
+                            _mixerVuBarsR[i].Value = -60;
+                            if (_mixerClipLedsL[i] != null) _mixerClipLedsL[i].Fill = _brushLedOff;
+                            if (_mixerClipLedsR[i] != null) _mixerClipLedsR[i].Fill = _brushLedOff;
+                        }
                     }
                 }
             }, DispatcherPriority.Render);
@@ -972,15 +1067,33 @@ namespace SRT_DECODE
                     }
                 }
 
+                double maxPk = AudioMeterService.MIN_DBFS;
+                for (int i = 0; i < count; i++)
+                {
+                    if (pgm.PeakDb[i] > maxPk) maxPk = pgm.PeakDb[i];
+                }
+
                 if (TxtMasterPeakDb != null)
                 {
-                    double maxPk = AudioMeterService.MIN_DBFS;
-                    for (int i = 0; i < count; i++)
-                    {
-                        if (pgm.PeakDb[i] > maxPk) maxPk = pgm.PeakDb[i];
-                    }
                     TxtMasterPeakDb.Text = (maxPk > -55.0) ? $"{maxPk:F1} dB" : "-∞ dB";
                     TxtMasterPeakDb.Foreground = pgm.IsClipping ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
+                }
+
+                // Update Studio Audio Mixer Console Master Strip
+                if (VuMixerMasterL != null)
+                {
+                    VuMixerMasterL.Value = Math.Clamp(pgm.LeftDb, -60.0, 0.0);
+                    VuMixerMasterL.Foreground = GetVuMeterColorBrush(pgm.LeftDb, pgm.IsChannelClipping[0]);
+                }
+                if (VuMixerMasterR != null)
+                {
+                    VuMixerMasterR.Value = Math.Clamp(pgm.RightDb, -60.0, 0.0);
+                    VuMixerMasterR.Foreground = GetVuMeterColorBrush(pgm.RightDb, pgm.IsChannelClipping[1]);
+                }
+                if (TxtMixerMasterPeak != null)
+                {
+                    TxtMixerMasterPeak.Text = (maxPk > -55.0) ? $"{maxPk:F1} dB" : "-∞ dB";
+                    TxtMixerMasterPeak.Foreground = pgm.IsClipping ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
                 }
 
                 // Also update top PGM screen VU meters
@@ -1024,27 +1137,49 @@ namespace SRT_DECODE
 
         private void UpdateSoloButtonsUI()
         {
-            if (_btnSoloCams == null || _btnSoloCams.Length == 0) return;
-
-            for (int i = 0; i < _btnSoloCams.Length; i++)
+            if (_btnSoloCams != null && _btnSoloCams.Length > 0)
             {
-                if (_btnSoloCams[i] == null) continue;
-                int camNum = i + 1;
-                bool isThisSolo = (_audioManager.SoloSource == (SoloAudioSource)camNum);
+                for (int i = 0; i < _btnSoloCams.Length; i++)
+                {
+                    if (_btnSoloCams[i] == null) continue;
+                    int camNum = i + 1;
+                    bool isThisSolo = (_audioManager.SoloSource == (SoloAudioSource)camNum);
 
-                if (isThisSolo)
-                {
-                    // Đổi màu nổi bật cho nút SOLO được chọn (Vàng Amber #F59E0B với chữ đậm đen)
-                    _btnSoloCams[i].Background = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B));
-                    _btnSoloCams[i].Foreground = Brushes.Black;
-                    _btnSoloCams[i].FontWeight = FontWeights.Bold;
+                    if (isThisSolo)
+                    {
+                        // Đổi màu nổi bật cho nút SOLO được chọn (Vàng Amber #F59E0B với chữ đậm đen)
+                        _btnSoloCams[i].Background = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B));
+                        _btnSoloCams[i].Foreground = Brushes.Black;
+                        _btnSoloCams[i].FontWeight = FontWeights.Bold;
+                    }
+                    else
+                    {
+                        // Màu mặc định cho nút SOLO không chọn
+                        _btnSoloCams[i].Background = new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x33));
+                        _btnSoloCams[i].Foreground = Brushes.White;
+                        _btnSoloCams[i].FontWeight = FontWeights.Normal;
+                    }
                 }
-                else
+            }
+
+            if (_mixerSoloButtons != null && _mixerSoloButtons.Length > 0)
+            {
+                for (int i = 0; i < _mixerSoloButtons.Length; i++)
                 {
-                    // Màu mặc định cho nút SOLO không chọn
-                    _btnSoloCams[i].Background = new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x33));
-                    _btnSoloCams[i].Foreground = Brushes.White;
-                    _btnSoloCams[i].FontWeight = FontWeights.Normal;
+                    if (_mixerSoloButtons[i] == null) continue;
+                    int camNum = i + 1;
+                    bool isThisSolo = (_audioManager.SoloSource == (SoloAudioSource)camNum);
+
+                    if (isThisSolo)
+                    {
+                        _mixerSoloButtons[i].Background = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B));
+                        _mixerSoloButtons[i].Foreground = Brushes.Black;
+                    }
+                    else
+                    {
+                        _mixerSoloButtons[i].Background = new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x34));
+                        _mixerSoloButtons[i].Foreground = Brushes.White;
+                    }
                 }
             }
         }
@@ -1086,8 +1221,19 @@ namespace SRT_DECODE
         private void BtnMuteAll_Click(object sender, RoutedEventArgs e)
         {
             _audioManager.IsMuteAll = !_audioManager.IsMuteAll;
-            BtnMuteAll.Content = _audioManager.IsMuteAll ? "UNMUTE" : "MUTE ALL";
-            BtnMuteAll.Background = _audioManager.IsMuteAll ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x38));
+            string text = _audioManager.IsMuteAll ? "UNMUTE" : "MUTE ALL";
+            Brush bg = _audioManager.IsMuteAll ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x38));
+
+            if (BtnMuteAll != null)
+            {
+                BtnMuteAll.Content = text;
+                BtnMuteAll.Background = bg;
+            }
+            if (BtnMixerMuteAll != null)
+            {
+                BtnMixerMuteAll.Content = text;
+                BtnMixerMuteAll.Background = bg;
+            }
         }
 
         private void ChkMuteCam_Click(object sender, RoutedEventArgs e)
@@ -1096,7 +1242,178 @@ namespace SRT_DECODE
             {
                 bool isMuted = cb.IsChecked == true;
                 _audioManager.SetChannelMuted(camIdx, isMuted, _channelNames[camIdx]);
+                UpdateMixerMuteUI(camIdx, isMuted);
+                UpdateTallyIndicators();
             }
+        }
+
+        private void UpdateMixerMuteUI(int camIdx, bool isMuted)
+        {
+            if (camIdx >= 0 && camIdx < _mixerMuteButtons.Length && _mixerMuteButtons[camIdx] != null)
+            {
+                _mixerMuteButtons[camIdx].Background = isMuted 
+                    ? new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)) 
+                    : new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x34));
+                _mixerMuteButtons[camIdx].Foreground = Brushes.White;
+            }
+        }
+
+        private void BtnMixerMute_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is string tagStr && int.TryParse(tagStr, out int camIdx))
+            {
+                bool newMute = !_audioManager.IsChannelMuted(camIdx);
+                _audioManager.SetChannelMuted(camIdx, newMute, _channelNames[camIdx]);
+                if (camIdx < _chkMuteCams.Length && _chkMuteCams[camIdx] != null)
+                {
+                    _chkMuteCams[camIdx].IsChecked = newMute;
+                }
+                UpdateMixerMuteUI(camIdx, newMute);
+                UpdateTallyIndicators();
+            }
+        }
+
+        private void BtnMixerSolo_Click(object sender, RoutedEventArgs e)
+        {
+            BtnSoloCam_Click(sender, e);
+        }
+
+        private void MixerFader_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!_isInitialized) return;
+            if (sender is Slider slider && slider.Tag is string tagStr && int.TryParse(tagStr, out int camIdx))
+            {
+                double val = Math.Round(slider.Value, 1);
+                _audioManager.SetChannelGain(camIdx, val);
+                if (camIdx < _mixerGainTexts.Length && _mixerGainTexts[camIdx] != null)
+                {
+                    _mixerGainTexts[camIdx].Text = (val <= -58.0) ? "-∞ dB" : $"{val:+#0.0;-#0.0;0.0} dB";
+                    _mixerGainTexts[camIdx].Foreground = (val > 0.0)
+                        ? new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B))
+                        : new SolidColorBrush(Color.FromRgb(0x00, 0xFF, 0xCC));
+                }
+            }
+        }
+
+        private void MixerFader_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is Slider slider)
+            {
+                slider.Value = 0.0; // Reset to 0.0 dB
+            }
+        }
+
+        private void MixerPan_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!_isInitialized) return;
+            if (sender is Slider slider && slider.Tag is string tagStr && int.TryParse(tagStr, out int camIdx))
+            {
+                double val = Math.Round(slider.Value, 2);
+                _audioManager.SetChannelPan(camIdx, val);
+                if (camIdx < _mixerPanTexts.Length && _mixerPanTexts[camIdx] != null)
+                {
+                    if (Math.Abs(val) < 0.05) _mixerPanTexts[camIdx].Text = "C";
+                    else if (val < 0) _mixerPanTexts[camIdx].Text = $"L{Math.Abs(val * 100):0}";
+                    else _mixerPanTexts[camIdx].Text = $"R{val * 100:0}";
+                }
+            }
+        }
+
+        private void MixerPan_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is Slider slider)
+            {
+                slider.Value = 0.0; // Reset to Center
+            }
+        }
+
+        private void MixerMasterFader_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!_isInitialized) return;
+            if (sender is Slider slider)
+            {
+                _audioManager.MonitorVolumePercent = slider.Value;
+                if (TxtGainDbMaster != null)
+                {
+                    TxtGainDbMaster.Text = $"{slider.Value:0} %";
+                }
+            }
+        }
+
+        private void MixerMasterFader_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is Slider slider)
+            {
+                slider.Value = 80.0; // Reset to 80% default
+            }
+        }
+
+        private void BtnMixerResetAll_Click(object sender, RoutedEventArgs e)
+        {
+            for (int i = 0; i < MaxChannels; i++)
+            {
+                if (i < _mixerFaders.Length && _mixerFaders[i] != null)
+                {
+                    _mixerFaders[i].Value = 0.0;
+                }
+                if (i < _mixerPans.Length && _mixerPans[i] != null)
+                {
+                    _mixerPans[i].Value = 0.0;
+                }
+            }
+            if (FaderMaster != null) FaderMaster.Value = 80.0;
+            LogEvent("[MIXER]", "Đã khôi phục toàn bộ Fader về 0.0 dB (Unity Gain) và Pan về Center.");
+        }
+
+        private void BtnMixerMuteInactive_Click(object sender, RoutedEventArgs e)
+        {
+            for (int i = 0; i < MaxChannels; i++)
+            {
+                var ch = _receiverEngine.Channels[i];
+                if (!ch.IsRunning)
+                {
+                    _audioManager.SetChannelMuted(i, true, _channelNames[i]);
+                    if (i < _chkMuteCams.Length && _chkMuteCams[i] != null)
+                    {
+                        _chkMuteCams[i].IsChecked = true;
+                    }
+                    UpdateMixerMuteUI(i, true);
+                }
+            }
+            UpdateTallyIndicators();
+            LogEvent("[MIXER]", "Đã Mute các kênh SRT không chạy.");
+        }
+
+        private void OnChannelGainChanged(int ch, double db)
+        {
+            if (ch >= 0 && ch < _mixerFaders.Length && _mixerFaders[ch] != null)
+            {
+                if (Math.Abs(_mixerFaders[ch].Value - db) > 0.1)
+                {
+                    _mixerFaders[ch].Value = db;
+                }
+            }
+        }
+
+        private void OnChannelPanChanged(int ch, double pan)
+        {
+            if (ch >= 0 && ch < _mixerPans.Length && _mixerPans[ch] != null)
+            {
+                if (Math.Abs(_mixerPans[ch].Value - pan) > 0.05)
+                {
+                    _mixerPans[ch].Value = pan;
+                }
+            }
+        }
+
+        private void OnChannelMuteChanged(int ch, bool muted)
+        {
+            if (ch >= 0 && ch < _chkMuteCams.Length && _chkMuteCams[ch] != null)
+            {
+                _chkMuteCams[ch].IsChecked = muted;
+            }
+            UpdateMixerMuteUI(ch, muted);
+            UpdateTallyIndicators();
         }
 
         private void ChkVuCam_Click(object sender, RoutedEventArgs e)

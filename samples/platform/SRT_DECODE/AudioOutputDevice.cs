@@ -22,8 +22,8 @@ namespace SRT_DECODE
         private const int BitsPerSample = 16;
         private const int BytesPerSample = Channels * (BitsPerSample / 8); // 4 bytes per stereo frame
 
-        // 4 buffers of 25ms each = 100ms total hardware buffer pool
-        private const int BufferCount = 4;
+        // 6 buffers of 25ms each = 150ms total hardware buffer pool for smooth, jitter-free playback
+        private const int BufferCount = 6;
         private const int BufferDurationMs = 25;
         private const int BufferSizeBytes = (SampleRate * BytesPerSample * BufferDurationMs) / 1000; // 4800 bytes
 
@@ -70,6 +70,12 @@ namespace SRT_DECODE
         [DllImport("winmm.dll")]
         private static extern int waveOutReset(IntPtr hWaveOut);
 
+        [DllImport("winmm.dll")]
+        private static extern uint timeBeginPeriod(uint uMilliseconds);
+
+        [DllImport("winmm.dll")]
+        private static extern uint timeEndPeriod(uint uMilliseconds);
+
         private IntPtr _hWaveOut = IntPtr.Zero;
         private readonly IntPtr[] _nativeHdrPtrs = new IntPtr[BufferCount];
         private readonly IntPtr[] _nativeBufferPtrs = new IntPtr[BufferCount];
@@ -77,11 +83,21 @@ namespace SRT_DECODE
         private readonly byte[] _silenceBuffer = new byte[BufferSizeBytes];
 
         private readonly ConcurrentQueue<byte[]> _audioQueue = new();
+        private byte[]? _carryOverChunk;
+        private int _carryOverOffset;
+        private volatile bool _isPreRolling = true;
+        private const int PreRollChunkCount = 3; // ~60ms initial buffer before starting hardware playback
+        private bool _wasSilence = true;
+
         private readonly Thread? _playbackThread;
         private readonly AutoResetEvent _wakeEvent = new(false);
         private volatile bool _isRunning;
         private bool _disposed;
         private readonly object _lock = new();
+
+        public delegate int AudioMixerReader(byte[] destination, int offset, int count);
+        public AudioMixerReader? MixerReader { get; set; }
+        public void Wake() => _wakeEvent.Set();
 
         public bool IsOpen => _hWaveOut != IntPtr.Zero;
 
@@ -89,6 +105,9 @@ namespace SRT_DECODE
         {
             try
             {
+                // Request 1ms high-precision system timer resolution for zero-jitter audio scheduling
+                timeBeginPeriod(1);
+
                 var format = new WaveFormatEx
                 {
                     wFormatTag = 1, // PCM
@@ -132,7 +151,7 @@ namespace SRT_DECODE
                 {
                     Name = "SRT_AudioPlaybackThread",
                     IsBackground = true,
-                    Priority = ThreadPriority.AboveNormal
+                    Priority = ThreadPriority.Highest
                 };
                 _playbackThread.Start();
             }
@@ -149,17 +168,21 @@ namespace SRT_DECODE
         {
             if (!_isRunning || _hWaveOut == IntPtr.Zero || pcmData == null || count <= 0) return;
 
-            // Prevent queue buildup beyond ~200ms (10 chunks of 20ms) to ensure low latency
-            while (_audioQueue.Count > 10)
+            // Prevent queue buildup beyond ~600ms (30 chunks of 20ms) to ensure low latency without premature packet drops
+            while (_audioQueue.Count > 35)
             {
                 _audioQueue.TryDequeue(out _);
             }
 
-            byte[] buffer = new byte[count];
+            // Ensure count is strictly aligned to 4 bytes (2 channels * 2 bytes/sample)
+            int alignedCount = count - (count % BytesPerSample);
+            if (alignedCount <= 0) return;
+
+            byte[] buffer = new byte[alignedCount];
             if (Math.Abs(volumeMultiplier - 1.0) > 0.01)
             {
                 float vol = (float)Math.Clamp(volumeMultiplier, 0.0, 2.0);
-                for (int i = 0; i < count; i += 2)
+                for (int i = 0; i < alignedCount; i += 2)
                 {
                     short sample = BitConverter.ToInt16(pcmData, offset + i);
                     short scaled = (short)Math.Clamp(sample * vol, short.MinValue, short.MaxValue);
@@ -169,16 +192,26 @@ namespace SRT_DECODE
             }
             else
             {
-                Buffer.BlockCopy(pcmData, offset, buffer, 0, count);
+                Buffer.BlockCopy(pcmData, offset, buffer, 0, alignedCount);
             }
 
             _audioQueue.Enqueue(buffer);
+
+            if (_isPreRolling && _audioQueue.Count >= PreRollChunkCount)
+            {
+                _isPreRolling = false;
+            }
+
             _wakeEvent.Set();
         }
 
         public void ClearQueue()
         {
             while (_audioQueue.TryDequeue(out _)) { }
+            _carryOverChunk = null;
+            _carryOverOffset = 0;
+            _isPreRolling = true;
+            _wasSilence = true;
         }
 
         private void PlaybackLoop()
@@ -201,7 +234,7 @@ namespace SRT_DECODE
                         var prevHdr = Marshal.PtrToStructure<WaveHdr>(hdrPtr);
                         while (_isRunning && (prevHdr.dwFlags & WHDR_DONE) == 0)
                         {
-                            Thread.Sleep(2);
+                            Thread.Sleep(1);
                             prevHdr = Marshal.PtrToStructure<WaveHdr>(hdrPtr);
                         }
 
@@ -211,36 +244,114 @@ namespace SRT_DECODE
                         _bufferInUse[bufferIndex] = false;
                     }
 
-                    // If queue is completely empty, wait for incoming PCM
-                    if (_audioQueue.IsEmpty)
+                    if (MixerReader != null)
                     {
-                        _wakeEvent.WaitOne(15);
-                        if (!_isRunning) break;
-                    }
-
-                    // Fill accumulator with incoming audio chunks until BufferSizeBytes is reached
-                    accumOffset = 0;
-                    while (accumOffset < BufferSizeBytes)
-                    {
-                        if (_audioQueue.TryDequeue(out byte[]? chunk) && chunk != null)
+                        int read = MixerReader(activePcmAccumulator, 0, BufferSizeBytes);
+                        if (read <= 0)
                         {
-                            int toCopy = Math.Min(chunk.Length, BufferSizeBytes - accumOffset);
-                            Buffer.BlockCopy(chunk, 0, activePcmAccumulator, accumOffset, toCopy);
-                            accumOffset += toCopy;
+                            _wakeEvent.WaitOne(10);
+                            if (!_isRunning) break;
+                            continue;
                         }
-                        else
+
+                        if (read < BufferSizeBytes)
                         {
-                            // No more audio in queue, pad remainder with silence
-                            Array.Clear(activePcmAccumulator, accumOffset, BufferSizeBytes - accumOffset);
-                            break;
+                            Array.Clear(activePcmAccumulator, read, BufferSizeBytes - read);
                         }
                     }
-
-                    // If accumulator is all silence and queue was empty, avoid hammering waveOut
-                    if (accumOffset == 0 && _audioQueue.IsEmpty)
+                    else
                     {
-                        Thread.Sleep(5);
-                        continue;
+                        // Jitter pre-roll: Wait until we have a healthy buffer margin before starting output
+                        if (_isPreRolling)
+                        {
+                            if (_audioQueue.Count < PreRollChunkCount)
+                            {
+                                _wakeEvent.WaitOne(10);
+                                if (!_isRunning) break;
+                                continue;
+                            }
+                            _isPreRolling = false;
+                        }
+
+                        // If queue is empty and no carry-over chunk remains, wait for incoming PCM
+                        if (_audioQueue.IsEmpty && _carryOverChunk == null)
+                        {
+                            _isPreRolling = true;
+                            _wakeEvent.WaitOne(15);
+                            if (!_isRunning) break;
+                            continue;
+                        }
+
+                        // Fill accumulator with incoming audio chunks until BufferSizeBytes is reached
+                        // Zero sample loss: Any unconsumed remainder of a chunk is preserved for the next buffer cycle
+                        accumOffset = 0;
+                        while (accumOffset < BufferSizeBytes)
+                        {
+                            // 1. Drain carry-over remainder from previous chunk first
+                            if (_carryOverChunk != null)
+                            {
+                                int available = _carryOverChunk.Length - _carryOverOffset;
+                                int toCopy = Math.Min(available, BufferSizeBytes - accumOffset);
+                                Buffer.BlockCopy(_carryOverChunk, _carryOverOffset, activePcmAccumulator, accumOffset, toCopy);
+                                accumOffset += toCopy;
+                                _carryOverOffset += toCopy;
+
+                                if (_carryOverOffset >= _carryOverChunk.Length)
+                                {
+                                    _carryOverChunk = null;
+                                    _carryOverOffset = 0;
+                                }
+                                continue;
+                            }
+
+                            // 2. Dequeue next chunk from queue
+                            if (_audioQueue.TryDequeue(out byte[]? chunk) && chunk != null && chunk.Length > 0)
+                            {
+                                int toCopy = Math.Min(chunk.Length, BufferSizeBytes - accumOffset);
+                                Buffer.BlockCopy(chunk, 0, activePcmAccumulator, accumOffset, toCopy);
+                                accumOffset += toCopy;
+
+                                if (toCopy < chunk.Length)
+                                {
+                                    // Keep remaining unconsumed bytes for the next buffer cycle - NEVER DISCARD SAMPLES!
+                                    _carryOverChunk = chunk;
+                                    _carryOverOffset = toCopy;
+                                }
+                            }
+                            else
+                            {
+                                // If we have partial data in accumulator, give the next packet 4ms to arrive
+                                // rather than immediately cliff-cutting the waveform and padding silence!
+                                if (accumOffset > 0 && _wakeEvent.WaitOne(4))
+                                {
+                                    continue;
+                                }
+
+                                // Underrun occurred: Apply anti-pop linear fade-out to zero on boundary
+                                if (accumOffset > 0)
+                                {
+                                    ApplyFadeOut(activePcmAccumulator, accumOffset, 32);
+                                }
+                                Array.Clear(activePcmAccumulator, accumOffset, BufferSizeBytes - accumOffset);
+                                _isPreRolling = true;
+                                break;
+                            }
+                        }
+
+                        // If accumulator is all silence and queue was empty, avoid hammering waveOut
+                        if (accumOffset == 0 && _audioQueue.IsEmpty && _carryOverChunk == null)
+                        {
+                            _wasSilence = true;
+                            Thread.Sleep(5);
+                            continue;
+                        }
+
+                        // If resuming from silence, apply smooth anti-pop fade-in to prevent sharp vertical cliff
+                        if (_wasSilence)
+                        {
+                            ApplyFadeIn(activePcmAccumulator, 0, BufferSizeBytes, 32);
+                            _wasSilence = false;
+                        }
                     }
 
                     // Copy accumulated audio into native buffer
@@ -268,8 +379,63 @@ namespace SRT_DECODE
                 catch (Exception ex)
                 {
                     Trace.WriteLine($"[AudioOutputDevice] PlaybackLoop error: {ex.Message}");
-                    Thread.Sleep(10);
+                    Thread.Sleep(5);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Ramps down the last sampleCount stereo frames to zero to eliminate DC clicks on underrun.
+        /// </summary>
+        private static void ApplyFadeOut(byte[] buffer, int endOffset, int sampleCount = 32)
+        {
+            int frameBytes = BytesPerSample; // 4 bytes
+            int fadeBytes = sampleCount * frameBytes;
+            if (endOffset < fadeBytes) return;
+
+            int startOffset = endOffset - fadeBytes;
+            for (int i = 0; i < sampleCount; i++)
+            {
+                float factor = (float)(sampleCount - 1 - i) / sampleCount;
+                int pos = startOffset + (i * frameBytes);
+
+                short left = BitConverter.ToInt16(buffer, pos);
+                short right = BitConverter.ToInt16(buffer, pos + 2);
+
+                short newLeft = (short)(left * factor);
+                short newRight = (short)(right * factor);
+
+                buffer[pos] = (byte)(newLeft & 0xFF);
+                buffer[pos + 1] = (byte)((newLeft >> 8) & 0xFF);
+                buffer[pos + 2] = (byte)(newRight & 0xFF);
+                buffer[pos + 3] = (byte)((newRight >> 8) & 0xFF);
+            }
+        }
+
+        /// <summary>
+        /// Ramps up the first sampleCount stereo frames from zero to eliminate DC clicks when resuming.
+        /// </summary>
+        private static void ApplyFadeIn(byte[] buffer, int startOffset, int totalBytes, int sampleCount = 32)
+        {
+            int frameBytes = BytesPerSample; // 4 bytes
+            int fadeBytes = sampleCount * frameBytes;
+            if (totalBytes < fadeBytes) return;
+
+            for (int i = 0; i < sampleCount; i++)
+            {
+                float factor = (float)i / sampleCount;
+                int pos = startOffset + (i * frameBytes);
+
+                short left = BitConverter.ToInt16(buffer, pos);
+                short right = BitConverter.ToInt16(buffer, pos + 2);
+
+                short newLeft = (short)(left * factor);
+                short newRight = (short)(right * factor);
+
+                buffer[pos] = (byte)(newLeft & 0xFF);
+                buffer[pos + 1] = (byte)((newLeft >> 8) & 0xFF);
+                buffer[pos + 2] = (byte)(newRight & 0xFF);
+                buffer[pos + 3] = (byte)((newRight >> 8) & 0xFF);
             }
         }
 
@@ -280,6 +446,10 @@ namespace SRT_DECODE
                 if (!_isRunning) return;
                 _isRunning = false;
                 _wakeEvent.Set();
+                _carryOverChunk = null;
+                _carryOverOffset = 0;
+                _isPreRolling = true;
+                _wasSilence = true;
 
                 if (_hWaveOut != IntPtr.Zero)
                 {
@@ -316,6 +486,12 @@ namespace SRT_DECODE
                         _nativeHdrPtrs[i] = IntPtr.Zero;
                     }
                 }
+
+                try
+                {
+                    timeEndPeriod(1);
+                }
+                catch { }
             }
         }
 
