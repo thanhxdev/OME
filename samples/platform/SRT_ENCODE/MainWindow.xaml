@@ -300,6 +300,31 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <!-- Icon-Only Button Style (Transparent with subtle hover) -->
+        <Style x:Key="IconOnlyButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="3,1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#25FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#40FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -641,8 +666,8 @@
                         <!-- Toggle Video Preview -->
                         <CheckBox x:Name="ChkEnableVideoPreview" Grid.Column="0" Content="Video Preview" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkEnableVideoPreview_Changed" Unchecked="ChkEnableVideoPreview_Changed" Margin="0,0,12,0"/>
 
-                        <!-- Toggle Audio Monitor -->
-                        <CheckBox x:Name="ChkEnableAudioMonitor" Grid.Column="1" Content="Audio Monitor" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkEnableAudioMonitor_Changed" Unchecked="ChkEnableAudioMonitor_Changed" Margin="0,0,12,0"/>
+                        <!-- Toggle Audio VU Meter -->
+                        <CheckBox x:Name="ChkEnableAudioMonitor" Grid.Column="1" Content="Audio VU Meter" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkEnableAudioMonitor_Changed" Unchecked="ChkEnableAudioMonitor_Changed" Margin="0,0,12,0" ToolTip="Hiển thị hoặc ẩn đồng hồ đo Audio VU Meter trên màn hình xem trước"/>
 
                         <!-- Toggle Telemetry HUD -->
                         <CheckBox x:Name="ChkShowTelemetry" Grid.Column="2" Content="Telemetry HUD" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkShowTelemetry_Changed" Unchecked="ChkShowTelemetry_Changed" Margin="0,0,12,0"/>
@@ -656,9 +681,12 @@
                             </Button.Resources>
                         </Button>
 
-                        <!-- Volume Slider -->
+                        <!-- Volume & Audio Mute/Unmute Controls -->
                         <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="🔈 Vol:" FontSize="11" Foreground="#9E9E9E" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <Button x:Name="BtnAudioMute" Style="{StaticResource IconOnlyButtonStyle}" Click="BtnAudioMute_Click" ToolTip="Tắt tiếng / Bật tiếng loa kiểm âm (Mute/Unmute Audio)" Margin="0,0,3,0">
+                                <TextBlock x:Name="TxtAudioMuteIcon" Text="🔊" FontSize="13" Foreground="#00E676" VerticalAlignment="Center"/>
+                            </Button>
+                            <TextBlock Text="Vol:" FontSize="11" Foreground="#9E9E9E" VerticalAlignment="Center" Margin="0,0,4,0"/>
                             <Slider x:Name="SldMonitorVolume" Width="70" Minimum="0" Maximum="1" Value="0.4" ValueChanged="SldMonitorVolume_ValueChanged" VerticalAlignment="Center"/>
                             <TextBlock x:Name="TxtMonitorVolumeVal" Text="40%" FontSize="11" Foreground="#FFFFFF" Width="28" TextAlignment="Right" VerticalAlignment="Center" Margin="2,0,0,0"/>
                         </StackPanel>

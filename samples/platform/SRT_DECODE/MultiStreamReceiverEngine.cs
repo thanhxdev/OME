@@ -33,6 +33,7 @@ namespace SRT_DECODE
         public const int MaxChannels = 10;
         private readonly ReceiverChannelState[] _channels = new ReceiverChannelState[MaxChannels];
         private readonly ChannelVideoDecoder?[] _decoders = new ChannelVideoDecoder?[MaxChannels];
+        private readonly ChannelAudioDecoder?[] _audioDecoders = new ChannelAudioDecoder?[MaxChannels];
         private readonly CancellationTokenSource?[] _receiverCts = new CancellationTokenSource?[MaxChannels];
         private readonly NtpSyncEngine _syncEngine;
         private bool _isDisposed;
@@ -41,6 +42,7 @@ namespace SRT_DECODE
         public event Action<string, string>? LogEmitted;
         public event Action<int, string>? ChannelError;
         public event Action<int, byte[], int, int>? FrameReady;
+        public event Action<int, byte[], int>? AudioPcmReady;
 
         public ReceiverChannelState[] Channels => _channels;
 
@@ -57,7 +59,7 @@ namespace SRT_DECODE
                     Port = port,
                     Mode = SRTMode.Listener,
                     LatencyMs = 120,
-                    AutoLatency = true,
+                    AutoLatency = false, // Default: Disable Auto Latency
                     EncryptionEnabled = false,
                     Passphrase = string.Empty,
                     KeyLength = 32
@@ -151,6 +153,17 @@ namespace SRT_DECODE
                     decoder.Start();
                     _decoders[index] = decoder;
 
+                    // Start Audio Decoder Pipeline (48kHz 16-bit Stereo PCM)
+                    _audioDecoders[index]?.Dispose();
+                    var audioDecoder = new ChannelAudioDecoder(index);
+                    audioDecoder.LogEmitted += (tag, msg) => Log(tag, msg);
+                    audioDecoder.PcmAudioDecoded += (chIdx, pcmBytes, len) =>
+                    {
+                        AudioPcmReady?.Invoke(chIdx, pcmBytes, len);
+                    };
+                    audioDecoder.Start();
+                    _audioDecoders[index] = audioDecoder;
+
                     // Start Background Packet Receiver & Feeder Loop
                     _receiverCts[index]?.Cancel();
                     _receiverCts[index]?.Dispose();
@@ -170,6 +183,7 @@ namespace SRT_DECODE
                                 if (bytesRead > 0)
                                 {
                                     decoder.FeedData(buffer, bytesRead);
+                                    audioDecoder.FeedData(buffer, bytesRead);
                                 }
                                 else
                                 {
@@ -217,6 +231,10 @@ namespace SRT_DECODE
                 _decoders[index]?.Stop();
                 _decoders[index]?.Dispose();
                 _decoders[index] = null;
+
+                _audioDecoders[index]?.Stop();
+                _audioDecoders[index]?.Dispose();
+                _audioDecoders[index] = null;
 
                 if (ch.Session != null)
                 {
@@ -283,6 +301,9 @@ namespace SRT_DECODE
                 _decoders[i]?.Dispose();
                 _decoders[i] = null;
 
+                _audioDecoders[i]?.Dispose();
+                _audioDecoders[i] = null;
+
                 _channels[i].Session?.Dispose();
                 _channels[i].Session = null;
             }
@@ -301,6 +322,9 @@ namespace SRT_DECODE
 
                 _decoders[i]?.Dispose();
                 _decoders[i] = null;
+
+                _audioDecoders[i]?.Dispose();
+                _audioDecoders[i] = null;
 
                 var session = _channels[i].Session;
                 if (session != null)

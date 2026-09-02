@@ -58,6 +58,12 @@ namespace SRT_DECODE
         private TextBlock[] _statusTexts = Array.Empty<TextBlock>();
         private ProgressBar[] _vuBarsL = Array.Empty<ProgressBar>();
         private ProgressBar[] _vuBarsR = Array.Empty<ProgressBar>();
+        private Border[] _overlayAudioVuCams = Array.Empty<Border>();
+        private Ellipse[] _clipLedsCamL = Array.Empty<Ellipse>();
+        private Ellipse[] _clipLedsCamR = Array.Empty<Ellipse>();
+        private TextBlock[] _txtAudioPeakCams = Array.Empty<TextBlock>();
+        private static readonly SolidColorBrush _brushLedOff = new(Color.FromRgb(0x2A, 0x2A, 0x2E));
+        private static readonly SolidColorBrush _brushLedClip = new(Color.FromRgb(0xFF, 0x00, 0x33));
         private ProgressBar[] _vuMasterBars = Array.Empty<ProgressBar>();
         private Border[] _ingestCards = Array.Empty<Border>();
         private Border[] _driftRows = Array.Empty<Border>();
@@ -66,6 +72,8 @@ namespace SRT_DECODE
         private TextBlock[] _badgeOutputTexts = Array.Empty<TextBlock>();
         private TextBox[] _txtOutputNdiNames = Array.Empty<TextBox>();
         private CheckBox[] _chkMuteCams = Array.Empty<CheckBox>();
+        private CheckBox[] _chkVuCams = Array.Empty<CheckBox>();
+        private Button[] _btnSoloCams = Array.Empty<Button>();
         private OpenMediaVideoView[] _videoViews = Array.Empty<OpenMediaVideoView>();
 
         // TextBlock & HUD array references
@@ -107,6 +115,7 @@ namespace SRT_DECODE
             // Wire receiver updates
             _receiverEngine.ChannelUpdated += OnReceiverChannelUpdated;
             _receiverEngine.FrameReady += OnFrameReady;
+            _receiverEngine.AudioPcmReady += (chIdx, pcm, len) => _audioManager.ProcessDecodedPcm(chIdx, pcm, len);
             _audioManager.CamLevelsUpdated += OnAudioLevelsUpdated;
             _audioManager.ProgramLevelsUpdated += OnProgramLevelsUpdated;
 
@@ -151,6 +160,10 @@ namespace SRT_DECODE
                 _statusTexts = new[] { TxtStatusCam1, TxtStatusCam2, TxtStatusCam3, TxtStatusCam4, TxtStatusCam5, TxtStatusCam6, TxtStatusCam7, TxtStatusCam8, TxtStatusCam9, TxtStatusCam10 };
                 _vuBarsL = new[] { VuCam1L, VuCam2L, VuCam3L, VuCam4L, VuCam5L, VuCam6L, VuCam7L, VuCam8L, VuCam9L, VuCam10L };
                 _vuBarsR = new[] { VuCam1R, VuCam2R, VuCam3R, VuCam4R, VuCam5R, VuCam6R, VuCam7R, VuCam8R, VuCam9R, VuCam10R };
+                _overlayAudioVuCams = new[] { OverlayAudioVuCam1, OverlayAudioVuCam2, OverlayAudioVuCam3, OverlayAudioVuCam4, OverlayAudioVuCam5, OverlayAudioVuCam6, OverlayAudioVuCam7, OverlayAudioVuCam8, OverlayAudioVuCam9, OverlayAudioVuCam10 };
+                _clipLedsCamL = new[] { ClipLedCam1_L, ClipLedCam2_L, ClipLedCam3_L, ClipLedCam4_L, ClipLedCam5_L, ClipLedCam6_L, ClipLedCam7_L, ClipLedCam8_L, ClipLedCam9_L, ClipLedCam10_L };
+                _clipLedsCamR = new[] { ClipLedCam1_R, ClipLedCam2_R, ClipLedCam3_R, ClipLedCam4_R, ClipLedCam5_R, ClipLedCam6_R, ClipLedCam7_R, ClipLedCam8_R, ClipLedCam9_R, ClipLedCam10_R };
+                _txtAudioPeakCams = new[] { TxtAudioPeakCam1, TxtAudioPeakCam2, TxtAudioPeakCam3, TxtAudioPeakCam4, TxtAudioPeakCam5, TxtAudioPeakCam6, TxtAudioPeakCam7, TxtAudioPeakCam8, TxtAudioPeakCam9, TxtAudioPeakCam10 };
                 _vuMasterBars = new[] { VuMasterL, VuMasterR, VuMaster3, VuMaster4, VuMaster5, VuMaster6, VuMaster7, VuMaster8, VuMaster9, VuMaster10, VuMaster11, VuMaster12, VuMaster13, VuMaster14, VuMaster15, VuMaster16 };
                 UpdateMasterVuVisibility();
                 _ingestCards = new[] { CardCam1, CardCam2, CardCam3, CardCam4, CardCam5, CardCam6, CardCam7, CardCam8, CardCam9, CardCam10 };
@@ -160,7 +173,29 @@ namespace SRT_DECODE
                 _badgeOutputTexts = new[] { TxtBadgeOutputCam1, TxtBadgeOutputCam2, TxtBadgeOutputCam3, TxtBadgeOutputCam4, TxtBadgeOutputCam5, TxtBadgeOutputCam6, TxtBadgeOutputCam7, TxtBadgeOutputCam8, TxtBadgeOutputCam9, TxtBadgeOutputCam10 };
                 _txtOutputNdiNames = new[] { TxtOutputNdiNameCam1, TxtOutputNdiNameCam2, TxtOutputNdiNameCam3, TxtOutputNdiNameCam4, TxtOutputNdiNameCam5, TxtOutputNdiNameCam6, TxtOutputNdiNameCam7, TxtOutputNdiNameCam8, TxtOutputNdiNameCam9, TxtOutputNdiNameCam10 };
                 _chkMuteCams = new[] { ChkMuteCam1, ChkMuteCam2, ChkMuteCam3, ChkMuteCam4, ChkMuteCam5, ChkMuteCam6, ChkMuteCam7, ChkMuteCam8, ChkMuteCam9, ChkMuteCam10 };
+                _chkVuCams = new[] { ChkVuCam1, ChkVuCam2, ChkVuCam3, ChkVuCam4, ChkVuCam5, ChkVuCam6, ChkVuCam7, ChkVuCam8, ChkVuCam9, ChkVuCam10 };
+                _btnSoloCams = new[] { BtnSoloCam1, BtnSoloCam2, BtnSoloCam3, BtnSoloCam4, BtnSoloCam5, BtnSoloCam6, BtnSoloCam7, BtnSoloCam8, BtnSoloCam9, BtnSoloCam10 };
                 _videoViews = new[] { VideoViewCam1, VideoViewCam2, VideoViewCam3, VideoViewCam4, VideoViewCam5, VideoViewCam6, VideoViewCam7, VideoViewCam8, VideoViewCam9, VideoViewCam10 };
+
+                // Set initial VU meter overlay visibility (all default to Collapsed until VU checkbox is toggled)
+                for (int i = 0; i < _overlayAudioVuCams.Length; i++)
+                {
+                    if (_overlayAudioVuCams[i] != null)
+                    {
+                        _overlayAudioVuCams[i].Visibility = Visibility.Collapsed;
+                    }
+                }
+
+                // Set default audio preview MUTE for all preview screens on layout
+                for (int i = 0; i < MaxChannels; i++)
+                {
+                    if (i < _chkMuteCams.Length && _chkMuteCams[i] != null)
+                    {
+                        _chkMuteCams[i].IsChecked = true;
+                    }
+                    _audioManager.SetChannelMuted(i, true, _channelNames[i]);
+                }
+                UpdateSoloButtonsUI();
 
                 _hudRtt = new[] { HudRttCam1, HudRttCam2, HudRttCam3, HudRttCam4, HudRttCam5, HudRttCam6, HudRttCam7, HudRttCam8, HudRttCam9, HudRttCam10 };
                 _hudLoss = new[] { HudLossCam1, HudLossCam2, HudLossCam3, HudLossCam4, HudLossCam5, HudLossCam6, HudLossCam7, HudLossCam8, HudLossCam9, HudLossCam10 };
@@ -182,6 +217,15 @@ namespace SRT_DECODE
                 _txtLatencies = new[] { TxtLatencyCam1, TxtLatencyCam2, TxtLatencyCam3, TxtLatencyCam4, TxtLatencyCam5, TxtLatencyCam6, TxtLatencyCam7, TxtLatencyCam8, TxtLatencyCam9, TxtLatencyCam10 };
                 _chkAutoLatencies = new[] { ChkAutoLatencyCam1, ChkAutoLatencyCam2, ChkAutoLatencyCam3, ChkAutoLatencyCam4, ChkAutoLatencyCam5, ChkAutoLatencyCam6, ChkAutoLatencyCam7, ChkAutoLatencyCam8, ChkAutoLatencyCam9, ChkAutoLatencyCam10 };
                 _btnToggles = new[] { BtnToggleCam1, BtnToggleCam2, BtnToggleCam3, BtnToggleCam4, BtnToggleCam5, BtnToggleCam6, BtnToggleCam7, BtnToggleCam8, BtnToggleCam9, BtnToggleCam10 };
+
+                for (int i = 0; i < MaxChannels; i++)
+                {
+                    if (i < _chkAutoLatencies.Length && _chkAutoLatencies[i] != null)
+                    {
+                        _chkAutoLatencies[i].IsChecked = false;
+                    }
+                    _receiverEngine.Channels[i].Config.AutoLatency = false;
+                }
 
                 // Initialize WriteableBitmaps for video rendering surfaces
                 for (int i = 0; i < MaxChannels; i++)
@@ -745,6 +789,7 @@ namespace SRT_DECODE
         {
             if (index < 0 || index >= _activeChannelCount) return;
             _currentProgramIndex = index;
+            _audioManager.CurrentProgramIndex = index;
             UpdateTallyIndicators();
             LogEvent("[SWITCHER]", $"Đã chọn {_channelNames[index]} làm tín hiệu PROGRAM (On-Air).");
 
@@ -854,19 +899,59 @@ namespace SRT_DECODE
                 {
                     if (i < levels.Length && i < _activeChannelCount)
                     {
-                        _vuBarsL[i].Value = levels[i].LeftPercent;
-                        _vuBarsR[i].Value = levels[i].RightPercent;
+                        double leftDb = Math.Clamp(levels[i].LeftDb, -60.0, 0.0);
+                        double rightDb = Math.Clamp(levels[i].RightDb, -60.0, 0.0);
 
-                        _vuBarsL[i].Foreground = levels[i].IsClipping ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
-                        _vuBarsR[i].Foreground = levels[i].IsClipping ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
+                        _vuBarsL[i].Value = leftDb;
+                        _vuBarsR[i].Value = rightDb;
+
+                        bool clipL = levels[i].IsChannelClipping[0];
+                        bool clipR = levels[i].IsChannelClipping[1];
+
+                        _vuBarsL[i].Foreground = GetVuMeterColorBrush(leftDb, clipL);
+                        _vuBarsR[i].Foreground = GetVuMeterColorBrush(rightDb, clipR);
+
+                        if (i < _clipLedsCamL.Length && _clipLedsCamL[i] != null)
+                            _clipLedsCamL[i].Fill = clipL ? _brushLedClip : _brushLedOff;
+
+                        if (i < _clipLedsCamR.Length && _clipLedsCamR[i] != null)
+                            _clipLedsCamR[i].Fill = clipR ? _brushLedClip : _brushLedOff;
+
+                        if (i < _txtAudioPeakCams.Length && _txtAudioPeakCams[i] != null)
+                        {
+                            double maxDb = Math.Max(levels[i].LeftDb, levels[i].RightDb);
+                            _txtAudioPeakCams[i].Text = (maxDb > -55.0) ? $"{maxDb:F1}" : "-∞";
+                        }
                     }
                     else
                     {
-                        _vuBarsL[i].Value = 0;
-                        _vuBarsR[i].Value = 0;
+                        _vuBarsL[i].Value = -60;
+                        _vuBarsR[i].Value = -60;
+
+                        if (i < _clipLedsCamL.Length && _clipLedsCamL[i] != null)
+                            _clipLedsCamL[i].Fill = _brushLedOff;
+
+                        if (i < _clipLedsCamR.Length && _clipLedsCamR[i] != null)
+                            _clipLedsCamR[i].Fill = _brushLedOff;
+
+                        if (i < _txtAudioPeakCams.Length && _txtAudioPeakCams[i] != null)
+                            _txtAudioPeakCams[i].Text = "-∞";
                     }
                 }
             }, DispatcherPriority.Render);
+        }
+
+        private static SolidColorBrush GetVuMeterColorBrush(double db, bool isClip = false)
+        {
+            if (isClip || db >= -1.0)
+            {
+                return new SolidColorBrush(Color.FromRgb(244, 67, 54)); // Red (Clip / Peak Alert)
+            }
+            if (db >= -18.0)
+            {
+                return new SolidColorBrush(Color.FromRgb(255, 193, 7)); // Yellow (Standard Broadcast Program Range)
+            }
+            return new SolidColorBrush(Color.FromRgb(76, 175, 80)); // Green (Normal range)
         }
 
         private void OnProgramLevelsUpdated(ChannelAudioLevels pgm)
@@ -937,11 +1022,38 @@ namespace SRT_DECODE
             }
         }
 
+        private void UpdateSoloButtonsUI()
+        {
+            if (_btnSoloCams == null || _btnSoloCams.Length == 0) return;
+
+            for (int i = 0; i < _btnSoloCams.Length; i++)
+            {
+                if (_btnSoloCams[i] == null) continue;
+                int camNum = i + 1;
+                bool isThisSolo = (_audioManager.SoloSource == (SoloAudioSource)camNum);
+
+                if (isThisSolo)
+                {
+                    // Đổi màu nổi bật cho nút SOLO được chọn (Vàng Amber #F59E0B với chữ đậm đen)
+                    _btnSoloCams[i].Background = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B));
+                    _btnSoloCams[i].Foreground = Brushes.Black;
+                    _btnSoloCams[i].FontWeight = FontWeights.Bold;
+                }
+                else
+                {
+                    // Màu mặc định cho nút SOLO không chọn
+                    _btnSoloCams[i].Background = new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x33));
+                    _btnSoloCams[i].Foreground = Brushes.White;
+                    _btnSoloCams[i].FontWeight = FontWeights.Normal;
+                }
+            }
+        }
+
         private void BtnSoloCam_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button btn && btn.Tag is string tagStr && int.TryParse(tagStr, out int camNum))
             {
-                _audioManager.SoloSource = camNum switch
+                var targetSolo = camNum switch
                 {
                     1 => SoloAudioSource.Cam1,
                     2 => SoloAudioSource.Cam2,
@@ -955,7 +1067,19 @@ namespace SRT_DECODE
                     10 => SoloAudioSource.Cam10,
                     _ => SoloAudioSource.ProgramMaster
                 };
+
+                // Nhấn lại nút SOLO đang bật sẽ tắt SOLO và quay về PGM MASTER
+                if (_audioManager.SoloSource == targetSolo)
+                {
+                    _audioManager.SoloSource = SoloAudioSource.ProgramMaster;
+                }
+                else
+                {
+                    _audioManager.SoloSource = targetSolo;
+                }
+
                 TxtCurrentSolo.Text = _audioManager.GetSoloLabel(_audioManager.SoloSource);
+                UpdateSoloButtonsUI();
             }
         }
 
@@ -972,6 +1096,18 @@ namespace SRT_DECODE
             {
                 bool isMuted = cb.IsChecked == true;
                 _audioManager.SetChannelMuted(camIdx, isMuted, _channelNames[camIdx]);
+            }
+        }
+
+        private void ChkVuCam_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is CheckBox cb && cb.Tag is string tagStr && int.TryParse(tagStr, out int camIdx))
+            {
+                bool isVisible = cb.IsChecked == true;
+                if (camIdx >= 0 && camIdx < _overlayAudioVuCams.Length && _overlayAudioVuCams[camIdx] != null)
+                {
+                    _overlayAudioVuCams[camIdx].Visibility = isVisible ? Visibility.Visible : Visibility.Collapsed;
+                }
             }
         }
 

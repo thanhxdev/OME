@@ -62,6 +62,8 @@ namespace SRT_ENCODE
         private readonly double[] _channelRmsLevels16 = new double[16];
         private readonly bool[] _channelClipping16 = new bool[16];
         private readonly AudioMeterService _audioMeterService = new();
+        private bool _isAudioMuted = false;
+        private double _lastNonZeroVolume = 0.4;
 
         public MainWindow()
         {
@@ -141,7 +143,7 @@ namespace SRT_ENCODE
                 await ScanNdiSourcesAsync();
 
                 // Setup VideoSourceManager & Initial Preview Player
-                _sourceManager.SetAudioMonitor(ChkEnableAudioMonitor?.IsChecked == true, SldMonitorVolume?.Value ?? 1.0);
+                _sourceManager.SetAudioMonitor(!_isAudioMuted, SldMonitorVolume?.Value ?? 0.4);
                 await _sourceManager.InitializeAsync(ReviewView, ViewboxColorbar, PnlColorbarVisualHost, TxtActiveSourceBadge, TxtActiveSourceTypeBadge);
                 await InitializePreviewPlayerAsync();
 
@@ -1949,14 +1951,55 @@ namespace SRT_ENCODE
         private void ChkEnableAudioMonitor_Changed(object sender, RoutedEventArgs e)
         {
             if (!_isInitialized) return;
-            bool isAudioMonitor = ChkEnableAudioMonitor.IsChecked == true;
-            _sourceManager.SetAudioMonitor(isAudioMonitor, SldMonitorVolume.Value);
+            bool isVuVisible = ChkEnableAudioMonitor.IsChecked == true;
 
             if (OverlayAudioVu != null)
             {
-                OverlayAudioVu.Visibility = isAudioMonitor ? Visibility.Visible : Visibility.Collapsed;
+                OverlayAudioVu.Visibility = isVuVisible ? Visibility.Visible : Visibility.Collapsed;
             }
-            LogEvent("[INFO]", isAudioMonitor ? "Bật kiểm âm & Audio VU Meter 16 kênh." : "Mute âm thanh kiểm âm & ẩn VU Meter.");
+            LogEvent("[INFO]", isVuVisible ? "Hiển thị đồng hồ đo Audio VU Meter." : "Ẩn đồng hồ đo Audio VU Meter.");
+        }
+
+        private void BtnAudioMute_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+
+            _isAudioMuted = !_isAudioMuted;
+
+            if (!_isAudioMuted && SldMonitorVolume.Value <= 0.001)
+            {
+                // Nếu đang 0% mà unmute, khôi phục mức volume hợp lý (trước đó hoặc 40%)
+                SldMonitorVolume.Value = _lastNonZeroVolume > 0.05 ? _lastNonZeroVolume : 0.4;
+            }
+
+            UpdateAudioMuteState(logChange: true);
+        }
+
+        private void UpdateAudioMuteState(bool logChange = false)
+        {
+            _sourceManager.SetAudioMonitor(!_isAudioMuted, SldMonitorVolume.Value);
+
+            if (TxtAudioMuteIcon != null)
+            {
+                TxtAudioMuteIcon.Text = _isAudioMuted ? "🔇" : "🔊";
+                TxtAudioMuteIcon.Foreground = _isAudioMuted
+                    ? new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)) // Red for Muted
+                    : new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76)); // Green for Active
+            }
+
+            if (BtnAudioMute != null)
+            {
+                BtnAudioMute.ToolTip = _isAudioMuted
+                    ? "Đang tắt tiếng loa kiểm âm (MUTED) - Click để Bật tiếng (UNMUTE)"
+                    : "Đang bật tiếng loa kiểm âm (ACTIVE) - Click để Tắt tiếng (MUTE)";
+            }
+
+            if (logChange)
+            {
+                LogEvent("[AUDIO]", _isAudioMuted
+                    ? "🔇 Đã tắt tiếng (MUTE) âm thanh kiểm âm."
+                    : $"🔊 Đã bật tiếng (UNMUTE) âm thanh kiểm âm (Âm lượng: {(int)(SldMonitorVolume.Value * 100)}%).");
+            }
         }
 
         private void ChkShowTelemetry_Changed(object sender, RoutedEventArgs e)
@@ -1975,6 +2018,22 @@ namespace SRT_ENCODE
             {
                 TxtMonitorVolumeVal.Text = $"{(int)(e.NewValue * 100)}%";
             }
+
+            if (e.NewValue > 0.001)
+            {
+                _lastNonZeroVolume = e.NewValue;
+                if (_isAudioMuted)
+                {
+                    _isAudioMuted = false;
+                    UpdateAudioMuteState(logChange: false);
+                }
+            }
+            else if (!_isAudioMuted)
+            {
+                _isAudioMuted = true;
+                UpdateAudioMuteState(logChange: false);
+            }
+
             _sourceManager.SetVolume(e.NewValue);
         }
 

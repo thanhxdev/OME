@@ -468,42 +468,48 @@
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                     <TextBlock x:Name="TxtResFpsCam1" Text="1080p59.94" FontSize="10" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <CheckBox x:Name="ChkMuteCam1" Content="MUTE" Click="ChkMuteCam_Click" Tag="0" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
+                                                    <CheckBox x:Name="ChkVuCam1" Content="VU" IsChecked="False" Click="ChkVuCam_Click" Tag="0" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
+                                                    <CheckBox x:Name="ChkMuteCam1" Content="MUTE" IsChecked="True" Click="ChkMuteCam_Click" Tag="0" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
                                                     <Button x:Name="BtnSoloCam1" Content="SOLO" Click="BtnSoloCam_Click" Tag="1" FontSize="9" Padding="4,1" Background="#2C2C33" Foreground="#FFFFFF" Cursor="Hand"/>
                                                 </StackPanel>
                                             </Grid>
                                         </Border>
-                                        <Grid Grid.Row="1">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Grid Grid.Column="0" Background="#0A0A0C" MinHeight="130">
-                                                <om:OpenMediaVideoView x:Name="VideoViewCam1" Stretch="Uniform"/>
-                                                <Border x:Name="FallbackCam1" Background="#111116" Visibility="Visible">
-                                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <TextBlock x:Name="TxtFallbackTitleCam1" Text="CAM 1 • SRT RECEIVER" FontWeight="Bold" FontSize="12" Foreground="#555566" HorizontalAlignment="Center"/>
-                                                        <TextBlock x:Name="TxtStatusCam1" Text="Standby (Listener :9000)" FontSize="10" Foreground="#444455" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                        <Grid Grid.Row="1" Background="#0A0A0C" MinHeight="130">
+                                            <om:OpenMediaVideoView x:Name="VideoViewCam1" Stretch="Uniform"/>
+                                            <Border x:Name="FallbackCam1" Background="#111116" Visibility="Visible">
+                                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="TxtFallbackTitleCam1" Text="CAM 1 • SRT RECEIVER" FontWeight="Bold" FontSize="12" Foreground="#555566" HorizontalAlignment="Center"/>
+                                                    <TextBlock x:Name="TxtStatusCam1" Text="Standby (Listener :9000)" FontSize="10" Foreground="#444455" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border x:Name="HudOverlayCam1" Background="#CC111114" CornerRadius="3" Padding="5,3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6" Visibility="Collapsed">
+                                                <StackPanel>
+                                                    <TextBlock x:Name="HudRttCam1" Text="RTT: 0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#00FFCC"/>
+                                                    <TextBlock x:Name="HudLossCam1" Text="Loss: 0.0%" FontSize="9.5" FontFamily="Consolas" Foreground="#22C55E"/>
+                                                    <TextBlock x:Name="HudBitrateCam1" Text="Bitrate: 0 kbps" FontSize="9.5" FontFamily="Consolas" Foreground="#FFFFFF"/>
+                                                    <TextBlock x:Name="HudDriftCam1" Text="Drift: ±0.0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#F59E0B"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <!-- Top-Right Audio VU Meter Overlay (Revealed when UNMUTED) -->
+                                            <Border x:Name="OverlayAudioVuCam1" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
+                                                <StackPanel Orientation="Vertical">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
+                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,3,0"/>
+                                                        <TextBlock x:Name="TxtAudioPeakCam1" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0"/>
                                                     </StackPanel>
-                                                </Border>
-                                                <Border x:Name="HudOverlayCam1" Background="#CC111114" CornerRadius="3" Padding="5,3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6" Visibility="Collapsed">
-                                                    <StackPanel>
-                                                        <TextBlock x:Name="HudRttCam1" Text="RTT: 0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#00FFCC"/>
-                                                        <TextBlock x:Name="HudLossCam1" Text="Loss: 0.0%" FontSize="9.5" FontFamily="Consolas" Foreground="#22C55E"/>
-                                                        <TextBlock x:Name="HudBitrateCam1" Text="Bitrate: 0 kbps" FontSize="9.5" FontFamily="Consolas" Foreground="#FFFFFF"/>
-                                                        <TextBlock x:Name="HudDriftCam1" Text="Drift: ±0.0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#F59E0B"/>
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                        <StackPanel Width="10" Margin="0,0,2,0">
+                                                            <Ellipse x:Name="ClipLedCam1_L" Width="5" Height="5" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                                            <ProgressBar x:Name="VuCam1L" Orientation="Vertical" Height="46" Width="6" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            <TextBlock Text="L" FontSize="7.5" FontWeight="Bold" Foreground="#888888" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                                                        </StackPanel>
+                                                        <StackPanel Width="10">
+                                                            <Ellipse x:Name="ClipLedCam1_R" Width="5" Height="5" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                                            <ProgressBar x:Name="VuCam1R" Orientation="Vertical" Height="46" Width="6" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            <TextBlock Text="R" FontSize="7.5" FontWeight="Bold" Foreground="#888888" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                                                        </StackPanel>
                                                     </StackPanel>
-                                                </Border>
-                                            </Grid>
-                                            <Border Grid.Column="1" Background="#141418" Padding="2,3" Width="16">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <ProgressBar x:Name="VuCam1L" Grid.Column="0" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0"/>
-                                                    <ProgressBar x:Name="VuCam1R" Grid.Column="1" Style="{StaticResource VuMeterBarStyle}"/>
-                                                </Grid>
+                                                </StackPanel>
                                             </Border>
                                         </Grid>
                                     </Grid>
@@ -527,49 +533,55 @@
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                     <TextBlock x:Name="TxtResFpsCam2" Text="1080p59.94" FontSize="10" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <CheckBox x:Name="ChkMuteCam2" Content="MUTE" Click="ChkMuteCam_Click" Tag="1" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
+                                                    <CheckBox x:Name="ChkVuCam2" Content="VU" IsChecked="False" Click="ChkVuCam_Click" Tag="1" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
+                                                    <CheckBox x:Name="ChkMuteCam2" Content="MUTE" IsChecked="True" Click="ChkMuteCam_Click" Tag="1" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
                                                     <Button x:Name="BtnSoloCam2" Content="SOLO" Click="BtnSoloCam_Click" Tag="2" FontSize="9" Padding="4,1" Background="#2C2C33" Foreground="#FFFFFF" Cursor="Hand"/>
                                                 </StackPanel>
                                             </Grid>
                                         </Border>
-                                        <Grid Grid.Row="1">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Grid Grid.Column="0" Background="#0A0A0C" MinHeight="130">
-                                                <om:OpenMediaVideoView x:Name="VideoViewCam2" Stretch="Uniform"/>
-                                                <Border x:Name="FallbackCam2" Background="#111116" Visibility="Visible">
-                                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <TextBlock x:Name="TxtFallbackTitleCam2" Text="CAM 2 • SRT RECEIVER" FontWeight="Bold" FontSize="12" Foreground="#555566" HorizontalAlignment="Center"/>
-                                                        <TextBlock x:Name="TxtStatusCam2" Text="Standby (Listener :9001)" FontSize="10" Foreground="#444455" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                        <Grid Grid.Row="1" Background="#0A0A0C" MinHeight="130">
+                                            <om:OpenMediaVideoView x:Name="VideoViewCam2" Stretch="Uniform"/>
+                                            <Border x:Name="FallbackCam2" Background="#111116" Visibility="Visible">
+                                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="TxtFallbackTitleCam2" Text="CAM 2 • SRT RECEIVER" FontWeight="Bold" FontSize="12" Foreground="#555566" HorizontalAlignment="Center"/>
+                                                    <TextBlock x:Name="TxtStatusCam2" Text="Standby (Listener :9001)" FontSize="10" Foreground="#444455" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border x:Name="HudOverlayCam2" Background="#CC111114" CornerRadius="3" Padding="5,3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6" Visibility="Collapsed">
+                                                <StackPanel>
+                                                    <TextBlock x:Name="HudRttCam2" Text="RTT: 0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#00FFCC"/>
+                                                    <TextBlock x:Name="HudLossCam2" Text="Loss: 0.0%" FontSize="9.5" FontFamily="Consolas" Foreground="#22C55E"/>
+                                                    <TextBlock x:Name="HudBitrateCam2" Text="Bitrate: 0 kbps" FontSize="9.5" FontFamily="Consolas" Foreground="#FFFFFF"/>
+                                                    <TextBlock x:Name="HudDriftCam2" Text="Drift: ±0.0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#F59E0B"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <!-- Top-Right Audio VU Meter Overlay (Revealed when UNMUTED) -->
+                                            <Border x:Name="OverlayAudioVuCam2" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
+                                                <StackPanel Orientation="Vertical">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
+                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,3,0"/>
+                                                        <TextBlock x:Name="TxtAudioPeakCam2" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0"/>
                                                     </StackPanel>
-                                                </Border>
-                                                <Border x:Name="HudOverlayCam2" Background="#CC111114" CornerRadius="3" Padding="5,3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6" Visibility="Collapsed">
-                                                    <StackPanel>
-                                                        <TextBlock x:Name="HudRttCam2" Text="RTT: 0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#00FFCC"/>
-                                                        <TextBlock x:Name="HudLossCam2" Text="Loss: 0.0%" FontSize="9.5" FontFamily="Consolas" Foreground="#22C55E"/>
-                                                        <TextBlock x:Name="HudBitrateCam2" Text="Bitrate: 0 kbps" FontSize="9.5" FontFamily="Consolas" Foreground="#FFFFFF"/>
-                                                        <TextBlock x:Name="HudDriftCam2" Text="Drift: ±0.0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#F59E0B"/>
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                        <StackPanel Width="10" Margin="0,0,2,0">
+                                                            <Ellipse x:Name="ClipLedCam2_L" Width="5" Height="5" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                                            <ProgressBar x:Name="VuCam2L" Orientation="Vertical" Height="46" Width="6" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            <TextBlock Text="L" FontSize="7.5" FontWeight="Bold" Foreground="#888888" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                                                        </StackPanel>
+                                                        <StackPanel Width="10">
+                                                            <Ellipse x:Name="ClipLedCam2_R" Width="5" Height="5" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                                            <ProgressBar x:Name="VuCam2R" Orientation="Vertical" Height="46" Width="6" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            <TextBlock Text="R" FontSize="7.5" FontWeight="Bold" Foreground="#888888" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                                                        </StackPanel>
                                                     </StackPanel>
-                                                </Border>
-                                            </Grid>
-                                            <Border Grid.Column="1" Background="#141418" Padding="2,3" Width="16">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <ProgressBar x:Name="VuCam2L" Grid.Column="0" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0"/>
-                                                    <ProgressBar x:Name="VuCam2R" Grid.Column="1" Style="{StaticResource VuMeterBarStyle}"/>
-                                                </Grid>
+                                                </StackPanel>
                                             </Border>
                                         </Grid>
                                     </Grid>
                                 </Border>
 
                                 <!-- ══ CAMERA 3 CELL ════════════════════════════════ -->
-                                <Border x:Name="CellCam3" Background="#161619" BorderBrush="#2D2D35" BorderThickness="1" CornerRadius="4" Margin="3" Visibility="Collapsed">
+                                <Border x:Name="CellCam3" Background="#161619" BorderBrush="#2D2D35" BorderThickness="1.5" CornerRadius="4" Margin="3" Visibility="Collapsed">
                                     <Grid>
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
@@ -579,56 +591,62 @@
                                             <Grid>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <Border x:Name="TallyCam3" Background="#333338" CornerRadius="2" Padding="4,1" Margin="0,0,6,0">
-                                                        <TextBlock Text="CAM 3" FontWeight="Bold" FontSize="9.5" Foreground="#AAAAAA"/>
+                                                        <TextBlock Text="OFF" FontWeight="Bold" FontSize="9.5" Foreground="#888888"/>
                                                     </Border>
                                                     <TextBlock x:Name="TxtHeaderCam3" Text="CAM 3 (PORT 9002)" FontWeight="Bold" FontSize="11" Foreground="#FFFFFF" VerticalAlignment="Center"/>
                                                     <Ellipse x:Name="LedCam3" Width="7" Height="7" Fill="#888888" Margin="6,0,0,0" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                     <TextBlock x:Name="TxtResFpsCam3" Text="1080p59.94" FontSize="10" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <CheckBox x:Name="ChkMuteCam3" Content="MUTE" Click="ChkMuteCam_Click" Tag="2" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
+                                                    <CheckBox x:Name="ChkVuCam3" Content="VU" IsChecked="False" Click="ChkVuCam_Click" Tag="2" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
+                                                    <CheckBox x:Name="ChkMuteCam3" Content="MUTE" IsChecked="True" Click="ChkMuteCam_Click" Tag="2" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
                                                     <Button x:Name="BtnSoloCam3" Content="SOLO" Click="BtnSoloCam_Click" Tag="3" FontSize="9" Padding="4,1" Background="#2C2C33" Foreground="#FFFFFF" Cursor="Hand"/>
                                                 </StackPanel>
                                             </Grid>
                                         </Border>
-                                        <Grid Grid.Row="1">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Grid Grid.Column="0" Background="#0A0A0C" MinHeight="130">
-                                                <om:OpenMediaVideoView x:Name="VideoViewCam3" Stretch="Uniform"/>
-                                                <Border x:Name="FallbackCam3" Background="#111116" Visibility="Visible">
-                                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <TextBlock x:Name="TxtFallbackTitleCam3" Text="CAM 3 • SRT RECEIVER" FontWeight="Bold" FontSize="12" Foreground="#555566" HorizontalAlignment="Center"/>
-                                                        <TextBlock x:Name="TxtStatusCam3" Text="Standby (Listener :9002)" FontSize="10" Foreground="#444455" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                        <Grid Grid.Row="1" Background="#0A0A0C" MinHeight="130">
+                                            <om:OpenMediaVideoView x:Name="VideoViewCam3" Stretch="Uniform"/>
+                                            <Border x:Name="FallbackCam3" Background="#111116" Visibility="Visible">
+                                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="TxtFallbackTitleCam3" Text="CAM 3 • SRT RECEIVER" FontWeight="Bold" FontSize="12" Foreground="#555566" HorizontalAlignment="Center"/>
+                                                    <TextBlock x:Name="TxtStatusCam3" Text="Standby (Listener :9002)" FontSize="10" Foreground="#444455" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border x:Name="HudOverlayCam3" Background="#CC111114" CornerRadius="3" Padding="5,3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6" Visibility="Collapsed">
+                                                <StackPanel>
+                                                    <TextBlock x:Name="HudRttCam3" Text="RTT: 0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#00FFCC"/>
+                                                    <TextBlock x:Name="HudLossCam3" Text="Loss: 0.0%" FontSize="9.5" FontFamily="Consolas" Foreground="#22C55E"/>
+                                                    <TextBlock x:Name="HudBitrateCam3" Text="Bitrate: 0 kbps" FontSize="9.5" FontFamily="Consolas" Foreground="#FFFFFF"/>
+                                                    <TextBlock x:Name="HudDriftCam3" Text="Drift: ±0.0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#F59E0B"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <!-- Top-Right Audio VU Meter Overlay (Revealed when UNMUTED) -->
+                                            <Border x:Name="OverlayAudioVuCam3" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
+                                                <StackPanel Orientation="Vertical">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
+                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,3,0"/>
+                                                        <TextBlock x:Name="TxtAudioPeakCam3" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0"/>
                                                     </StackPanel>
-                                                </Border>
-                                                <Border x:Name="HudOverlayCam3" Background="#CC111114" CornerRadius="3" Padding="5,3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6" Visibility="Collapsed">
-                                                    <StackPanel>
-                                                        <TextBlock x:Name="HudRttCam3" Text="RTT: 0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#00FFCC"/>
-                                                        <TextBlock x:Name="HudLossCam3" Text="Loss: 0.0%" FontSize="9.5" FontFamily="Consolas" Foreground="#22C55E"/>
-                                                        <TextBlock x:Name="HudBitrateCam3" Text="Bitrate: 0 kbps" FontSize="9.5" FontFamily="Consolas" Foreground="#FFFFFF"/>
-                                                        <TextBlock x:Name="HudDriftCam3" Text="Drift: ±0.0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#F59E0B"/>
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                        <StackPanel Width="10" Margin="0,0,2,0">
+                                                            <Ellipse x:Name="ClipLedCam3_L" Width="5" Height="5" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                                            <ProgressBar x:Name="VuCam3L" Orientation="Vertical" Height="46" Width="6" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            <TextBlock Text="L" FontSize="7.5" FontWeight="Bold" Foreground="#888888" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                                                        </StackPanel>
+                                                        <StackPanel Width="10">
+                                                            <Ellipse x:Name="ClipLedCam3_R" Width="5" Height="5" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                                            <ProgressBar x:Name="VuCam3R" Orientation="Vertical" Height="46" Width="6" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            <TextBlock Text="R" FontSize="7.5" FontWeight="Bold" Foreground="#888888" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                                                        </StackPanel>
                                                     </StackPanel>
-                                                </Border>
-                                            </Grid>
-                                            <Border Grid.Column="1" Background="#141418" Padding="2,3" Width="16">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <ProgressBar x:Name="VuCam3L" Grid.Column="0" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0"/>
-                                                    <ProgressBar x:Name="VuCam3R" Grid.Column="1" Style="{StaticResource VuMeterBarStyle}"/>
-                                                </Grid>
+                                                </StackPanel>
                                             </Border>
                                         </Grid>
                                     </Grid>
                                 </Border>
 
                                 <!-- ══ CAMERA 4 CELL ════════════════════════════════ -->
-                                <Border x:Name="CellCam4" Background="#161619" BorderBrush="#2D2D35" BorderThickness="1" CornerRadius="4" Margin="3" Visibility="Collapsed">
+                                <Border x:Name="CellCam4" Background="#161619" BorderBrush="#2D2D35" BorderThickness="1.5" CornerRadius="4" Margin="3" Visibility="Collapsed">
                                     <Grid>
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
@@ -638,56 +656,62 @@
                                             <Grid>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <Border x:Name="TallyCam4" Background="#333338" CornerRadius="2" Padding="4,1" Margin="0,0,6,0">
-                                                        <TextBlock Text="CAM 4" FontWeight="Bold" FontSize="9.5" Foreground="#AAAAAA"/>
+                                                        <TextBlock Text="OFF" FontWeight="Bold" FontSize="9.5" Foreground="#888888"/>
                                                     </Border>
                                                     <TextBlock x:Name="TxtHeaderCam4" Text="CAM 4 (PORT 9003)" FontWeight="Bold" FontSize="11" Foreground="#FFFFFF" VerticalAlignment="Center"/>
                                                     <Ellipse x:Name="LedCam4" Width="7" Height="7" Fill="#888888" Margin="6,0,0,0" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                     <TextBlock x:Name="TxtResFpsCam4" Text="1080p59.94" FontSize="10" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <CheckBox x:Name="ChkMuteCam4" Content="MUTE" Click="ChkMuteCam_Click" Tag="3" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
+                                                    <CheckBox x:Name="ChkVuCam4" Content="VU" IsChecked="False" Click="ChkVuCam_Click" Tag="3" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
+                                                    <CheckBox x:Name="ChkMuteCam4" Content="MUTE" IsChecked="True" Click="ChkMuteCam_Click" Tag="3" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
                                                     <Button x:Name="BtnSoloCam4" Content="SOLO" Click="BtnSoloCam_Click" Tag="4" FontSize="9" Padding="4,1" Background="#2C2C33" Foreground="#FFFFFF" Cursor="Hand"/>
                                                 </StackPanel>
                                             </Grid>
                                         </Border>
-                                        <Grid Grid.Row="1">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Grid Grid.Column="0" Background="#0A0A0C" MinHeight="130">
-                                                <om:OpenMediaVideoView x:Name="VideoViewCam4" Stretch="Uniform"/>
-                                                <Border x:Name="FallbackCam4" Background="#111116" Visibility="Visible">
-                                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <TextBlock x:Name="TxtFallbackTitleCam4" Text="CAM 4 • SRT RECEIVER" FontWeight="Bold" FontSize="12" Foreground="#555566" HorizontalAlignment="Center"/>
-                                                        <TextBlock x:Name="TxtStatusCam4" Text="Standby (Listener :9003)" FontSize="10" Foreground="#444455" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                        <Grid Grid.Row="1" Background="#0A0A0C" MinHeight="130">
+                                            <om:OpenMediaVideoView x:Name="VideoViewCam4" Stretch="Uniform"/>
+                                            <Border x:Name="FallbackCam4" Background="#111116" Visibility="Visible">
+                                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="TxtFallbackTitleCam4" Text="CAM 4 • SRT RECEIVER" FontWeight="Bold" FontSize="12" Foreground="#555566" HorizontalAlignment="Center"/>
+                                                    <TextBlock x:Name="TxtStatusCam4" Text="Standby (Listener :9003)" FontSize="10" Foreground="#444455" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border x:Name="HudOverlayCam4" Background="#CC111114" CornerRadius="3" Padding="5,3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6" Visibility="Collapsed">
+                                                <StackPanel>
+                                                    <TextBlock x:Name="HudRttCam4" Text="RTT: 0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#00FFCC"/>
+                                                    <TextBlock x:Name="HudLossCam4" Text="Loss: 0.0%" FontSize="9.5" FontFamily="Consolas" Foreground="#22C55E"/>
+                                                    <TextBlock x:Name="HudBitrateCam4" Text="Bitrate: 0 kbps" FontSize="9.5" FontFamily="Consolas" Foreground="#FFFFFF"/>
+                                                    <TextBlock x:Name="HudDriftCam4" Text="Drift: ±0.0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#F59E0B"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <!-- Top-Right Audio VU Meter Overlay (Revealed when UNMUTED) -->
+                                            <Border x:Name="OverlayAudioVuCam4" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
+                                                <StackPanel Orientation="Vertical">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
+                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,3,0"/>
+                                                        <TextBlock x:Name="TxtAudioPeakCam4" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0"/>
                                                     </StackPanel>
-                                                </Border>
-                                                <Border x:Name="HudOverlayCam4" Background="#CC111114" CornerRadius="3" Padding="5,3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6" Visibility="Collapsed">
-                                                    <StackPanel>
-                                                        <TextBlock x:Name="HudRttCam4" Text="RTT: 0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#00FFCC"/>
-                                                        <TextBlock x:Name="HudLossCam4" Text="Loss: 0.0%" FontSize="9.5" FontFamily="Consolas" Foreground="#22C55E"/>
-                                                        <TextBlock x:Name="HudBitrateCam4" Text="Bitrate: 0 kbps" FontSize="9.5" FontFamily="Consolas" Foreground="#FFFFFF"/>
-                                                        <TextBlock x:Name="HudDriftCam4" Text="Drift: ±0.0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#F59E0B"/>
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                        <StackPanel Width="10" Margin="0,0,2,0">
+                                                            <Ellipse x:Name="ClipLedCam4_L" Width="5" Height="5" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                                            <ProgressBar x:Name="VuCam4L" Orientation="Vertical" Height="46" Width="6" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            <TextBlock Text="L" FontSize="7.5" FontWeight="Bold" Foreground="#888888" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                                                        </StackPanel>
+                                                        <StackPanel Width="10">
+                                                            <Ellipse x:Name="ClipLedCam4_R" Width="5" Height="5" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                                            <ProgressBar x:Name="VuCam4R" Orientation="Vertical" Height="46" Width="6" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            <TextBlock Text="R" FontSize="7.5" FontWeight="Bold" Foreground="#888888" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                                                        </StackPanel>
                                                     </StackPanel>
-                                                </Border>
-                                            </Grid>
-                                            <Border Grid.Column="1" Background="#141418" Padding="2,3" Width="16">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <ProgressBar x:Name="VuCam4L" Grid.Column="0" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0"/>
-                                                    <ProgressBar x:Name="VuCam4R" Grid.Column="1" Style="{StaticResource VuMeterBarStyle}"/>
-                                                </Grid>
+                                                </StackPanel>
                                             </Border>
                                         </Grid>
                                     </Grid>
                                 </Border>
 
                                 <!-- ══ CAMERA 5 CELL ════════════════════════════════ -->
-                                <Border x:Name="CellCam5" Background="#161619" BorderBrush="#2D2D35" BorderThickness="1" CornerRadius="4" Margin="3" Visibility="Collapsed">
+                                <Border x:Name="CellCam5" Background="#161619" BorderBrush="#2D2D35" BorderThickness="1.5" CornerRadius="4" Margin="3" Visibility="Collapsed">
                                     <Grid>
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
@@ -697,56 +721,62 @@
                                             <Grid>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <Border x:Name="TallyCam5" Background="#333338" CornerRadius="2" Padding="4,1" Margin="0,0,6,0">
-                                                        <TextBlock Text="CAM 5" FontWeight="Bold" FontSize="9.5" Foreground="#AAAAAA"/>
+                                                        <TextBlock Text="OFF" FontWeight="Bold" FontSize="9.5" Foreground="#888888"/>
                                                     </Border>
                                                     <TextBlock x:Name="TxtHeaderCam5" Text="CAM 5 (PORT 9004)" FontWeight="Bold" FontSize="11" Foreground="#FFFFFF" VerticalAlignment="Center"/>
                                                     <Ellipse x:Name="LedCam5" Width="7" Height="7" Fill="#888888" Margin="6,0,0,0" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                     <TextBlock x:Name="TxtResFpsCam5" Text="1080p59.94" FontSize="10" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <CheckBox x:Name="ChkMuteCam5" Content="MUTE" Click="ChkMuteCam_Click" Tag="4" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
+                                                    <CheckBox x:Name="ChkVuCam5" Content="VU" IsChecked="False" Click="ChkVuCam_Click" Tag="4" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
+                                                    <CheckBox x:Name="ChkMuteCam5" Content="MUTE" IsChecked="True" Click="ChkMuteCam_Click" Tag="4" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
                                                     <Button x:Name="BtnSoloCam5" Content="SOLO" Click="BtnSoloCam_Click" Tag="5" FontSize="9" Padding="4,1" Background="#2C2C33" Foreground="#FFFFFF" Cursor="Hand"/>
                                                 </StackPanel>
                                             </Grid>
                                         </Border>
-                                        <Grid Grid.Row="1">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Grid Grid.Column="0" Background="#0A0A0C" MinHeight="130">
-                                                <om:OpenMediaVideoView x:Name="VideoViewCam5" Stretch="Uniform"/>
-                                                <Border x:Name="FallbackCam5" Background="#111116" Visibility="Visible">
-                                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <TextBlock x:Name="TxtFallbackTitleCam5" Text="CAM 5 • SRT RECEIVER" FontWeight="Bold" FontSize="12" Foreground="#555566" HorizontalAlignment="Center"/>
-                                                        <TextBlock x:Name="TxtStatusCam5" Text="Standby (Listener :9004)" FontSize="10" Foreground="#444455" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                        <Grid Grid.Row="1" Background="#0A0A0C" MinHeight="130">
+                                            <om:OpenMediaVideoView x:Name="VideoViewCam5" Stretch="Uniform"/>
+                                            <Border x:Name="FallbackCam5" Background="#111116" Visibility="Visible">
+                                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="TxtFallbackTitleCam5" Text="CAM 5 • SRT RECEIVER" FontWeight="Bold" FontSize="12" Foreground="#555566" HorizontalAlignment="Center"/>
+                                                    <TextBlock x:Name="TxtStatusCam5" Text="Standby (Listener :9004)" FontSize="10" Foreground="#444455" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border x:Name="HudOverlayCam5" Background="#CC111114" CornerRadius="3" Padding="5,3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6" Visibility="Collapsed">
+                                                <StackPanel>
+                                                    <TextBlock x:Name="HudRttCam5" Text="RTT: 0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#00FFCC"/>
+                                                    <TextBlock x:Name="HudLossCam5" Text="Loss: 0.0%" FontSize="9.5" FontFamily="Consolas" Foreground="#22C55E"/>
+                                                    <TextBlock x:Name="HudBitrateCam5" Text="Bitrate: 0 kbps" FontSize="9.5" FontFamily="Consolas" Foreground="#FFFFFF"/>
+                                                    <TextBlock x:Name="HudDriftCam5" Text="Drift: ±0.0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#F59E0B"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <!-- Top-Right Audio VU Meter Overlay (Revealed when UNMUTED) -->
+                                            <Border x:Name="OverlayAudioVuCam5" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
+                                                <StackPanel Orientation="Vertical">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
+                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,3,0"/>
+                                                        <TextBlock x:Name="TxtAudioPeakCam5" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0"/>
                                                     </StackPanel>
-                                                </Border>
-                                                <Border x:Name="HudOverlayCam5" Background="#CC111114" CornerRadius="3" Padding="5,3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6" Visibility="Collapsed">
-                                                    <StackPanel>
-                                                        <TextBlock x:Name="HudRttCam5" Text="RTT: 0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#00FFCC"/>
-                                                        <TextBlock x:Name="HudLossCam5" Text="Loss: 0.0%" FontSize="9.5" FontFamily="Consolas" Foreground="#22C55E"/>
-                                                        <TextBlock x:Name="HudBitrateCam5" Text="Bitrate: 0 kbps" FontSize="9.5" FontFamily="Consolas" Foreground="#FFFFFF"/>
-                                                        <TextBlock x:Name="HudDriftCam5" Text="Drift: ±0.0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#F59E0B"/>
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                        <StackPanel Width="10" Margin="0,0,2,0">
+                                                            <Ellipse x:Name="ClipLedCam5_L" Width="5" Height="5" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                                            <ProgressBar x:Name="VuCam5L" Orientation="Vertical" Height="46" Width="6" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            <TextBlock Text="L" FontSize="7.5" FontWeight="Bold" Foreground="#888888" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                                                        </StackPanel>
+                                                        <StackPanel Width="10">
+                                                            <Ellipse x:Name="ClipLedCam5_R" Width="5" Height="5" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                                            <ProgressBar x:Name="VuCam5R" Orientation="Vertical" Height="46" Width="6" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            <TextBlock Text="R" FontSize="7.5" FontWeight="Bold" Foreground="#888888" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                                                        </StackPanel>
                                                     </StackPanel>
-                                                </Border>
-                                            </Grid>
-                                            <Border Grid.Column="1" Background="#141418" Padding="2,3" Width="16">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <ProgressBar x:Name="VuCam5L" Grid.Column="0" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0"/>
-                                                    <ProgressBar x:Name="VuCam5R" Grid.Column="1" Style="{StaticResource VuMeterBarStyle}"/>
-                                                </Grid>
+                                                </StackPanel>
                                             </Border>
                                         </Grid>
                                     </Grid>
                                 </Border>
 
                                 <!-- ══ CAMERA 6 CELL ════════════════════════════════ -->
-                                <Border x:Name="CellCam6" Background="#161619" BorderBrush="#2D2D35" BorderThickness="1" CornerRadius="4" Margin="3" Visibility="Collapsed">
+                                <Border x:Name="CellCam6" Background="#161619" BorderBrush="#2D2D35" BorderThickness="1.5" CornerRadius="4" Margin="3" Visibility="Collapsed">
                                     <Grid>
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
@@ -756,56 +786,62 @@
                                             <Grid>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <Border x:Name="TallyCam6" Background="#333338" CornerRadius="2" Padding="4,1" Margin="0,0,6,0">
-                                                        <TextBlock Text="CAM 6" FontWeight="Bold" FontSize="9.5" Foreground="#AAAAAA"/>
+                                                        <TextBlock Text="OFF" FontWeight="Bold" FontSize="9.5" Foreground="#888888"/>
                                                     </Border>
                                                     <TextBlock x:Name="TxtHeaderCam6" Text="CAM 6 (PORT 9005)" FontWeight="Bold" FontSize="11" Foreground="#FFFFFF" VerticalAlignment="Center"/>
                                                     <Ellipse x:Name="LedCam6" Width="7" Height="7" Fill="#888888" Margin="6,0,0,0" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                     <TextBlock x:Name="TxtResFpsCam6" Text="1080p59.94" FontSize="10" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <CheckBox x:Name="ChkMuteCam6" Content="MUTE" Click="ChkMuteCam_Click" Tag="5" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
+                                                    <CheckBox x:Name="ChkVuCam6" Content="VU" IsChecked="False" Click="ChkVuCam_Click" Tag="5" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
+                                                    <CheckBox x:Name="ChkMuteCam6" Content="MUTE" IsChecked="True" Click="ChkMuteCam_Click" Tag="5" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
                                                     <Button x:Name="BtnSoloCam6" Content="SOLO" Click="BtnSoloCam_Click" Tag="6" FontSize="9" Padding="4,1" Background="#2C2C33" Foreground="#FFFFFF" Cursor="Hand"/>
                                                 </StackPanel>
                                             </Grid>
                                         </Border>
-                                        <Grid Grid.Row="1">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Grid Grid.Column="0" Background="#0A0A0C" MinHeight="130">
-                                                <om:OpenMediaVideoView x:Name="VideoViewCam6" Stretch="Uniform"/>
-                                                <Border x:Name="FallbackCam6" Background="#111116" Visibility="Visible">
-                                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <TextBlock x:Name="TxtFallbackTitleCam6" Text="CAM 6 • SRT RECEIVER" FontWeight="Bold" FontSize="12" Foreground="#555566" HorizontalAlignment="Center"/>
-                                                        <TextBlock x:Name="TxtStatusCam6" Text="Standby (Listener :9005)" FontSize="10" Foreground="#444455" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                        <Grid Grid.Row="1" Background="#0A0A0C" MinHeight="130">
+                                            <om:OpenMediaVideoView x:Name="VideoViewCam6" Stretch="Uniform"/>
+                                            <Border x:Name="FallbackCam6" Background="#111116" Visibility="Visible">
+                                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="TxtFallbackTitleCam6" Text="CAM 6 • SRT RECEIVER" FontWeight="Bold" FontSize="12" Foreground="#555566" HorizontalAlignment="Center"/>
+                                                    <TextBlock x:Name="TxtStatusCam6" Text="Standby (Listener :9005)" FontSize="10" Foreground="#444455" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border x:Name="HudOverlayCam6" Background="#CC111114" CornerRadius="3" Padding="5,3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6" Visibility="Collapsed">
+                                                <StackPanel>
+                                                    <TextBlock x:Name="HudRttCam6" Text="RTT: 0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#00FFCC"/>
+                                                    <TextBlock x:Name="HudLossCam6" Text="Loss: 0.0%" FontSize="9.5" FontFamily="Consolas" Foreground="#22C55E"/>
+                                                    <TextBlock x:Name="HudBitrateCam6" Text="Bitrate: 0 kbps" FontSize="9.5" FontFamily="Consolas" Foreground="#FFFFFF"/>
+                                                    <TextBlock x:Name="HudDriftCam6" Text="Drift: ±0.0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#F59E0B"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <!-- Top-Right Audio VU Meter Overlay (Revealed when UNMUTED) -->
+                                            <Border x:Name="OverlayAudioVuCam6" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
+                                                <StackPanel Orientation="Vertical">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
+                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,3,0"/>
+                                                        <TextBlock x:Name="TxtAudioPeakCam6" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0"/>
                                                     </StackPanel>
-                                                </Border>
-                                                <Border x:Name="HudOverlayCam6" Background="#CC111114" CornerRadius="3" Padding="5,3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6" Visibility="Collapsed">
-                                                    <StackPanel>
-                                                        <TextBlock x:Name="HudRttCam6" Text="RTT: 0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#00FFCC"/>
-                                                        <TextBlock x:Name="HudLossCam6" Text="Loss: 0.0%" FontSize="9.5" FontFamily="Consolas" Foreground="#22C55E"/>
-                                                        <TextBlock x:Name="HudBitrateCam6" Text="Bitrate: 0 kbps" FontSize="9.5" FontFamily="Consolas" Foreground="#FFFFFF"/>
-                                                        <TextBlock x:Name="HudDriftCam6" Text="Drift: ±0.0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#F59E0B"/>
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                        <StackPanel Width="10" Margin="0,0,2,0">
+                                                            <Ellipse x:Name="ClipLedCam6_L" Width="5" Height="5" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                                            <ProgressBar x:Name="VuCam6L" Orientation="Vertical" Height="46" Width="6" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            <TextBlock Text="L" FontSize="7.5" FontWeight="Bold" Foreground="#888888" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                                                        </StackPanel>
+                                                        <StackPanel Width="10">
+                                                            <Ellipse x:Name="ClipLedCam6_R" Width="5" Height="5" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                                            <ProgressBar x:Name="VuCam6R" Orientation="Vertical" Height="46" Width="6" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            <TextBlock Text="R" FontSize="7.5" FontWeight="Bold" Foreground="#888888" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                                                        </StackPanel>
                                                     </StackPanel>
-                                                </Border>
-                                            </Grid>
-                                            <Border Grid.Column="1" Background="#141418" Padding="2,3" Width="16">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <ProgressBar x:Name="VuCam6L" Grid.Column="0" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0"/>
-                                                    <ProgressBar x:Name="VuCam6R" Grid.Column="1" Style="{StaticResource VuMeterBarStyle}"/>
-                                                </Grid>
+                                                </StackPanel>
                                             </Border>
                                         </Grid>
                                     </Grid>
                                 </Border>
 
                                 <!-- ══ CAMERA 7 CELL ════════════════════════════════ -->
-                                <Border x:Name="CellCam7" Background="#161619" BorderBrush="#2D2D35" BorderThickness="1" CornerRadius="4" Margin="3" Visibility="Collapsed">
+                                <Border x:Name="CellCam7" Background="#161619" BorderBrush="#2D2D35" BorderThickness="1.5" CornerRadius="4" Margin="3" Visibility="Collapsed">
                                     <Grid>
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
@@ -815,56 +851,62 @@
                                             <Grid>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <Border x:Name="TallyCam7" Background="#333338" CornerRadius="2" Padding="4,1" Margin="0,0,6,0">
-                                                        <TextBlock Text="CAM 7" FontWeight="Bold" FontSize="9.5" Foreground="#AAAAAA"/>
+                                                        <TextBlock Text="OFF" FontWeight="Bold" FontSize="9.5" Foreground="#888888"/>
                                                     </Border>
                                                     <TextBlock x:Name="TxtHeaderCam7" Text="CAM 7 (PORT 9006)" FontWeight="Bold" FontSize="11" Foreground="#FFFFFF" VerticalAlignment="Center"/>
                                                     <Ellipse x:Name="LedCam7" Width="7" Height="7" Fill="#888888" Margin="6,0,0,0" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                     <TextBlock x:Name="TxtResFpsCam7" Text="1080p59.94" FontSize="10" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <CheckBox x:Name="ChkMuteCam7" Content="MUTE" Click="ChkMuteCam_Click" Tag="6" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
+                                                    <CheckBox x:Name="ChkVuCam7" Content="VU" IsChecked="False" Click="ChkVuCam_Click" Tag="6" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
+                                                    <CheckBox x:Name="ChkMuteCam7" Content="MUTE" IsChecked="True" Click="ChkMuteCam_Click" Tag="6" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
                                                     <Button x:Name="BtnSoloCam7" Content="SOLO" Click="BtnSoloCam_Click" Tag="7" FontSize="9" Padding="4,1" Background="#2C2C33" Foreground="#FFFFFF" Cursor="Hand"/>
                                                 </StackPanel>
                                             </Grid>
                                         </Border>
-                                        <Grid Grid.Row="1">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Grid Grid.Column="0" Background="#0A0A0C" MinHeight="130">
-                                                <om:OpenMediaVideoView x:Name="VideoViewCam7" Stretch="Uniform"/>
-                                                <Border x:Name="FallbackCam7" Background="#111116" Visibility="Visible">
-                                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <TextBlock x:Name="TxtFallbackTitleCam7" Text="CAM 7 • SRT RECEIVER" FontWeight="Bold" FontSize="12" Foreground="#555566" HorizontalAlignment="Center"/>
-                                                        <TextBlock x:Name="TxtStatusCam7" Text="Standby (Listener :9006)" FontSize="10" Foreground="#444455" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                        <Grid Grid.Row="1" Background="#0A0A0C" MinHeight="130">
+                                            <om:OpenMediaVideoView x:Name="VideoViewCam7" Stretch="Uniform"/>
+                                            <Border x:Name="FallbackCam7" Background="#111116" Visibility="Visible">
+                                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="TxtFallbackTitleCam7" Text="CAM 7 • SRT RECEIVER" FontWeight="Bold" FontSize="12" Foreground="#555566" HorizontalAlignment="Center"/>
+                                                    <TextBlock x:Name="TxtStatusCam7" Text="Standby (Listener :9006)" FontSize="10" Foreground="#444455" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border x:Name="HudOverlayCam7" Background="#CC111114" CornerRadius="3" Padding="5,3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6" Visibility="Collapsed">
+                                                <StackPanel>
+                                                    <TextBlock x:Name="HudRttCam7" Text="RTT: 0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#00FFCC"/>
+                                                    <TextBlock x:Name="HudLossCam7" Text="Loss: 0.0%" FontSize="9.5" FontFamily="Consolas" Foreground="#22C55E"/>
+                                                    <TextBlock x:Name="HudBitrateCam7" Text="Bitrate: 0 kbps" FontSize="9.5" FontFamily="Consolas" Foreground="#FFFFFF"/>
+                                                    <TextBlock x:Name="HudDriftCam7" Text="Drift: ±0.0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#F59E0B"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <!-- Top-Right Audio VU Meter Overlay (Revealed when UNMUTED) -->
+                                            <Border x:Name="OverlayAudioVuCam7" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
+                                                <StackPanel Orientation="Vertical">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
+                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,3,0"/>
+                                                        <TextBlock x:Name="TxtAudioPeakCam7" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0"/>
                                                     </StackPanel>
-                                                </Border>
-                                                <Border x:Name="HudOverlayCam7" Background="#CC111114" CornerRadius="3" Padding="5,3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6" Visibility="Collapsed">
-                                                    <StackPanel>
-                                                        <TextBlock x:Name="HudRttCam7" Text="RTT: 0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#00FFCC"/>
-                                                        <TextBlock x:Name="HudLossCam7" Text="Loss: 0.0%" FontSize="9.5" FontFamily="Consolas" Foreground="#22C55E"/>
-                                                        <TextBlock x:Name="HudBitrateCam7" Text="Bitrate: 0 kbps" FontSize="9.5" FontFamily="Consolas" Foreground="#FFFFFF"/>
-                                                        <TextBlock x:Name="HudDriftCam7" Text="Drift: ±0.0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#F59E0B"/>
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                        <StackPanel Width="10" Margin="0,0,2,0">
+                                                            <Ellipse x:Name="ClipLedCam7_L" Width="5" Height="5" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                                            <ProgressBar x:Name="VuCam7L" Orientation="Vertical" Height="46" Width="6" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            <TextBlock Text="L" FontSize="7.5" FontWeight="Bold" Foreground="#888888" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                                                        </StackPanel>
+                                                        <StackPanel Width="10">
+                                                            <Ellipse x:Name="ClipLedCam7_R" Width="5" Height="5" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                                            <ProgressBar x:Name="VuCam7R" Orientation="Vertical" Height="46" Width="6" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            <TextBlock Text="R" FontSize="7.5" FontWeight="Bold" Foreground="#888888" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                                                        </StackPanel>
                                                     </StackPanel>
-                                                </Border>
-                                            </Grid>
-                                            <Border Grid.Column="1" Background="#141418" Padding="2,3" Width="16">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <ProgressBar x:Name="VuCam7L" Grid.Column="0" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0"/>
-                                                    <ProgressBar x:Name="VuCam7R" Grid.Column="1" Style="{StaticResource VuMeterBarStyle}"/>
-                                                </Grid>
+                                                </StackPanel>
                                             </Border>
                                         </Grid>
                                     </Grid>
                                 </Border>
 
                                 <!-- ══ CAMERA 8 CELL ════════════════════════════════ -->
-                                <Border x:Name="CellCam8" Background="#161619" BorderBrush="#2D2D35" BorderThickness="1" CornerRadius="4" Margin="3" Visibility="Collapsed">
+                                <Border x:Name="CellCam8" Background="#161619" BorderBrush="#2D2D35" BorderThickness="1.5" CornerRadius="4" Margin="3" Visibility="Collapsed">
                                     <Grid>
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
@@ -874,56 +916,62 @@
                                             <Grid>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <Border x:Name="TallyCam8" Background="#333338" CornerRadius="2" Padding="4,1" Margin="0,0,6,0">
-                                                        <TextBlock Text="CAM 8" FontWeight="Bold" FontSize="9.5" Foreground="#AAAAAA"/>
+                                                        <TextBlock Text="OFF" FontWeight="Bold" FontSize="9.5" Foreground="#888888"/>
                                                     </Border>
                                                     <TextBlock x:Name="TxtHeaderCam8" Text="CAM 8 (PORT 9007)" FontWeight="Bold" FontSize="11" Foreground="#FFFFFF" VerticalAlignment="Center"/>
                                                     <Ellipse x:Name="LedCam8" Width="7" Height="7" Fill="#888888" Margin="6,0,0,0" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                     <TextBlock x:Name="TxtResFpsCam8" Text="1080p59.94" FontSize="10" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <CheckBox x:Name="ChkMuteCam8" Content="MUTE" Click="ChkMuteCam_Click" Tag="7" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
+                                                    <CheckBox x:Name="ChkVuCam8" Content="VU" IsChecked="False" Click="ChkVuCam_Click" Tag="7" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
+                                                    <CheckBox x:Name="ChkMuteCam8" Content="MUTE" IsChecked="True" Click="ChkMuteCam_Click" Tag="7" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
                                                     <Button x:Name="BtnSoloCam8" Content="SOLO" Click="BtnSoloCam_Click" Tag="8" FontSize="9" Padding="4,1" Background="#2C2C33" Foreground="#FFFFFF" Cursor="Hand"/>
                                                 </StackPanel>
                                             </Grid>
                                         </Border>
-                                        <Grid Grid.Row="1">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Grid Grid.Column="0" Background="#0A0A0C" MinHeight="130">
-                                                <om:OpenMediaVideoView x:Name="VideoViewCam8" Stretch="Uniform"/>
-                                                <Border x:Name="FallbackCam8" Background="#111116" Visibility="Visible">
-                                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <TextBlock x:Name="TxtFallbackTitleCam8" Text="CAM 8 • SRT RECEIVER" FontWeight="Bold" FontSize="12" Foreground="#555566" HorizontalAlignment="Center"/>
-                                                        <TextBlock x:Name="TxtStatusCam8" Text="Standby (Listener :9007)" FontSize="10" Foreground="#444455" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                        <Grid Grid.Row="1" Background="#0A0A0C" MinHeight="130">
+                                            <om:OpenMediaVideoView x:Name="VideoViewCam8" Stretch="Uniform"/>
+                                            <Border x:Name="FallbackCam8" Background="#111116" Visibility="Visible">
+                                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="TxtFallbackTitleCam8" Text="CAM 8 • SRT RECEIVER" FontWeight="Bold" FontSize="12" Foreground="#555566" HorizontalAlignment="Center"/>
+                                                    <TextBlock x:Name="TxtStatusCam8" Text="Standby (Listener :9007)" FontSize="10" Foreground="#444455" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border x:Name="HudOverlayCam8" Background="#CC111114" CornerRadius="3" Padding="5,3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6" Visibility="Collapsed">
+                                                <StackPanel>
+                                                    <TextBlock x:Name="HudRttCam8" Text="RTT: 0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#00FFCC"/>
+                                                    <TextBlock x:Name="HudLossCam8" Text="Loss: 0.0%" FontSize="9.5" FontFamily="Consolas" Foreground="#22C55E"/>
+                                                    <TextBlock x:Name="HudBitrateCam8" Text="Bitrate: 0 kbps" FontSize="9.5" FontFamily="Consolas" Foreground="#FFFFFF"/>
+                                                    <TextBlock x:Name="HudDriftCam8" Text="Drift: ±0.0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#F59E0B"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <!-- Top-Right Audio VU Meter Overlay (Revealed when UNMUTED) -->
+                                            <Border x:Name="OverlayAudioVuCam8" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
+                                                <StackPanel Orientation="Vertical">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
+                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,3,0"/>
+                                                        <TextBlock x:Name="TxtAudioPeakCam8" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0"/>
                                                     </StackPanel>
-                                                </Border>
-                                                <Border x:Name="HudOverlayCam8" Background="#CC111114" CornerRadius="3" Padding="5,3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6" Visibility="Collapsed">
-                                                    <StackPanel>
-                                                        <TextBlock x:Name="HudRttCam8" Text="RTT: 0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#00FFCC"/>
-                                                        <TextBlock x:Name="HudLossCam8" Text="Loss: 0.0%" FontSize="9.5" FontFamily="Consolas" Foreground="#22C55E"/>
-                                                        <TextBlock x:Name="HudBitrateCam8" Text="Bitrate: 0 kbps" FontSize="9.5" FontFamily="Consolas" Foreground="#FFFFFF"/>
-                                                        <TextBlock x:Name="HudDriftCam8" Text="Drift: ±0.0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#F59E0B"/>
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                        <StackPanel Width="10" Margin="0,0,2,0">
+                                                            <Ellipse x:Name="ClipLedCam8_L" Width="5" Height="5" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                                            <ProgressBar x:Name="VuCam8L" Orientation="Vertical" Height="46" Width="6" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            <TextBlock Text="L" FontSize="7.5" FontWeight="Bold" Foreground="#888888" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                                                        </StackPanel>
+                                                        <StackPanel Width="10">
+                                                            <Ellipse x:Name="ClipLedCam8_R" Width="5" Height="5" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                                            <ProgressBar x:Name="VuCam8R" Orientation="Vertical" Height="46" Width="6" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            <TextBlock Text="R" FontSize="7.5" FontWeight="Bold" Foreground="#888888" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                                                        </StackPanel>
                                                     </StackPanel>
-                                                </Border>
-                                            </Grid>
-                                            <Border Grid.Column="1" Background="#141418" Padding="2,3" Width="16">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <ProgressBar x:Name="VuCam8L" Grid.Column="0" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0"/>
-                                                    <ProgressBar x:Name="VuCam8R" Grid.Column="1" Style="{StaticResource VuMeterBarStyle}"/>
-                                                </Grid>
+                                                </StackPanel>
                                             </Border>
                                         </Grid>
                                     </Grid>
                                 </Border>
 
                                 <!-- ══ CAMERA 9 CELL ════════════════════════════════ -->
-                                <Border x:Name="CellCam9" Background="#161619" BorderBrush="#2D2D35" BorderThickness="1" CornerRadius="4" Margin="3" Visibility="Collapsed">
+                                <Border x:Name="CellCam9" Background="#161619" BorderBrush="#2D2D35" BorderThickness="1.5" CornerRadius="4" Margin="3" Visibility="Collapsed">
                                     <Grid>
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
@@ -933,56 +981,62 @@
                                             <Grid>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <Border x:Name="TallyCam9" Background="#333338" CornerRadius="2" Padding="4,1" Margin="0,0,6,0">
-                                                        <TextBlock Text="CAM 9" FontWeight="Bold" FontSize="9.5" Foreground="#AAAAAA"/>
+                                                        <TextBlock Text="OFF" FontWeight="Bold" FontSize="9.5" Foreground="#888888"/>
                                                     </Border>
                                                     <TextBlock x:Name="TxtHeaderCam9" Text="CAM 9 (PORT 9008)" FontWeight="Bold" FontSize="11" Foreground="#FFFFFF" VerticalAlignment="Center"/>
                                                     <Ellipse x:Name="LedCam9" Width="7" Height="7" Fill="#888888" Margin="6,0,0,0" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                     <TextBlock x:Name="TxtResFpsCam9" Text="1080p59.94" FontSize="10" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <CheckBox x:Name="ChkMuteCam9" Content="MUTE" Click="ChkMuteCam_Click" Tag="8" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
+                                                    <CheckBox x:Name="ChkVuCam9" Content="VU" IsChecked="False" Click="ChkVuCam_Click" Tag="8" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
+                                                    <CheckBox x:Name="ChkMuteCam9" Content="MUTE" IsChecked="True" Click="ChkMuteCam_Click" Tag="8" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
                                                     <Button x:Name="BtnSoloCam9" Content="SOLO" Click="BtnSoloCam_Click" Tag="9" FontSize="9" Padding="4,1" Background="#2C2C33" Foreground="#FFFFFF" Cursor="Hand"/>
                                                 </StackPanel>
                                             </Grid>
                                         </Border>
-                                        <Grid Grid.Row="1">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Grid Grid.Column="0" Background="#0A0A0C" MinHeight="130">
-                                                <om:OpenMediaVideoView x:Name="VideoViewCam9" Stretch="Uniform"/>
-                                                <Border x:Name="FallbackCam9" Background="#111116" Visibility="Visible">
-                                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <TextBlock x:Name="TxtFallbackTitleCam9" Text="CAM 9 • SRT RECEIVER" FontWeight="Bold" FontSize="12" Foreground="#555566" HorizontalAlignment="Center"/>
-                                                        <TextBlock x:Name="TxtStatusCam9" Text="Standby (Listener :9008)" FontSize="10" Foreground="#444455" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                        <Grid Grid.Row="1" Background="#0A0A0C" MinHeight="130">
+                                            <om:OpenMediaVideoView x:Name="VideoViewCam9" Stretch="Uniform"/>
+                                            <Border x:Name="FallbackCam9" Background="#111116" Visibility="Visible">
+                                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="TxtFallbackTitleCam9" Text="CAM 9 • SRT RECEIVER" FontWeight="Bold" FontSize="12" Foreground="#555566" HorizontalAlignment="Center"/>
+                                                    <TextBlock x:Name="TxtStatusCam9" Text="Standby (Listener :9008)" FontSize="10" Foreground="#444455" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border x:Name="HudOverlayCam9" Background="#CC111114" CornerRadius="3" Padding="5,3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6" Visibility="Collapsed">
+                                                <StackPanel>
+                                                    <TextBlock x:Name="HudRttCam9" Text="RTT: 0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#00FFCC"/>
+                                                    <TextBlock x:Name="HudLossCam9" Text="Loss: 0.0%" FontSize="9.5" FontFamily="Consolas" Foreground="#22C55E"/>
+                                                    <TextBlock x:Name="HudBitrateCam9" Text="Bitrate: 0 kbps" FontSize="9.5" FontFamily="Consolas" Foreground="#FFFFFF"/>
+                                                    <TextBlock x:Name="HudDriftCam9" Text="Drift: ±0.0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#F59E0B"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <!-- Top-Right Audio VU Meter Overlay (Revealed when UNMUTED) -->
+                                            <Border x:Name="OverlayAudioVuCam9" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
+                                                <StackPanel Orientation="Vertical">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
+                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,3,0"/>
+                                                        <TextBlock x:Name="TxtAudioPeakCam9" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0"/>
                                                     </StackPanel>
-                                                </Border>
-                                                <Border x:Name="HudOverlayCam9" Background="#CC111114" CornerRadius="3" Padding="5,3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6" Visibility="Collapsed">
-                                                    <StackPanel>
-                                                        <TextBlock x:Name="HudRttCam9" Text="RTT: 0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#00FFCC"/>
-                                                        <TextBlock x:Name="HudLossCam9" Text="Loss: 0.0%" FontSize="9.5" FontFamily="Consolas" Foreground="#22C55E"/>
-                                                        <TextBlock x:Name="HudBitrateCam9" Text="Bitrate: 0 kbps" FontSize="9.5" FontFamily="Consolas" Foreground="#FFFFFF"/>
-                                                        <TextBlock x:Name="HudDriftCam9" Text="Drift: ±0.0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#F59E0B"/>
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                        <StackPanel Width="10" Margin="0,0,2,0">
+                                                            <Ellipse x:Name="ClipLedCam9_L" Width="5" Height="5" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                                            <ProgressBar x:Name="VuCam9L" Orientation="Vertical" Height="46" Width="6" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            <TextBlock Text="L" FontSize="7.5" FontWeight="Bold" Foreground="#888888" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                                                        </StackPanel>
+                                                        <StackPanel Width="10">
+                                                            <Ellipse x:Name="ClipLedCam9_R" Width="5" Height="5" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                                            <ProgressBar x:Name="VuCam9R" Orientation="Vertical" Height="46" Width="6" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            <TextBlock Text="R" FontSize="7.5" FontWeight="Bold" Foreground="#888888" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                                                        </StackPanel>
                                                     </StackPanel>
-                                                </Border>
-                                            </Grid>
-                                            <Border Grid.Column="1" Background="#141418" Padding="2,3" Width="16">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <ProgressBar x:Name="VuCam9L" Grid.Column="0" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0"/>
-                                                    <ProgressBar x:Name="VuCam9R" Grid.Column="1" Style="{StaticResource VuMeterBarStyle}"/>
-                                                </Grid>
+                                                </StackPanel>
                                             </Border>
                                         </Grid>
                                     </Grid>
                                 </Border>
 
                                 <!-- ══ CAMERA 10 CELL ═══════════════════════════════ -->
-                                <Border x:Name="CellCam10" Background="#161619" BorderBrush="#2D2D35" BorderThickness="1" CornerRadius="4" Margin="3" Visibility="Collapsed">
+                                <Border x:Name="CellCam10" Background="#161619" BorderBrush="#2D2D35" BorderThickness="1.5" CornerRadius="4" Margin="3" Visibility="Collapsed">
                                     <Grid>
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
@@ -992,49 +1046,55 @@
                                             <Grid>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <Border x:Name="TallyCam10" Background="#333338" CornerRadius="2" Padding="4,1" Margin="0,0,6,0">
-                                                        <TextBlock Text="CAM 10" FontWeight="Bold" FontSize="9.5" Foreground="#AAAAAA"/>
+                                                        <TextBlock Text="OFF" FontWeight="Bold" FontSize="9.5" Foreground="#888888"/>
                                                     </Border>
                                                     <TextBlock x:Name="TxtHeaderCam10" Text="CAM 10 (PORT 9009)" FontWeight="Bold" FontSize="11" Foreground="#FFFFFF" VerticalAlignment="Center"/>
                                                     <Ellipse x:Name="LedCam10" Width="7" Height="7" Fill="#888888" Margin="6,0,0,0" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                     <TextBlock x:Name="TxtResFpsCam10" Text="1080p59.94" FontSize="10" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                                    <CheckBox x:Name="ChkMuteCam10" Content="MUTE" Click="ChkMuteCam_Click" Tag="9" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
+                                                    <CheckBox x:Name="ChkVuCam10" Content="VU" IsChecked="False" Click="ChkVuCam_Click" Tag="9" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Bật/tắt hiển thị Audio VU Meter"/>
+                                                    <CheckBox x:Name="ChkMuteCam10" Content="MUTE" IsChecked="True" Click="ChkMuteCam_Click" Tag="9" Foreground="#EF4444" FontSize="9.5" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Mute âm thanh luồng này"/>
                                                     <Button x:Name="BtnSoloCam10" Content="SOLO" Click="BtnSoloCam_Click" Tag="10" FontSize="9" Padding="4,1" Background="#2C2C33" Foreground="#FFFFFF" Cursor="Hand"/>
                                                 </StackPanel>
                                             </Grid>
                                         </Border>
-                                        <Grid Grid.Row="1">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Grid Grid.Column="0" Background="#0A0A0C" MinHeight="130">
-                                                <om:OpenMediaVideoView x:Name="VideoViewCam10" Stretch="Uniform"/>
-                                                <Border x:Name="FallbackCam10" Background="#111116" Visibility="Visible">
-                                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                        <TextBlock x:Name="TxtFallbackTitleCam10" Text="CAM 10 • SRT RECEIVER" FontWeight="Bold" FontSize="12" Foreground="#555566" HorizontalAlignment="Center"/>
-                                                        <TextBlock x:Name="TxtStatusCam10" Text="Standby (Listener :9009)" FontSize="10" Foreground="#444455" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                        <Grid Grid.Row="1" Background="#0A0A0C" MinHeight="130">
+                                            <om:OpenMediaVideoView x:Name="VideoViewCam10" Stretch="Uniform"/>
+                                            <Border x:Name="FallbackCam10" Background="#111116" Visibility="Visible">
+                                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="TxtFallbackTitleCam10" Text="CAM 10 • SRT RECEIVER" FontWeight="Bold" FontSize="12" Foreground="#555566" HorizontalAlignment="Center"/>
+                                                    <TextBlock x:Name="TxtStatusCam10" Text="Standby (Listener :9009)" FontSize="10" Foreground="#444455" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border x:Name="HudOverlayCam10" Background="#CC111114" CornerRadius="3" Padding="5,3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6" Visibility="Collapsed">
+                                                <StackPanel>
+                                                    <TextBlock x:Name="HudRttCam10" Text="RTT: 0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#00FFCC"/>
+                                                    <TextBlock x:Name="HudLossCam10" Text="Loss: 0.0%" FontSize="9.5" FontFamily="Consolas" Foreground="#22C55E"/>
+                                                    <TextBlock x:Name="HudBitrateCam10" Text="Bitrate: 0 kbps" FontSize="9.5" FontFamily="Consolas" Foreground="#FFFFFF"/>
+                                                    <TextBlock x:Name="HudDriftCam10" Text="Drift: ±0.0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#F59E0B"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <!-- Top-Right Audio VU Meter Overlay (Revealed when UNMUTED) -->
+                                            <Border x:Name="OverlayAudioVuCam10" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="5,3" Visibility="Collapsed">
+                                                <StackPanel Orientation="Vertical">
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,2">
+                                                        <TextBlock Text="VU" FontSize="8" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,3,0"/>
+                                                        <TextBlock x:Name="TxtAudioPeakCam10" Text="-∞" FontSize="8" FontFamily="Consolas" FontWeight="SemiBold" Foreground="#4EC9B0"/>
                                                     </StackPanel>
-                                                </Border>
-                                                <Border x:Name="HudOverlayCam10" Background="#CC111114" CornerRadius="3" Padding="5,3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6" Visibility="Collapsed">
-                                                    <StackPanel>
-                                                        <TextBlock x:Name="HudRttCam10" Text="RTT: 0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#00FFCC"/>
-                                                        <TextBlock x:Name="HudLossCam10" Text="Loss: 0.0%" FontSize="9.5" FontFamily="Consolas" Foreground="#22C55E"/>
-                                                        <TextBlock x:Name="HudBitrateCam10" Text="Bitrate: 0 kbps" FontSize="9.5" FontFamily="Consolas" Foreground="#FFFFFF"/>
-                                                        <TextBlock x:Name="HudDriftCam10" Text="Drift: ±0.0 ms" FontSize="9.5" FontFamily="Consolas" Foreground="#F59E0B"/>
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                        <StackPanel Width="10" Margin="0,0,2,0">
+                                                            <Ellipse x:Name="ClipLedCam10_L" Width="5" Height="5" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                                            <ProgressBar x:Name="VuCam10L" Orientation="Vertical" Height="46" Width="6" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            <TextBlock Text="L" FontSize="7.5" FontWeight="Bold" Foreground="#888888" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                                                        </StackPanel>
+                                                        <StackPanel Width="10">
+                                                            <Ellipse x:Name="ClipLedCam10_R" Width="5" Height="5" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/>
+                                                            <ProgressBar x:Name="VuCam10R" Orientation="Vertical" Height="46" Width="6" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/>
+                                                            <TextBlock Text="R" FontSize="7.5" FontWeight="Bold" Foreground="#888888" HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                                                        </StackPanel>
                                                     </StackPanel>
-                                                </Border>
-                                            </Grid>
-                                            <Border Grid.Column="1" Background="#141418" Padding="2,3" Width="16">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <ProgressBar x:Name="VuCam10L" Grid.Column="0" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0"/>
-                                                    <ProgressBar x:Name="VuCam10R" Grid.Column="1" Style="{StaticResource VuMeterBarStyle}"/>
-                                                </Grid>
+                                                </StackPanel>
                                             </Border>
                                         </Grid>
                                     </Grid>
@@ -1263,7 +1323,7 @@
                                                 <TextBox x:Name="TxtLatencyCam1" Text="300"/>
                                             </StackPanel>
                                         </Grid>
-                                        <CheckBox x:Name="ChkAutoLatencyCam1" Content="Auto Latency (3 x RTT)" IsChecked="True" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
+                                        <CheckBox x:Name="ChkAutoLatencyCam1" Content="Auto Latency (3 x RTT)" IsChecked="False" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
                                         <Border Style="{StaticResource SubCardBorderStyle}">
                                             <StackPanel>
                                                 <CheckBox x:Name="ChkDecryptCam1" Content="Enable Decryption (AES)" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,4"/>
@@ -1342,7 +1402,7 @@
                                                 <TextBox x:Name="TxtLatencyCam2" Text="300"/>
                                             </StackPanel>
                                         </Grid>
-                                        <CheckBox x:Name="ChkAutoLatencyCam2" Content="Auto Latency (3 x RTT)" IsChecked="True" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
+                                        <CheckBox x:Name="ChkAutoLatencyCam2" Content="Auto Latency (3 x RTT)" IsChecked="False" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
                                     </StackPanel>
                                 </Border>
 
@@ -1404,7 +1464,7 @@
                                                 <TextBox x:Name="TxtLatencyCam3" Text="300"/>
                                             </StackPanel>
                                         </Grid>
-                                        <CheckBox x:Name="ChkAutoLatencyCam3" Content="Auto Latency (3 x RTT)" IsChecked="True" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
+                                        <CheckBox x:Name="ChkAutoLatencyCam3" Content="Auto Latency (3 x RTT)" IsChecked="False" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
                                     </StackPanel>
                                 </Border>
 
@@ -1466,7 +1526,7 @@
                                                 <TextBox x:Name="TxtLatencyCam4" Text="300"/>
                                             </StackPanel>
                                         </Grid>
-                                        <CheckBox x:Name="ChkAutoLatencyCam4" Content="Auto Latency (3 x RTT)" IsChecked="True" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
+                                        <CheckBox x:Name="ChkAutoLatencyCam4" Content="Auto Latency (3 x RTT)" IsChecked="False" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
                                     </StackPanel>
                                 </Border>
 
@@ -1528,7 +1588,7 @@
                                                 <TextBox x:Name="TxtLatencyCam5" Text="300"/>
                                             </StackPanel>
                                         </Grid>
-                                        <CheckBox x:Name="ChkAutoLatencyCam5" Content="Auto Latency (3 x RTT)" IsChecked="True" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
+                                        <CheckBox x:Name="ChkAutoLatencyCam5" Content="Auto Latency (3 x RTT)" IsChecked="False" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
                                     </StackPanel>
                                 </Border>
 
@@ -1590,7 +1650,7 @@
                                                 <TextBox x:Name="TxtLatencyCam6" Text="300"/>
                                             </StackPanel>
                                         </Grid>
-                                        <CheckBox x:Name="ChkAutoLatencyCam6" Content="Auto Latency (3 x RTT)" IsChecked="True" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
+                                        <CheckBox x:Name="ChkAutoLatencyCam6" Content="Auto Latency (3 x RTT)" IsChecked="False" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
                                     </StackPanel>
                                 </Border>
 
@@ -1652,7 +1712,7 @@
                                                 <TextBox x:Name="TxtLatencyCam7" Text="300"/>
                                             </StackPanel>
                                         </Grid>
-                                        <CheckBox x:Name="ChkAutoLatencyCam7" Content="Auto Latency (3 x RTT)" IsChecked="True" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
+                                        <CheckBox x:Name="ChkAutoLatencyCam7" Content="Auto Latency (3 x RTT)" IsChecked="False" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
                                     </StackPanel>
                                 </Border>
 
@@ -1714,7 +1774,7 @@
                                                 <TextBox x:Name="TxtLatencyCam8" Text="300"/>
                                             </StackPanel>
                                         </Grid>
-                                        <CheckBox x:Name="ChkAutoLatencyCam8" Content="Auto Latency (3 x RTT)" IsChecked="True" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
+                                        <CheckBox x:Name="ChkAutoLatencyCam8" Content="Auto Latency (3 x RTT)" IsChecked="False" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
                                     </StackPanel>
                                 </Border>
 
@@ -1776,7 +1836,7 @@
                                                 <TextBox x:Name="TxtLatencyCam9" Text="300"/>
                                             </StackPanel>
                                         </Grid>
-                                        <CheckBox x:Name="ChkAutoLatencyCam9" Content="Auto Latency (3 x RTT)" IsChecked="True" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
+                                        <CheckBox x:Name="ChkAutoLatencyCam9" Content="Auto Latency (3 x RTT)" IsChecked="False" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
                                     </StackPanel>
                                 </Border>
 
@@ -1838,7 +1898,7 @@
                                                 <TextBox x:Name="TxtLatencyCam10" Text="300"/>
                                             </StackPanel>
                                         </Grid>
-                                        <CheckBox x:Name="ChkAutoLatencyCam10" Content="Auto Latency (3 x RTT)" IsChecked="True" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
+                                        <CheckBox x:Name="ChkAutoLatencyCam10" Content="Auto Latency (3 x RTT)" IsChecked="False" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
                                     </StackPanel>
                                 </Border>
 
