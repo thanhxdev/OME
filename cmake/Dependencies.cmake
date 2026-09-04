@@ -32,6 +32,12 @@ else()
     message(STATUS "fmt not found — vcpkg install required")
 endif()
 
+# concurrentqueue — lock-free queue
+find_package(concurrentqueue CONFIG QUIET)
+if(concurrentqueue_FOUND)
+    message(STATUS "Found concurrentqueue")
+endif()
+
 # Google Test — unit testing
 if(OME_BUILD_TESTS)
     find_package(GTest CONFIG QUIET)

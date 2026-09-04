@@ -46,6 +46,12 @@ if(fmt_FOUND)
     target_link_libraries(OpenMedia.Core PUBLIC fmt::fmt)
 endif()
 
+if(TARGET concurrentqueue::concurrentqueue)
+    target_link_libraries(OpenMedia.Core PUBLIC concurrentqueue::concurrentqueue)
+elseif(concurrentqueue_FOUND)
+    target_link_libraries(OpenMedia.Core PUBLIC concurrentqueue)
+endif()
+
 find_path(SRT_INCLUDE_DIR NAMES srt/srt.h)
 find_library(SRT_LIBRARY NAMES srt srt_static)
 if(SRT_INCLUDE_DIR AND SRT_LIBRARY)

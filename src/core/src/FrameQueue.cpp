@@ -1,20 +1,25 @@
 /// @file FrameQueue.cpp
-/// @brief Lock-free concurrent frame queue implementation
+/// @brief Lock-free concurrent frame queue implementation using moodycamel::BlockingConcurrentQueue
 
 #include <openmedia/core/FrameQueue.h>
 
-#include <condition_variable>
-#include <mutex>
-#include <queue>
+#if __has_include(<moodycamel/blockingconcurrentqueue.h>)
+#include <moodycamel/blockingconcurrentqueue.h>
+#elif __has_include(<concurrentqueue/moodycamel/blockingconcurrentqueue.h>)
+#include <concurrentqueue/moodycamel/blockingconcurrentqueue.h>
+#elif __has_include(<blockingconcurrentqueue.h>)
+#include <blockingconcurrentqueue.h>
+#endif
+
+#include <algorithm>
+#include <atomic>
 
 namespace openmedia::core {
 
 struct FrameQueue::Impl {
-    std::queue<std::shared_ptr<MediaFrame>> queue;
+    moodycamel::BlockingConcurrentQueue<std::shared_ptr<MediaFrame>> queue;
     uint32_t capacity;
-    mutable std::mutex mutex;
-    std::condition_variable notEmpty;
-    std::condition_variable notFull;
+    std::atomic<int32_t> currentSize{0};
 
     // Stats
     std::atomic<uint64_t> totalPushed{0};
@@ -33,75 +38,82 @@ FrameQueue::FrameQueue(FrameQueue&&) noexcept = default;
 FrameQueue& FrameQueue::operator=(FrameQueue&&) noexcept = default;
 
 bool FrameQueue::Push(std::shared_ptr<MediaFrame> frame) {
-    std::lock_guard lock(m_impl->mutex);
-    if (m_impl->queue.size() >= m_impl->capacity) {
-        return false;
+    if (!frame) return false;
+
+    int32_t cur = m_impl->currentSize.load(std::memory_order_relaxed);
+    while (cur < static_cast<int32_t>(m_impl->capacity)) {
+        if (m_impl->currentSize.compare_exchange_weak(cur, cur + 1,
+                std::memory_order_acquire, std::memory_order_relaxed)) {
+            m_impl->queue.enqueue(std::move(frame));
+            m_impl->totalPushed.fetch_add(1, std::memory_order_relaxed);
+
+            auto current = static_cast<uint64_t>(cur + 1);
+            auto peak = m_impl->peakSize.load(std::memory_order_relaxed);
+            while (current > peak &&
+                   !m_impl->peakSize.compare_exchange_weak(peak, current, std::memory_order_relaxed)) {}
+            return true;
+        }
     }
-    m_impl->queue.push(std::move(frame));
-    m_impl->totalPushed.fetch_add(1, std::memory_order_relaxed);
-
-    auto currentSize = static_cast<uint64_t>(m_impl->queue.size());
-    auto peak = m_impl->peakSize.load(std::memory_order_relaxed);
-    while (currentSize > peak &&
-           !m_impl->peakSize.compare_exchange_weak(peak, currentSize)) {}
-
-    m_impl->notEmpty.notify_one();
-    return true;
+    return false;
 }
 
 bool FrameQueue::PushWithDrop(std::shared_ptr<MediaFrame> frame) {
-    std::lock_guard lock(m_impl->mutex);
+    if (!frame) return false;
+
     bool dropped = false;
-    if (m_impl->queue.size() >= m_impl->capacity) {
-        m_impl->queue.pop();  // Drop oldest
-        m_impl->totalDropped.fetch_add(1, std::memory_order_relaxed);
-        dropped = true;
+    while (m_impl->currentSize.load(std::memory_order_relaxed) >= static_cast<int32_t>(m_impl->capacity)) {
+        std::shared_ptr<MediaFrame> oldFrame;
+        if (m_impl->queue.try_dequeue(oldFrame)) {
+            m_impl->currentSize.fetch_sub(1, std::memory_order_release);
+            m_impl->totalDropped.fetch_add(1, std::memory_order_relaxed);
+            dropped = true;
+            break;
+        }
     }
-    m_impl->queue.push(std::move(frame));
+
+    m_impl->currentSize.fetch_add(1, std::memory_order_release);
+    m_impl->queue.enqueue(std::move(frame));
     m_impl->totalPushed.fetch_add(1, std::memory_order_relaxed);
-    m_impl->notEmpty.notify_one();
+
+    auto current = static_cast<uint64_t>(m_impl->currentSize.load(std::memory_order_relaxed));
+    auto peak = m_impl->peakSize.load(std::memory_order_relaxed);
+    while (current > peak &&
+           !m_impl->peakSize.compare_exchange_weak(peak, current, std::memory_order_relaxed)) {}
     return !dropped;
 }
 
 std::optional<std::shared_ptr<MediaFrame>> FrameQueue::Pop() {
-    std::lock_guard lock(m_impl->mutex);
-    if (m_impl->queue.empty()) {
-        return std::nullopt;
+    std::shared_ptr<MediaFrame> frame;
+    if (m_impl->queue.try_dequeue(frame)) {
+        m_impl->currentSize.fetch_sub(1, std::memory_order_release);
+        m_impl->totalPopped.fetch_add(1, std::memory_order_relaxed);
+        return frame;
     }
-    auto frame = std::move(m_impl->queue.front());
-    m_impl->queue.pop();
-    m_impl->totalPopped.fetch_add(1, std::memory_order_relaxed);
-    m_impl->notFull.notify_one();
-    return frame;
+    return std::nullopt;
 }
 
 std::optional<std::shared_ptr<MediaFrame>> FrameQueue::Pop(
     std::chrono::milliseconds timeout) {
-    std::unique_lock lock(m_impl->mutex);
-    if (!m_impl->notEmpty.wait_for(lock, timeout,
-        [this] { return !m_impl->queue.empty(); })) {
-        return std::nullopt;
+    std::shared_ptr<MediaFrame> frame;
+    if (m_impl->queue.wait_dequeue_timed(frame, timeout)) {
+        m_impl->currentSize.fetch_sub(1, std::memory_order_release);
+        m_impl->totalPopped.fetch_add(1, std::memory_order_relaxed);
+        return frame;
     }
-    auto frame = std::move(m_impl->queue.front());
-    m_impl->queue.pop();
-    m_impl->totalPopped.fetch_add(1, std::memory_order_relaxed);
-    m_impl->notFull.notify_one();
-    return frame;
+    return std::nullopt;
 }
 
 bool FrameQueue::IsEmpty() const {
-    std::lock_guard lock(m_impl->mutex);
-    return m_impl->queue.empty();
+    return m_impl->currentSize.load(std::memory_order_relaxed) <= 0;
 }
 
 bool FrameQueue::IsFull() const {
-    std::lock_guard lock(m_impl->mutex);
-    return m_impl->queue.size() >= m_impl->capacity;
+    return m_impl->currentSize.load(std::memory_order_relaxed) >= static_cast<int32_t>(m_impl->capacity);
 }
 
 uint32_t FrameQueue::Size() const {
-    std::lock_guard lock(m_impl->mutex);
-    return static_cast<uint32_t>(m_impl->queue.size());
+    int32_t sz = m_impl->currentSize.load(std::memory_order_relaxed);
+    return (sz > 0) ? static_cast<uint32_t>(sz) : 0;
 }
 
 uint32_t FrameQueue::Capacity() const {
@@ -109,10 +121,11 @@ uint32_t FrameQueue::Capacity() const {
 }
 
 void FrameQueue::Clear() {
-    std::lock_guard lock(m_impl->mutex);
-    while (!m_impl->queue.empty()) {
-        m_impl->queue.pop();
+    std::shared_ptr<MediaFrame> frame;
+    while (m_impl->queue.try_dequeue(frame)) {
+        m_impl->currentSize.fetch_sub(1, std::memory_order_release);
     }
+    m_impl->currentSize.store(0, std::memory_order_release);
 }
 
 FrameQueue::Stats FrameQueue::GetStats() const {

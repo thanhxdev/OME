@@ -1,78 +1,103 @@
 /// @file MemoryPool.cpp
-/// @brief Pre-allocated memory pool implementation
+/// @brief High-performance lock-free aligned slab memory pool implementation
 
 #include <openmedia/core/MemoryPool.h>
 
-#include <algorithm>
+#if __has_include(<moodycamel/concurrentqueue.h>)
+#include <moodycamel/concurrentqueue.h>
+#elif __has_include(<concurrentqueue/moodycamel/concurrentqueue.h>)
+#include <concurrentqueue/moodycamel/concurrentqueue.h>
+#elif __has_include(<concurrentqueue.h>)
+#include <concurrentqueue.h>
+#endif
+
+#include <atomic>
+#include <cstdlib>
 #include <cstring>
-#include <queue>
 
 namespace openmedia::core {
 
 struct MemoryPool::Impl {
-    size_t blockSize = 0;
+    size_t rawBlockSize = 0;
+    size_t alignedBlockSize = 0;
     uint32_t blockCount = 0;
-    std::vector<uint8_t> memory;          // Contiguous memory block
-    std::queue<uint32_t> freeSlots;       // Available slot indices
-    std::mutex mutex;
-    uint32_t usedCount = 0;
+    uint8_t* memory = nullptr;
+    moodycamel::ConcurrentQueue<uint32_t> freeSlots;
+    std::atomic<uint32_t> usedCount{0};
+
+    Impl(size_t blockSize, uint32_t count)
+        : rawBlockSize(blockSize), blockCount(count) {
+        // 64-byte cacheline / AVX-512 alignment
+        alignedBlockSize = (blockSize + 63) & ~size_t(63);
+        size_t totalBytes = alignedBlockSize * count;
+
+#if defined(_MSC_VER) || defined(__MINGW32__)
+        memory = static_cast<uint8_t*>(_aligned_malloc(totalBytes, 64));
+#else
+        memory = static_cast<uint8_t*>(std::aligned_alloc(64, totalBytes));
+#endif
+        if (memory) {
+            std::memset(memory, 0, totalBytes);
+        }
+
+        for (uint32_t i = 0; i < count; ++i) {
+            freeSlots.enqueue(i);
+        }
+    }
+
+    ~Impl() {
+        if (memory) {
+#if defined(_MSC_VER) || defined(__MINGW32__)
+            _aligned_free(memory);
+#else
+            std::free(memory);
+#endif
+            memory = nullptr;
+        }
+    }
 };
 
 MemoryPool::MemoryPool(size_t blockSize, uint32_t blockCount)
-    : m_impl(std::make_unique<Impl>()) {
-    m_impl->blockSize = blockSize;
-    m_impl->blockCount = blockCount;
-
-    // Pre-allocate contiguous memory
-    m_impl->memory.resize(blockSize * blockCount, 0);
-
-    // Initialize free list
-    for (uint32_t i = 0; i < blockCount; ++i) {
-        m_impl->freeSlots.push(i);
-    }
-}
+    : m_impl(std::make_unique<Impl>(blockSize, blockCount)) {}
 
 MemoryPool::~MemoryPool() = default;
-
 MemoryPool::MemoryPool(MemoryPool&&) noexcept = default;
 MemoryPool& MemoryPool::operator=(MemoryPool&&) noexcept = default;
 
 MemoryPool::Block MemoryPool::Allocate() {
-    std::lock_guard lock(m_impl->mutex);
-
-    if (m_impl->freeSlots.empty()) {
-        return Block{nullptr, 0, 0};
+    uint32_t index = 0;
+    if (m_impl->freeSlots.try_dequeue(index)) {
+        m_impl->usedCount.fetch_add(1, std::memory_order_relaxed);
+        return Block{
+            m_impl->memory + (index * m_impl->alignedBlockSize),
+            m_impl->rawBlockSize,
+            index
+        };
     }
-
-    uint32_t index = m_impl->freeSlots.front();
-    m_impl->freeSlots.pop();
-    m_impl->usedCount++;
-
-    return Block{
-        m_impl->memory.data() + (index * m_impl->blockSize),
-        m_impl->blockSize,
-        index
-    };
+    return Block{nullptr, 0, 0};
 }
 
 void MemoryPool::Release(Block block) {
-    if (!block.IsValid()) return;
-
-    std::lock_guard lock(m_impl->mutex);
-    m_impl->freeSlots.push(block.index);
-    m_impl->usedCount--;
+    if (!block.IsValid() || !m_impl->memory) return;
+    m_impl->freeSlots.enqueue(block.index);
+    m_impl->usedCount.fetch_sub(1, std::memory_order_relaxed);
 }
 
 uint32_t MemoryPool::GetTotalBlocks() const { return m_impl->blockCount; }
+
 uint32_t MemoryPool::GetAvailableBlocks() const {
-    std::lock_guard lock(m_impl->mutex);
-    return static_cast<uint32_t>(m_impl->freeSlots.size());
+    uint32_t used = m_impl->usedCount.load(std::memory_order_relaxed);
+    return (m_impl->blockCount > used) ? (m_impl->blockCount - used) : 0;
 }
+
 uint32_t MemoryPool::GetUsedBlocks() const {
-    std::lock_guard lock(m_impl->mutex);
-    return m_impl->usedCount;
+    return m_impl->usedCount.load(std::memory_order_relaxed);
 }
-size_t MemoryPool::GetBlockSize() const { return m_impl->blockSize; }
-size_t MemoryPool::GetTotalMemory() const { return m_impl->blockSize * m_impl->blockCount; }
+
+size_t MemoryPool::GetBlockSize() const { return m_impl->rawBlockSize; }
+
+size_t MemoryPool::GetTotalMemory() const {
+    return m_impl->alignedBlockSize * m_impl->blockCount;
+}
 
 } // namespace openmedia::core

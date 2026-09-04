@@ -55,3 +55,15 @@ TEST(MemoryPoolTest, WriteAndReadData) {
 
     pool.Release(block);
 }
+
+TEST(MemoryPoolTest, AlignedTo64Bytes) {
+    MemoryPool pool(500, 4); // 500 is not multiple of 64
+    for (int i = 0; i < 4; ++i) {
+        auto block = pool.Allocate();
+        ASSERT_TRUE(block.IsValid());
+        // Verify 64-byte alignment for AVX-512 / AVX2
+        EXPECT_EQ(reinterpret_cast<uintptr_t>(block.data) % 64, 0u);
+        pool.Release(block);
+    }
+}
+

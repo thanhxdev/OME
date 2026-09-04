@@ -131,3 +131,46 @@ TEST(FrameQueueTest, ProducerConsumerThreaded) {
     consumer.join();
     EXPECT_EQ(received, numFrames);
 }
+
+TEST(FrameQueueTest, MultiProducerMultiConsumerLockFree) {
+    constexpr int numProducers = 4;
+    constexpr int numConsumers = 4;
+    constexpr int framesPerProducer = 250; // Total 1000 frames
+    FrameQueue queue(64);
+
+    std::atomic<int> totalPushed{0};
+    std::atomic<int> totalPopped{0};
+    std::vector<std::thread> producers;
+    std::vector<std::thread> consumers;
+
+    for (int p = 0; p < numProducers; ++p) {
+        producers.emplace_back([&, p] {
+            for (int i = 0; i < framesPerProducer; ++i) {
+                auto frame = MediaFrame::CreateVideo(160, 120, PixelFormat::BGRA);
+                frame->SetPts(p * 10000 + i);
+                while (!queue.Push(frame)) {
+                    std::this_thread::yield();
+                }
+                totalPushed.fetch_add(1, std::memory_order_relaxed);
+            }
+        });
+    }
+
+    for (int c = 0; c < numConsumers; ++c) {
+        consumers.emplace_back([&] {
+            while (totalPopped.load(std::memory_order_relaxed) < numProducers * framesPerProducer) {
+                auto frame = queue.Pop(std::chrono::milliseconds(50));
+                if (frame.has_value()) {
+                    totalPopped.fetch_add(1, std::memory_order_relaxed);
+                }
+            }
+        });
+    }
+
+    for (auto& t : producers) t.join();
+    for (auto& t : consumers) t.join();
+
+    EXPECT_EQ(totalPushed.load(), numProducers * framesPerProducer);
+    EXPECT_EQ(totalPopped.load(), numProducers * framesPerProducer);
+}
+
