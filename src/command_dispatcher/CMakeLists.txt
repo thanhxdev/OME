@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.28)
 
 # OpenMedia.CommandDispatcher
 add_library(OpenMedia.CommandDispatcher STATIC

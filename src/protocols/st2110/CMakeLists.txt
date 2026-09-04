@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.28)
 project(OpenMediaST2110)
 
 set(CMAKE_CXX_STANDARD 20)

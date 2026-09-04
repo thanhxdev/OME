@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.28)
 
 # OpenMedia.SDK — Client Library (SDK Proxy)
 add_library(OpenMedia.SDK STATIC

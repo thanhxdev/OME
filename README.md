@@ -5,14 +5,14 @@
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
 [![Version](https://img.shields.io/badge/version-1.0.0-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
-[![C++](https://img.shields.io/badge/C%2B%2B-20-orange)]()
-[![.NET](https://img.shields.io/badge/.NET-8%2F9-purple)]()
+[![C++](https://img.shields.io/badge/C%2B%2B-23-orange)]()
+[![.NET](https://img.shields.io/badge/.NET-10-purple)]()
 
 ---
 
 ## Overview
 
-OpenMedia SDK is a high-performance media engine SDK built with modern C++20 and .NET 8/9. It features a **Client/Server Process Separation** architecture (Exhand Architecture) that isolates UI from media processing for maximum stability and scalability.
+OpenMedia SDK is a high-performance media engine SDK built with modern C++23 and .NET 10. It features a **Client/Server Process Separation** architecture (Exhand Architecture) that isolates UI from media processing for maximum stability and scalability.
 
 ### Key Features
 
@@ -22,7 +22,7 @@ OpenMedia SDK is a high-performance media engine SDK built with modern C++20 and
 - **GPU Acceleration** — CUDA/NVENC/NVDEC, Intel QuickSync, D3D11/D3D12, Vulkan
 - **Protocol Engines** — SRT, NDI, WebRTC, RTMP, ST 2110
 - **Plugin System** — Dynamic plugin loading with crash isolation
-- **Modern C++20** — Concepts, coroutines, ranges, smart pointers
+- **Modern C++23** — Concepts, coroutines, ranges, smart pointers, std::expected, std::print
 - **No COM Dependency** — Clean, modern API
 
 ### Architecture
@@ -62,7 +62,7 @@ GPU Manager Audio Mixer  Device Manager
 | **CMake** | 3.28+ |
 | **MSVC** | 17.8+ (Visual Studio 2022) |
 | **Clang** | 17+ (optional, Linux) |
-| **.NET SDK** | 8.0+ |
+| **.NET SDK** | 10.0+ |
 | **vcpkg** | Latest |
 | **Windows SDK** | 10.0.22000+ |
 | **Git** | 2.40+ |

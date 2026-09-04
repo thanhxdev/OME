@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <InformationalVersion>1.0.0</InformationalVersion>
+    <Company>OpenMedia</Company>
+    <Product>OpenMedia Ecosystem</Product>
+    <Copyright>Copyright © 2026 OpenMedia Project</Copyright>
+  </PropertyGroup>
+</Project>

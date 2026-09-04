@@ -7,6 +7,9 @@
   <Project Path="SampleCSharpPlugin/SampleCSharpPlugin.csproj" />
   <Project Path="SimplePlayer/SimplePlayer.csproj" />
   <Project Path="../samples/platform/SRT_ENCODE/SRT_ENCODE.csproj" />
+  <Project Path="../samples/platform/SRT_DECODE/SRT_DECODE.csproj" />
+  <Project Path="../samples/platform/OMEPlatform_Play/OMEPlatform_Play.csproj" />
+  <Project Path="../samples/platform/OMEPlatform_AVDelay/OMEPlatform_AVDelay.csproj" />
   <Project Path="../samples/dotnet/WpfQuickPlayer/WpfQuickPlayer.csproj" />
   <Project Path="../samples/dotnet/VisionSwitcher/VisionSwitcher.csproj" />
   <Project Path="../samples/dotnet/LiveStreamer/LiveStreamer.csproj" />

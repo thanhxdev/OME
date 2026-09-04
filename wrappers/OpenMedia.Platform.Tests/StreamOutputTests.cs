@@ -116,7 +116,7 @@ namespace OpenMedia.Platform.Tests
             {
                 Host = "127.0.0.1",
                 Port = 9000,
-                Mode = SRTMode.Caller
+                Mode = SRTMode.Listener
             };
 
             using var session = new SRTStreamSession(config);

@@ -4,6 +4,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Description>OpenMedia.Core.NET — Low-Level C# P/Invoke bindings and native interop for the OpenMedia SDK C++ engine.</Description>
   </PropertyGroup>
 
   <ItemGroup>

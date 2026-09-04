@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.28)
 project(MediaStats VERSION 1.0.0 LANGUAGES CXX)
 
 # Use C++23 as requested
