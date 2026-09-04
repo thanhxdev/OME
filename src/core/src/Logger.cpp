@@ -86,10 +86,14 @@ void Logger::Initialize(LogLevel logLevel, bool logToConsole, bool logToFile, st
 
 void Logger::Shutdown() {
     std::lock_guard lock(s_loggerMutex);
-    s_loggers.clear();
-    s_sinks.clear();
-    spdlog::shutdown();
-    s_initialized = false;
+    for (auto& [name, logger] : s_loggers) {
+        if (logger && logger->m_impl && logger->m_impl->logger) {
+            logger->m_impl->logger->flush();
+        }
+    }
+    spdlog::apply_all([](std::shared_ptr<spdlog::logger> l) {
+        if (l) l->flush();
+    });
 }
 
 void Logger::SetLevel(LogLevel level) {

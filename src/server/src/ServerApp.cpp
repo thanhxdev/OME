@@ -1,17 +1,16 @@
 /// @file ServerApp.cpp
-/// @brief OpenMediaServer.exe application implementation
+/// @brief OpenMediaServer.exe application implementation (V2 Refactored)
+/// @since 2.0.0
 
 #include <openmedia/server/ServerApp.h>
+#include <openmedia/server/PipelineEngineManager.h>
 #include <openmedia/core/Logger.h>
 #include <openmedia/core/Config.h>
-#include <openmedia/core/PipelineGraph.h>
 #include <openmedia/ipc/CommandMessage.h>
-#include <openmedia/io/FileSource.h>
 #include <openmedia/ipc/D3D11SharedTexturePoolPoC.h>
-#include <openmedia/core/MediaFrame.h>
-#include <openmedia/audio/AudioPlayer.h>
 #include <openmedia/audio/AudioMeter.h>
-#include <openmedia/core/AVSyncClock.h>
+
+#include <vector>
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -41,6 +40,7 @@ struct ServerApp::Impl {
     std::unique_ptr<ipc::IPCServer> ipcServer;
     std::unique_ptr<command_dispatcher::CommandDispatcher> dispatcher;
     std::unique_ptr<worker_pool::WorkerPool> workerPool;
+    std::unique_ptr<PipelineEngineManager> pipelineManager;
 
     // Lifecycle
     std::atomic<bool> shutdownRequested{false};
@@ -52,39 +52,9 @@ struct ServerApp::Impl {
     std::thread watchdogThread;
     std::atomic<bool> watchdogRunning{false};
 
-    // Pipelines
-    uint32_t nextPipelineId = 1;
-    std::unordered_map<uint32_t, std::shared_ptr<core::PipelineGraph>> pipelines;
-    struct PipelineConfig {
-        uint32_t width = 0;
-        uint32_t height = 0;
-        double fps = 0.0;
-    };
-    std::unordered_map<uint32_t, PipelineConfig> pipelineConfigs;
-
-    // PoC: FileSource and render thread
-    std::shared_ptr<io::FileSource> source;
-    std::thread renderThread;
-    std::atomic<bool> pipelineRunning{false};
-    std::atomic<bool> pipelinePaused{false};
-    std::atomic<bool> seekRequested{false};
-    std::atomic<double> seekTargetSec{0.0};
-    std::shared_ptr<audio::AudioPlayer> audioPlayer;
-    OpenMedia::Audio::AudioMeter audioMeter;
-    std::atomic<bool> audioMuted{false};
-    std::atomic<float> audioVolume{1.0f};
-    std::atomic<double> currentPlaybackPositionSec{0.0};
-
-    // Delay parameters
-    std::atomic<int32_t> videoDelayMs{0};
-    std::atomic<int32_t> audioDelayMs{0};
-    std::atomic<int32_t> masterDelayMs{0};
-
     ~Impl() {
-        if (pipelineRunning.exchange(false)) {
-            if (renderThread.joinable()) {
-                renderThread.join();
-            }
+        if (pipelineManager) {
+            pipelineManager->StopAll();
         }
     }
 };
@@ -148,6 +118,7 @@ core::VoidResult ServerApp::Initialize(const ServerConfig& config) {
     m_impl->ipcServer = std::make_unique<ipc::IPCServer>(config.ipcConfig);
     m_impl->dispatcher = std::make_unique<command_dispatcher::CommandDispatcher>();
     m_impl->workerPool = std::make_unique<worker_pool::WorkerPool>(config.workerConfig);
+    m_impl->pipelineManager = std::make_unique<PipelineEngineManager>();
 
     // Register built-in handlers
     RegisterBuiltinHandlers();
@@ -201,9 +172,10 @@ core::VoidResult ServerApp::Run() {
                 if (m_impl->state == ServerState::Running) {
                     auto stats = m_impl->dispatcher->GetStats();
                     core::Logger::SDebug("ServerApp",
-                        "Watchdog: dispatched={}, success={}, errors={}, clients={}",
+                        "Watchdog: dispatched={}, success={}, errors={}, clients={}, activePipelines={}",
                         stats.totalDispatched, stats.totalSuccess,
-                        stats.totalErrors, m_impl->ipcServer->GetClientCount());
+                        stats.totalErrors, m_impl->ipcServer->GetClientCount(),
+                        m_impl->pipelineManager->GetActivePipelineCount());
                 }
             }
         });
@@ -228,10 +200,13 @@ core::VoidResult ServerApp::Run() {
         m_impl->watchdogThread.join();
     }
 
-    // 2. Stop IPC Server (no new connections)
+    // 2. Stop all pipeline sessions
+    m_impl->pipelineManager->StopAll();
+
+    // 3. Stop IPC Server (no new connections)
     m_impl->ipcServer->Stop();
 
-    // 3. Stop Worker Pool (finish running tasks)
+    // 4. Stop Worker Pool (finish running tasks)
     m_impl->workerPool->Stop();
 
     m_impl->state = ServerState::Stopped;
@@ -272,6 +247,10 @@ worker_pool::WorkerPool& ServerApp::GetWorkerPool() {
     return *m_impl->workerPool;
 }
 
+PipelineEngineManager& ServerApp::GetPipelineManager() {
+    return *m_impl->pipelineManager;
+}
+
 std::chrono::seconds ServerApp::GetUptime() const {
     if (m_impl->state != ServerState::Running &&
         m_impl->state != ServerState::Stopping) {
@@ -282,7 +261,7 @@ std::chrono::seconds ServerApp::GetUptime() const {
 }
 
 std::string ServerApp::GetVersion() {
-    return "1.0.0-alpha";
+    return "2.0.0-alpha";
 }
 
 void ServerApp::RegisterBuiltinHandlers() {
@@ -290,18 +269,16 @@ void ServerApp::RegisterBuiltinHandlers() {
 
     // System: GetStatus
     dispatcher.Register(ipc::CommandType::GetStatus,
-        [this](uint32_t, const std::vector<uint8_t>&)
+        [](uint32_t, const std::vector<uint8_t>&)
             -> core::Result<std::vector<uint8_t>> {
-            // Return server state as JSON (simplified binary for now)
-            uint32_t state = static_cast<uint32_t>(m_impl->state);
-            std::vector<uint8_t> response(sizeof(uint32_t));
-            std::memcpy(response.data(), &state, sizeof(uint32_t));
-            return response;
+            ipc::MessageBuilder builder;
+            builder.WriteString(GetVersion());
+            return builder.Finish();
         });
 
     // System: Handshake
     dispatcher.Register(ipc::CommandType::Handshake,
-        [this](uint32_t clientId, const std::vector<uint8_t>& payload)
+        [](uint32_t clientId, const std::vector<uint8_t>& payload)
             -> core::Result<std::vector<uint8_t>> {
             ipc::MessageReader reader(payload);
             std::string sdkVersion = reader.ReadString();
@@ -323,8 +300,7 @@ void ServerApp::RegisterBuiltinHandlers() {
     dispatcher.Register(ipc::CommandType::Shutdown,
         [this](uint32_t clientId, const std::vector<uint8_t>&)
             -> core::Result<std::vector<uint8_t>> {
-            core::Logger::SInfo("ServerApp",
-                "Shutdown requested by client {}", clientId);
+            core::Logger::SInfo("ServerApp", "Shutdown requested by client {}", clientId);
             RequestShutdown();
             return std::vector<uint8_t>{};
         });
@@ -335,7 +311,7 @@ void ServerApp::RegisterBuiltinHandlers() {
             -> core::Result<std::vector<uint8_t>> {
             auto wpStats = m_impl->workerPool->GetStats();
             auto dpStats = m_impl->dispatcher->GetStats();
-            // Pack stats into response
+
             struct MetricsResponse {
                 uint64_t uptime;
                 uint64_t tasksSubmitted;
@@ -373,16 +349,19 @@ void ServerApp::RegisterBuiltinHandlers() {
                 return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload"});
             }
 
-            auto graph = std::make_shared<core::PipelineGraph>();
-            if (auto buildRes = graph->Build(); !buildRes) {
-                return std::unexpected(buildRes.error());
+            PipelineSessionConfig cfg{name, width, height, fps};
+            auto idRes = m_impl->pipelineManager->CreatePipeline(
+                cfg,
+                m_impl->ipcServer->GetSharedTexturePool(),
+                [this](uint32_t w, uint32_t h) {
+                    m_impl->ipcServer->SetVideoResolution(w, h);
+                });
+
+            if (!idRes) {
+                return std::unexpected(idRes.error());
             }
 
-            std::lock_guard lock(m_impl->stateMutex);
-            uint32_t id = m_impl->nextPipelineId++;
-            m_impl->pipelines[id] = graph;
-            m_impl->pipelineConfigs[id] = {width, height, fps};
-
+            uint32_t id = *idRes;
             std::vector<uint8_t> response(sizeof(uint32_t));
             std::memcpy(response.data(), &id, sizeof(uint32_t));
             return response;
@@ -398,203 +377,13 @@ void ServerApp::RegisterBuiltinHandlers() {
             uint32_t id = 0;
             std::memcpy(&id, payload.data(), sizeof(uint32_t));
 
-            std::shared_ptr<core::PipelineGraph> graph;
-            {
-                std::lock_guard lock(m_impl->stateMutex);
-                auto it = m_impl->pipelines.find(id);
-                if (it == m_impl->pipelines.end()) {
-                    return std::unexpected(core::Error{core::ErrorCode::NotFound, "Pipeline not found"});
-                }
-                graph = it->second;
+            auto session = m_impl->pipelineManager->GetSession(id);
+            if (!session) {
+                return std::unexpected(core::Error{core::ErrorCode::NotFound, "Pipeline not found"});
             }
 
-            if (auto res = graph->Start(); !res) {
+            if (auto res = session->Start(); !res) {
                 return std::unexpected(res.error());
-            }
-
-            if (m_impl->pipelinePaused.exchange(false)) {
-                if (m_impl->audioPlayer) {
-                    m_impl->audioPlayer->Resume();
-                }
-            }
-
-            // PoC: start render thread
-            m_impl->pipelineRunning.store(false);
-            if (m_impl->renderThread.joinable()) {
-                m_impl->renderThread.join();
-            }
-            if (m_impl->source) {
-                m_impl->pipelineRunning.store(true);
-                m_impl->renderThread = std::thread([this, graph]() {
-                    m_impl->source->Start();
-                    m_impl->source->Seek(0.0);
-
-                    // FileSource unconditionally resamples to 48000 Hz, 2 channels, Float32
-                    int audioSampleRate = 48000;
-                    int audioChannels = 2;
-
-                    m_impl->audioPlayer = std::make_shared<audio::AudioPlayer>();
-                    m_impl->audioPlayer->SetMuted(m_impl->audioMuted);
-                    m_impl->audioPlayer->SetVolume(m_impl->audioVolume);
-                    if (!m_impl->audioPlayer->Initialize(audioSampleRate, audioChannels)) {
-                        core::Logger::SError("ServerApp", "Failed to initialize AudioPlayer on the server");
-                    }
-
-                    bool hasVideo = false;
-                    if (m_impl->source) {
-                        for (const auto& s : m_impl->source->GetStreams()) {
-                            if (s.type == core::MediaType::Video) {
-                                hasVideo = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    core::AVSyncClock syncClock;
-                    std::shared_ptr<core::MediaFrame> pendingVideoFrame = nullptr;
-                    size_t bufferIndex = 0;
-
-                    while (m_impl->pipelineRunning) {
-                        if (m_impl->seekRequested.exchange(false)) {
-                            double targetSec = m_impl->seekTargetSec.load();
-                            if (m_impl->source) {
-                                m_impl->source->Seek(targetSec);
-                            }
-                            pendingVideoFrame = nullptr;
-                            if (m_impl->audioPlayer) {
-                                m_impl->audioPlayer->Stop();
-                                m_impl->audioPlayer->Initialize(audioSampleRate, audioChannels);
-                                m_impl->audioPlayer->SetMuted(m_impl->audioMuted);
-                                m_impl->audioPlayer->SetVolume(m_impl->audioVolume);
-                            }
-                            syncClock.Reset();
-                            m_impl->currentPlaybackPositionSec.store(targetSec);
-
-                            if (m_impl->pipelinePaused.load() && m_impl->source) {
-                                auto frameRes = m_impl->source->PullVideoFrame();
-                                if (frameRes && *frameRes) {
-                                    auto frame = *frameRes;
-                                    if (auto* pool = m_impl->ipcServer->GetSharedTexturePool()) {
-                                        if (pool->AcquireWriteLock(bufferIndex, 100)) {
-                                            pool->UpdateFrame(bufferIndex, frame->GetVideoPlane(0), static_cast<uint32_t>(frame->GetLineSize(0)));
-                                            pool->ReleaseWriteLock(bufferIndex);
-                                            bufferIndex = (bufferIndex + 1) % 2;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        auto restartLoop = [&]() {
-                            if (m_impl->source) {
-                                m_impl->source->Seek(0.0);
-                            }
-                            pendingVideoFrame = nullptr;
-                            if (m_impl->audioPlayer) {
-                                m_impl->audioPlayer->Stop();
-                                m_impl->audioPlayer->Initialize(audioSampleRate, audioChannels);
-                                m_impl->audioPlayer->SetMuted(m_impl->audioMuted);
-                                m_impl->audioPlayer->SetVolume(m_impl->audioVolume);
-                            }
-                            syncClock.Reset();
-                            m_impl->currentPlaybackPositionSec.store(0.0);
-                        };
-
-                        if (m_impl->pipelinePaused.load()) {
-                            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-                            continue;
-                        }
-
-                        // 1. Audio pacing - target 250ms audio queue in XAudio2 to prevent buffer overflow/underflow
-                        constexpr double TARGET_AUDIO_QUEUE_SEC = 0.250;
-                        if (!m_impl->audioPlayer || m_impl->audioPlayer->GetQueuedDurationSeconds() < TARGET_AUDIO_QUEUE_SEC) {
-                            auto audioResult = m_impl->source->PullAudioFrame();
-                            if (audioResult && *audioResult) {
-                                auto audioFrame = *audioResult;
-                                m_impl->audioMeter.ProcessSamples(audioFrame.get());
-                                if (m_impl->audioPlayer) {
-                                    m_impl->audioPlayer->SetMuted(m_impl->audioMuted);
-                                    m_impl->audioPlayer->PlayFrame(audioFrame);
-                                }
-                            } else if (audioResult.error().code == core::ErrorCode::EndOfStream) {
-                                if (m_impl->source->GetLoopMode()) {
-                                    if (!hasVideo) {
-                                        restartLoop();
-                                    }
-                                } else {
-                                    // Do not break immediately, video might still have frames
-                                }
-                            }
-                        }
-
-                        // Update audio clock from hardware
-                        if (m_impl->audioPlayer) {
-                            syncClock.UpdateAudioClock(m_impl->audioPlayer->GetPlaybackPositionSeconds());
-                        }
-
-                        // 2. Video pacing & shared texture synchronization
-                        if (!pendingVideoFrame) {
-                            auto frameRes = m_impl->source->PullVideoFrame();
-                            if (frameRes && *frameRes) {
-                                pendingVideoFrame = *frameRes;
-                            } else if (!frameRes && frameRes.error().code == core::ErrorCode::EndOfStream) {
-                                if (m_impl->source->GetLoopMode()) {
-                                    core::Logger::SInfo("ServerApp", "Video reached EOF with loopMode enabled. Looping to start.");
-                                    restartLoop();
-                                    auto retryRes = m_impl->source->PullVideoFrame();
-                                    if (retryRes && *retryRes) {
-                                        pendingVideoFrame = *retryRes;
-                                    }
-                                } else {
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (pendingVideoFrame) {
-                            double effectiveOffsetSec = (m_impl->videoDelayMs.load() - m_impl->audioDelayMs.load() + m_impl->masterDelayMs.load()) / 1000.0;
-                            auto action = syncClock.EvaluateVideoFrame(*pendingVideoFrame, effectiveOffsetSec);
-                            switch (action) {
-                                case core::AVSyncClock::VideoAction::Display:
-                                    if (auto* pool = m_impl->ipcServer->GetSharedTexturePool()) {
-                                        // Acquire Key 0 lock from client/initial state
-                                        if (pool->AcquireWriteLock(bufferIndex, 100)) {
-                                            pool->UpdateFrame(bufferIndex, pendingVideoFrame->GetVideoPlane(0), static_cast<uint32_t>(pendingVideoFrame->GetLineSize(0)));
-                                            pool->ReleaseWriteLock(bufferIndex);
-                                            bufferIndex = (bufferIndex + 1) % 2;
-
-                                            double ptsSec = core::AVSyncClock::PtsToSeconds(*pendingVideoFrame);
-                                            if (ptsSec >= 0.0) {
-                                                m_impl->currentPlaybackPositionSec.store(ptsSec);
-                                            }
-
-                                            pendingVideoFrame = nullptr;
-                                        }
-                                        else {
-                                            // Client has not released buffer yet; hold frame
-                                        }
-                                    }
-                                    break;
-                                case core::AVSyncClock::VideoAction::Drop:
-                                    pendingVideoFrame = nullptr;  // skip, pull next
-                                    break;
-                                case core::AVSyncClock::VideoAction::Wait:
-                                    break;  // hold frame, try again next iteration
-                            }
-                        }
-
-                        std::this_thread::sleep_for(std::chrono::milliseconds(2));
-                    }
-
-                    if (m_impl->source) {
-                        m_impl->source->Stop();
-                    }
-                    if (m_impl->audioPlayer) {
-                        m_impl->audioPlayer->Stop();
-                        m_impl->audioPlayer.reset();
-                    }
-                    m_impl->pipelineRunning.store(false);
-                });
             }
 
             return std::vector<uint8_t>{};
@@ -612,19 +401,16 @@ void ServerApp::RegisterBuiltinHandlers() {
                 return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload"});
             }
 
-            m_impl->audioMuted = muted;
+            float volume = 1.0f;
             if (reader.HasMore() && reader.Remaining() >= sizeof(double)) {
-                double vol = reader.ReadF64();
-                m_impl->audioVolume = static_cast<float>(vol);
+                volume = static_cast<float>(reader.ReadF64());
             }
 
-            if (m_impl->audioPlayer) {
-                m_impl->audioPlayer->SetMuted(m_impl->audioMuted);
-                m_impl->audioPlayer->SetVolume(m_impl->audioVolume);
+            auto session = m_impl->pipelineManager->GetSession(pipelineId);
+            if (session) {
+                session->SetLayerProperties(layerIndex, muted, volume);
             }
 
-            core::Logger::SInfo("ServerApp", "SetLayerProperties: pipeline {} layer {} muted={} volume={}",
-                pipelineId, layerIndex, muted, m_impl->audioVolume.load());
             return std::vector<uint8_t>{};
         });
 
@@ -642,13 +428,11 @@ void ServerApp::RegisterBuiltinHandlers() {
                 return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload for SetAVDelay"});
             }
 
-            m_impl->videoDelayMs.store(videoDelay);
-            m_impl->audioDelayMs.store(audioDelay);
-            m_impl->masterDelayMs.store(masterDelay);
+            auto session = m_impl->pipelineManager->GetSession(pipelineId);
+            if (session) {
+                session->SetAVDelay(videoDelay, audioDelay, masterDelay);
+            }
 
-            core::Logger::SInfo("ServerApp", "SetAVDelay: pipeline {} v={}ms a={}ms m={}ms",
-                pipelineId, videoDelay, audioDelay, masterDelay);
-            
             return std::vector<uint8_t>{};
         });
 
@@ -662,37 +446,12 @@ void ServerApp::RegisterBuiltinHandlers() {
             uint32_t id = 0;
             std::memcpy(&id, payload.data(), sizeof(uint32_t));
 
-            std::shared_ptr<core::PipelineGraph> graph;
-            {
-                std::lock_guard lock(m_impl->stateMutex);
-                auto it = m_impl->pipelines.find(id);
-                if (it == m_impl->pipelines.end()) {
-                    return std::unexpected(core::Error{core::ErrorCode::NotFound, "Pipeline not found"});
-                }
-                graph = it->second;
+            auto session = m_impl->pipelineManager->GetSession(id);
+            if (!session) {
+                return std::unexpected(core::Error{core::ErrorCode::NotFound, "Pipeline not found"});
             }
 
-            if (auto res = graph->Stop(); !res) {
-                return std::unexpected(res.error());
-            }
-
-            m_impl->pipelinePaused.store(false);
-
-            // PoC: stop render thread cleanly
-            m_impl->pipelineRunning.store(false);
-            if (m_impl->renderThread.joinable()) {
-                m_impl->renderThread.join();
-            }
-
-            if (m_impl->source) {
-                m_impl->source->Seek(0.0);
-            }
-
-            if (m_impl->audioPlayer) {
-                m_impl->audioPlayer->Stop();
-            }
-
-            return std::vector<uint8_t>{};
+            return session->Stop().transform([]{ return std::vector<uint8_t>{}; });
         });
 
     // Pipeline: DestroyPipeline
@@ -705,47 +464,29 @@ void ServerApp::RegisterBuiltinHandlers() {
             uint32_t id = 0;
             std::memcpy(&id, payload.data(), sizeof(uint32_t));
 
-            std::shared_ptr<core::PipelineGraph> graph;
-            {
-                std::lock_guard lock(m_impl->stateMutex);
-                auto it = m_impl->pipelines.find(id);
-                if (it == m_impl->pipelines.end()) {
-                    return std::unexpected(core::Error{core::ErrorCode::NotFound, "Pipeline not found"});
-                }
-                graph = it->second;
-                m_impl->pipelines.erase(it);
-            }
-
-            std::ignore = graph->Stop();
-
-            m_impl->pipelineRunning.store(false);
-            if (m_impl->renderThread.joinable()) {
-                m_impl->renderThread.join();
-            }
-
-            if (m_impl->source) {
-                m_impl->source->Stop();
-            }
-
-            if (m_impl->audioPlayer) {
-                m_impl->audioPlayer->Stop();
-            }
-
-            return std::vector<uint8_t>{};
+            return m_impl->pipelineManager->DestroyPipeline(id).transform([]{ return std::vector<uint8_t>{}; });
         });
 
     // Pipeline: GetPipelineState
     dispatcher.Register(ipc::CommandType::GetPipelineState,
         [this](uint32_t, const std::vector<uint8_t>& payload)
             -> core::Result<std::vector<uint8_t>> {
-            ipc::MessageReader reader(payload);
-            uint32_t id = reader.ReadU32();
-            (void)id;
-            if (reader.HasError()) return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload"});
+            uint32_t id = 1;
+            if (!payload.empty()) {
+                ipc::MessageReader reader(payload);
+                id = reader.ReadU32();
+                if (reader.HasError()) return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload"});
+            }
             
+            auto session = m_impl->pipelineManager->GetSession(id);
+            PipelinePlaybackState state{};
+            if (session) {
+                state = session->GetPlaybackState();
+            }
+
             ipc::MessageBuilder builder;
-            builder.WriteF64(m_impl->currentPlaybackPositionSec.load() * 1000.0);
-            builder.WriteBool(m_impl->pipelinePaused.load());
+            builder.WriteF64(state.positionSec * 1000.0);
+            builder.WriteBool(state.isPaused);
             return builder.Finish();
         });
 
@@ -753,54 +494,60 @@ void ServerApp::RegisterBuiltinHandlers() {
     dispatcher.Register(ipc::CommandType::PausePipeline,
         [this](uint32_t, const std::vector<uint8_t>& payload)
             -> core::Result<std::vector<uint8_t>> {
-            ipc::MessageReader reader(payload);
-            uint32_t id = reader.ReadU32();
-            (void)id;
-            if (reader.HasError()) return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload"});
-            
-            m_impl->pipelinePaused.store(true);
-            if (m_impl->audioPlayer) {
-                m_impl->audioPlayer->Pause();
+            uint32_t id = 1;
+            if (!payload.empty()) {
+                ipc::MessageReader reader(payload);
+                id = reader.ReadU32();
+                if (reader.HasError()) return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload"});
             }
-            core::Logger::SInfo("ServerApp", "Pipeline paused");
-            return std::vector<uint8_t>{};
+            
+            auto session = m_impl->pipelineManager->GetSession(id);
+            if (!session) return std::unexpected(core::Error{core::ErrorCode::NotFound, "Pipeline not found"});
+
+            return session->Pause().transform([]{ return std::vector<uint8_t>{}; });
         });
 
     // Pipeline: ResumePipeline
     dispatcher.Register(ipc::CommandType::ResumePipeline,
         [this](uint32_t, const std::vector<uint8_t>& payload)
             -> core::Result<std::vector<uint8_t>> {
-            ipc::MessageReader reader(payload);
-            uint32_t id = reader.ReadU32();
-            (void)id;
-            if (reader.HasError()) return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload"});
-            
-            if (m_impl->pipelinePaused.exchange(false)) {
-                if (m_impl->audioPlayer) {
-                    m_impl->audioPlayer->Resume();
-                }
+            uint32_t id = 1;
+            if (!payload.empty()) {
+                ipc::MessageReader reader(payload);
+                id = reader.ReadU32();
+                if (reader.HasError()) return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload"});
             }
-            core::Logger::SInfo("ServerApp", "Pipeline resumed");
-            return std::vector<uint8_t>{};
+            
+            auto session = m_impl->pipelineManager->GetSession(id);
+            if (!session) return std::unexpected(core::Error{core::ErrorCode::NotFound, "Pipeline not found"});
+
+            return session->Resume().transform([]{ return std::vector<uint8_t>{}; });
         });
 
     // Pipeline: GetPipelineInfo
     dispatcher.Register(ipc::CommandType::GetPipelineInfo,
         [this](uint32_t, const std::vector<uint8_t>& payload)
             -> core::Result<std::vector<uint8_t>> {
-            ipc::MessageReader reader(payload);
-            uint32_t id = reader.ReadU32();
-            (void)id;
-            if (reader.HasError()) return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload"});
+            uint32_t id = 1;
+            if (!payload.empty()) {
+                ipc::MessageReader reader(payload);
+                id = reader.ReadU32();
+                if (reader.HasError()) return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload"});
+            }
             
+            auto session = m_impl->pipelineManager->GetSession(id);
+            PipelinePlaybackInfo info{};
+            if (session) {
+                info = session->GetPlaybackInfo();
+            }
+
             ipc::MessageBuilder builder;
-            builder.WriteF64(60.0); // fps
-            builder.WriteF64(1024.0); // bitrate
-            builder.WriteU64(1000); // total frames
-            builder.WriteU64(0); // dropped frames
-            builder.WriteF64(5.0); // latency
-            builder.WriteF64(1.5); // cpu usage
-            
+            builder.WriteF64(info.fps);
+            builder.WriteF64(info.bitrate);
+            builder.WriteU64(info.totalFrames);
+            builder.WriteU64(info.droppedFrames);
+            builder.WriteF64(info.latencyMs);
+            builder.WriteF64(info.cpuUsage);
             return builder.Finish();
         });
 
@@ -808,11 +555,19 @@ void ServerApp::RegisterBuiltinHandlers() {
     dispatcher.Register(ipc::CommandType::GetAudioLevels,
         [this](uint32_t, const std::vector<uint8_t>& payload)
             -> core::Result<std::vector<uint8_t>> {
-            ipc::MessageReader reader(payload);
-            uint32_t id = reader.ReadU32();
-            (void)id;
+            uint32_t id = 1;
+            if (!payload.empty()) {
+                ipc::MessageReader reader(payload);
+                id = reader.ReadU32();
+                if (reader.HasError()) return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload"});
+            }
             
-            auto channelData = m_impl->audioMeter.GetChannelData();
+            auto session = m_impl->pipelineManager->GetSession(id);
+            std::vector<OpenMedia::Audio::AudioMeterData> channelData;
+            if (session) {
+                channelData = session->GetAudioLevels();
+            }
+
             ipc::MessageBuilder builder;
             uint32_t channelCount = static_cast<uint32_t>(channelData.size());
             builder.WriteU32(channelCount);
@@ -836,55 +591,15 @@ void ServerApp::RegisterBuiltinHandlers() {
             std::string url = reader.ReadString();
             bool loop = reader.ReadBool();
             int32_t startMs = reader.ReadI32();
-            (void)loop; (void)startMs;
+            (void)sourceId;
             if (reader.HasError()) return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload"});
 
-            auto configIt = m_impl->pipelineConfigs.find(pipelineId);
-            uint32_t targetWidth = 0;
-            uint32_t targetHeight = 0;
-            if (configIt != m_impl->pipelineConfigs.end()) {
-                targetWidth = configIt->second.width;
-                targetHeight = configIt->second.height;
+            auto session = m_impl->pipelineManager->GetSession(pipelineId);
+            if (!session) {
+                return std::unexpected(core::Error{core::ErrorCode::NotFound, "Pipeline not found"});
             }
 
-            m_impl->pipelineRunning.store(false);
-            if (m_impl->renderThread.joinable()) {
-                m_impl->renderThread.join();
-            }
-
-            if (m_impl->source) {
-                m_impl->source->Close();
-                m_impl->source.reset();
-            }
-
-            m_impl->source = std::make_shared<io::FileSource>();
-            if (targetWidth > 0 && targetHeight > 0) {
-                m_impl->source->SetOutputResolution(targetWidth, targetHeight);
-            }
-            
-            if (auto res = m_impl->source->Open(url); !res) {
-                return std::unexpected(res.error());
-            }
-            m_impl->source->SetLoopMode(loop);
-            if (startMs > 0) {
-                m_impl->source->Seek(static_cast<double>(startMs) / 1000.0);
-            }
-
-            // Read actual video dimensions and set for shared texture allocation
-            auto streams = m_impl->source->GetStreams();
-            for (const auto& stream : streams) {
-                if (stream.type == core::MediaType::Video && stream.width > 0 && stream.height > 0) {
-                    uint32_t resWidth = (targetWidth > 0) ? targetWidth : stream.width;
-                    uint32_t resHeight = (targetHeight > 0) ? targetHeight : stream.height;
-                    m_impl->ipcServer->SetVideoResolution(resWidth, resHeight);
-                    core::Logger::SInfo("ServerApp", "Video resolution: {}x{} (Scaled to {}x{}) @ {:.1f} FPS",
-                                       stream.width, stream.height, resWidth, resHeight, stream.frameRate);
-                    break;
-                }
-            }
-
-            core::Logger::SInfo("ServerApp", "OpenSource P:{} S:{} URL:{} Loop:{}", pipelineId, sourceId, url, loop);
-            return std::vector<uint8_t>{};
+            return session->OpenSource(url, loop, startMs).transform([]{ return std::vector<uint8_t>{}; });
         });
 
     // Source: CloseSource
@@ -894,12 +609,12 @@ void ServerApp::RegisterBuiltinHandlers() {
             ipc::MessageReader reader(payload);
             uint32_t pipelineId = reader.ReadU32();
             uint32_t sourceId = reader.ReadU32();
-            (void)pipelineId; (void)sourceId;
+            (void)sourceId;
             if (reader.HasError()) return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload"});
             
-            if (m_impl->source) {
-                m_impl->source->Close();
-                m_impl->source.reset();
+            auto session = m_impl->pipelineManager->GetSession(pipelineId);
+            if (session) {
+                return session->CloseSource().transform([]{ return std::vector<uint8_t>{}; });
             }
             return std::vector<uint8_t>{};
         });
@@ -912,13 +627,13 @@ void ServerApp::RegisterBuiltinHandlers() {
             uint32_t pipelineId = reader.ReadU32();
             uint32_t sourceId = reader.ReadU32();
             uint64_t posMs = reader.ReadU64();
-            (void)pipelineId; (void)sourceId;
+            (void)sourceId;
             if (reader.HasError()) return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload"});
             
-            double targetSec = static_cast<double>(posMs) / 1000.0;
-            core::Logger::SInfo("ServerApp", "SeekSource requested to {:.3f}s", targetSec);
-            m_impl->seekTargetSec.store(targetSec);
-            m_impl->seekRequested.store(true);
+            auto session = m_impl->pipelineManager->GetSession(pipelineId);
+            if (session) {
+                session->Seek(static_cast<double>(posMs) / 1000.0);
+            }
             return std::vector<uint8_t>{};
         });
 
@@ -929,60 +644,32 @@ void ServerApp::RegisterBuiltinHandlers() {
             ipc::MessageReader reader(payload);
             uint32_t pipelineId = reader.ReadU32();
             uint32_t sourceId = reader.ReadU32();
-            (void)pipelineId; (void)sourceId;
+            (void)sourceId;
             if (reader.HasError()) return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload"});
             
-            ipc::MessageBuilder builder;
-
-            // Return real metadata from the active FileSource
-            if (m_impl->source) {
-                auto streams = m_impl->source->GetStreams();
-                uint32_t vWidth = 0, vHeight = 0;
-                double vFps = 0.0;
-                std::string vCodec, aCodec;
-                int32_t aChannels = 0, aSampleRate = 0;
-                for (const auto& stream : streams) {
-                    if (stream.type == core::MediaType::Video && vWidth == 0) {
-                        vWidth = stream.width;
-                        vHeight = stream.height;
-                        vFps = stream.frameRate;
-                        vCodec = stream.codecName;
-                    }
-                    if (stream.type == core::MediaType::Audio && aChannels == 0) {
-                        aCodec = stream.codecName;
-                        aChannels = static_cast<int32_t>(stream.channels);
-                        aSampleRate = static_cast<int32_t>(stream.sampleRate);
-                    }
-                }
-                builder.WriteString(""); // url (not stored separately)
-                builder.WriteF64(m_impl->source->GetDurationSeconds() * 1000.0);
-                builder.WriteU32(vWidth);
-                builder.WriteU32(vHeight);
-                builder.WriteF64(vFps);
-                builder.WriteString(vCodec);
-                builder.WriteString(aCodec);
-                builder.WriteI32(aChannels);
-                builder.WriteI32(aSampleRate);
-                builder.WriteU64(static_cast<uint64_t>(m_impl->source->GetBitrate()));
-            } else {
-                builder.WriteString("");
-                builder.WriteF64(0.0);
-                builder.WriteU32(0);
-                builder.WriteU32(0);
-                builder.WriteF64(0.0);
-                builder.WriteString("");
-                builder.WriteString("");
-                builder.WriteI32(0);
-                builder.WriteI32(0);
-                builder.WriteU64(0);
+            auto session = m_impl->pipelineManager->GetSession(pipelineId);
+            SourceMetadata meta{};
+            if (session) {
+                meta = session->GetSourceInfo();
             }
 
+            ipc::MessageBuilder builder;
+            builder.WriteString(meta.url);
+            builder.WriteF64(meta.durationMs);
+            builder.WriteU32(meta.width);
+            builder.WriteU32(meta.height);
+            builder.WriteF64(meta.fps);
+            builder.WriteString(meta.videoCodec);
+            builder.WriteString(meta.audioCodec);
+            builder.WriteI32(meta.audioChannels);
+            builder.WriteI32(meta.audioSampleRate);
+            builder.WriteU64(meta.bitrate);
             return builder.Finish();
         });
 
     // Output: AddOutput
     dispatcher.Register(ipc::CommandType::AddOutput,
-        [this](uint32_t, const std::vector<uint8_t>& payload)
+        [](uint32_t, const std::vector<uint8_t>& payload)
             -> core::Result<std::vector<uint8_t>> {
             ipc::MessageReader reader(payload);
             uint32_t pipelineId = reader.ReadU32();
@@ -1002,7 +689,7 @@ void ServerApp::RegisterBuiltinHandlers() {
 
     // Output: RemoveOutput
     dispatcher.Register(ipc::CommandType::RemoveOutput,
-        [this](uint32_t, const std::vector<uint8_t>& payload)
+        [](uint32_t, const std::vector<uint8_t>& payload)
             -> core::Result<std::vector<uint8_t>> {
             ipc::MessageReader reader(payload);
             uint32_t pipelineId = reader.ReadU32();

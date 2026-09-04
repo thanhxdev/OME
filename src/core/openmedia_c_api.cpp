@@ -2,10 +2,14 @@
 #include "openmedia/core/Engine.h"
 #include "openmedia/core/PipelineGraph.h"
 #include "openmedia/core/MediaFrame.h"
+#include "openmedia/srt/SRTEngine.h"
+#include "openmedia/srt/SRTSource.h"
+#include "openmedia/srt/SRTOutput.h"
 #include <string>
 #include <memory>
 #include <unordered_map>
 #include <mutex>
+#include <spdlog/spdlog.h>
 
 using namespace openmedia::core;
 
@@ -206,10 +210,6 @@ OME_API void ome_clock_overlay_set_format(ome_overlay_t overlay, const char* for
     // Mock
 }
 
-#include "openmedia/srt/SRTEngine.h"
-#include "openmedia/srt/SRTSource.h"
-#include "openmedia/srt/SRTOutput.h"
-
 OME_API ome_srt_engine_t ome_srt_engine_create() {
     return reinterpret_cast<ome_srt_engine_t>(new openmedia::srt::SRTEngine());
 }
@@ -237,8 +237,16 @@ OME_API void ome_srt_source_destroy(ome_srt_source_t source) {
 
 OME_API bool ome_srt_source_connect(ome_srt_source_t source, const char* uri) {
     if (!source || !uri) return false;
-    auto* s = reinterpret_cast<openmedia::srt::SRTSource*>(source);
-    return s->Connect(uri);
+    try {
+        auto* s = reinterpret_cast<openmedia::srt::SRTSource*>(source);
+        return s->Connect(uri);
+    } catch (const std::exception& e) {
+        spdlog::error("Exception in ome_srt_source_connect: {}", e.what());
+        return false;
+    } catch (...) {
+        spdlog::error("Unknown exception in ome_srt_source_connect");
+        return false;
+    }
 }
 
 OME_API void ome_srt_source_disconnect(ome_srt_source_t source) {
@@ -282,10 +290,24 @@ OME_API ome_output_t ome_srt_output_create() {
     return reinterpret_cast<ome_output_t>(new openmedia::srt::SRTOutput());
 }
 
+OME_API void ome_srt_output_destroy(ome_output_t output) {
+    if (output) {
+        delete reinterpret_cast<openmedia::srt::SRTOutput*>(output);
+    }
+}
+
 OME_API bool ome_srt_output_open(ome_output_t output, const char* uri) {
     if (!output || !uri) return false;
-    auto* o = reinterpret_cast<openmedia::srt::SRTOutput*>(output);
-    return o->Start(uri);
+    try {
+        auto* o = reinterpret_cast<openmedia::srt::SRTOutput*>(output);
+        return o->Start(uri);
+    } catch (const std::exception& e) {
+        spdlog::error("Exception in ome_srt_output_open: {}", e.what());
+        return false;
+    } catch (...) {
+        spdlog::error("Unknown exception in ome_srt_output_open");
+        return false;
+    }
 }
 
 OME_API void ome_srt_output_close(ome_output_t output) {

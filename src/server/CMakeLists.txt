@@ -4,6 +4,8 @@ cmake_minimum_required(VERSION 3.28)
 add_executable(OpenMediaServer
     src/main.cpp
     src/ServerApp.cpp
+    src/PipelineSession.cpp
+    src/PipelineEngineManager.cpp
 )
 
 target_include_directories(OpenMediaServer

@@ -225,7 +225,7 @@ namespace OpenMedia.SDK
                 if (_handle != IntPtr.Zero)
                 {
                     Close();
-                    NativeBridge.ome_output_destroy(_handle);
+                    NativeBridge.ome_srt_output_destroy(_handle);
                     _handle = IntPtr.Zero;
                 }
                 _disposed = true;

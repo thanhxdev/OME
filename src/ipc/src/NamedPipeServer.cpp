@@ -1,5 +1,6 @@
 /// @file NamedPipeServer.cpp
-/// @brief Windows Named Pipe server transport implementation
+/// @brief Windows Named Pipe server transport with IOCP asynchronous I/O
+/// @since 2.0.0
 
 #include <openmedia/ipc/NamedPipeTransport.h>
 #include <openmedia/core/Logger.h>
@@ -15,6 +16,7 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
+#include <memory>
 
 namespace openmedia::ipc {
 
@@ -27,17 +29,23 @@ struct NamedPipeServer::Impl {
     MessageCallback messageCallback;
     std::mutex callbackMutex;
 
-    // Client connections
+    // Client connection context for IOCP
     struct ClientConnection {
         HANDLE pipe = INVALID_HANDLE_VALUE;
         uint32_t clientId = 0;
-        OVERLAPPED overlapped{};
+        OVERLAPPED readOverlapped{};
         std::vector<uint8_t> readBuffer;
+        std::atomic<bool> closing{false};
     };
 
-    std::unordered_map<uint32_t, std::unique_ptr<ClientConnection>> clients;
+    std::unordered_map<uint32_t, std::shared_ptr<ClientConnection>> clients;
     std::mutex clientsMutex;
     std::atomic<uint32_t> nextClientId{1};
+
+    // Windows IOCP handle & workers
+    HANDLE iocpHandle = nullptr;
+    std::vector<std::thread> iocpWorkers;
+    static constexpr size_t NUM_IOCP_WORKERS = 2;
 
     // Listener thread
     std::thread listenerThread;
@@ -84,8 +92,120 @@ struct NamedPipeServer::Impl {
         return hPipe;
     }
 
+    void StartAsyncRead(const std::shared_ptr<ClientConnection>& conn) {
+        if (!running.load() || conn->closing.load()) return;
+
+        ZeroMemory(&conn->readOverlapped, sizeof(OVERLAPPED));
+        DWORD bytesRead = 0;
+        BOOL success = ReadFile(
+            conn->pipe,
+            conn->readBuffer.data(),
+            static_cast<DWORD>(conn->readBuffer.size()),
+            &bytesRead,
+            &conn->readOverlapped);
+
+        if (!success) {
+            DWORD err = GetLastError();
+            if (err != ERROR_IO_PENDING) {
+                core::Logger::SDebug("NamedPipeServer", "ReadFile error on client {}: {}", conn->clientId, err);
+                CloseClient(conn->clientId);
+            }
+        }
+    }
+
+    void CloseClient(uint32_t clientId) {
+        std::shared_ptr<ClientConnection> conn;
+        {
+            std::lock_guard lock(clientsMutex);
+            auto it = clients.find(clientId);
+            if (it != clients.end()) {
+                conn = it->second;
+                clients.erase(it);
+            }
+        }
+
+        if (conn && !conn->closing.exchange(true)) {
+            core::Logger::SInfo("NamedPipeServer", "Client {} disconnected (IOCP)", clientId);
+            if (conn->pipe != INVALID_HANDLE_VALUE) {
+                CancelIoEx(conn->pipe, nullptr);
+                DisconnectNamedPipe(conn->pipe);
+                CloseHandle(conn->pipe);
+                conn->pipe = INVALID_HANDLE_VALUE;
+            }
+        }
+    }
+
+    void IocpWorkerLoop() {
+        while (running.load()) {
+            DWORD bytesTransferred = 0;
+            ULONG_PTR completionKey = 0;
+            LPOVERLAPPED pOverlapped = nullptr;
+
+            BOOL ok = GetQueuedCompletionStatus(
+                iocpHandle,
+                &bytesTransferred,
+                &completionKey,
+                &pOverlapped,
+                250 // Timeout in ms to allow checking running status
+            );
+
+            if (!running.load()) break;
+
+            if (!ok) {
+                DWORD err = GetLastError();
+                if (err == WAIT_TIMEOUT) {
+                    continue;
+                }
+                if (completionKey != 0) {
+                    uint32_t clientId = static_cast<uint32_t>(completionKey);
+                    CloseClient(clientId);
+                }
+                continue;
+            }
+
+            if (completionKey == 0 || pOverlapped == nullptr) {
+                // Exit signal posted
+                break;
+            }
+
+            uint32_t clientId = static_cast<uint32_t>(completionKey);
+            std::shared_ptr<ClientConnection> conn;
+            {
+                std::lock_guard lock(clientsMutex);
+                auto it = clients.find(clientId);
+                if (it != clients.end()) {
+                    conn = it->second;
+                }
+            }
+
+            if (!conn || conn->closing.load()) {
+                continue;
+            }
+
+            if (bytesTransferred >= sizeof(MessageHeader)) {
+                MessageHeader header;
+                std::memcpy(&header, conn->readBuffer.data(), sizeof(MessageHeader));
+
+                if (header.IsValid()) {
+                    header.clientId = clientId;
+                    std::vector<uint8_t> payload(
+                        conn->readBuffer.begin() + sizeof(MessageHeader),
+                        conn->readBuffer.begin() + bytesTransferred);
+
+                    std::lock_guard lock(callbackMutex);
+                    if (messageCallback) {
+                        messageCallback(header, payload);
+                    }
+                }
+            }
+
+            // Queue next asynchronous read for this client
+            StartAsyncRead(conn);
+        }
+    }
+
     void ListenerLoop() {
-        core::Logger::SInfo("NamedPipeServer", "Listener started on {}", config.pipeName);
+        core::Logger::SInfo("NamedPipeServer", "Listener started on {} (IOCP Mode)", config.pipeName);
 
         while (running.load()) {
             HANDLE pipe = CreatePipeInstance();
@@ -103,14 +223,12 @@ struct NamedPipeServer::Impl {
             DWORD lastError = GetLastError();
 
             if (lastError == ERROR_IO_PENDING) {
-                // Wait for connection or stop signal
                 HANDLE events[] = {connectOverlapped.hEvent, stopEvent};
                 DWORD waitResult = WaitForMultipleObjects(2, events, FALSE, INFINITE);
 
                 CloseHandle(connectOverlapped.hEvent);
 
-                if (waitResult == WAIT_OBJECT_0 + 1) {
-                    // Stop signal
+                if (waitResult == WAIT_OBJECT_0 + 1 || !running.load()) {
                     DisconnectNamedPipe(pipe);
                     CloseHandle(pipe);
                     break;
@@ -125,86 +243,31 @@ struct NamedPipeServer::Impl {
 
             // Client connected
             uint32_t clientId = nextClientId.fetch_add(1);
-            auto connection = std::make_unique<ClientConnection>();
+            auto connection = std::make_shared<ClientConnection>();
             connection->pipe = pipe;
             connection->clientId = clientId;
             connection->readBuffer.resize(config.bufferSize);
 
-            core::Logger::SInfo("NamedPipeServer", "Client {} connected", clientId);
-
-            // Start client read thread
-            auto* connPtr = connection.get();
-            {
-                std::lock_guard lock(clientsMutex);
-                clients[clientId] = std::move(connection);
+            // Associate pipe with IOCP handle
+            if (CreateIoCompletionPort(pipe, iocpHandle, static_cast<ULONG_PTR>(clientId), 0) == nullptr) {
+                core::Logger::SError("NamedPipeServer", "Failed to associate pipe with IOCP: {}", GetLastError());
+                DisconnectNamedPipe(pipe);
+                CloseHandle(pipe);
+                continue;
             }
 
-            std::thread([this, connPtr, clientId] {
-                ClientReadLoop(connPtr, clientId);
-            }).detach();
+            {
+                std::lock_guard lock(clientsMutex);
+                clients[clientId] = connection;
+            }
+
+            core::Logger::SInfo("NamedPipeServer", "Client {} connected (Associated with IOCP)", clientId);
+
+            // Kick off initial asynchronous read via IOCP
+            StartAsyncRead(connection);
         }
 
         core::Logger::SInfo("NamedPipeServer", "Listener stopped");
-    }
-
-    void ClientReadLoop(ClientConnection* conn, uint32_t clientId) {
-        while (running.load()) {
-            DWORD bytesRead = 0;
-            OVERLAPPED readOverlapped{};
-            readOverlapped.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-
-            BOOL success = ReadFile(
-                conn->pipe,
-                conn->readBuffer.data(),
-                static_cast<DWORD>(conn->readBuffer.size()),
-                nullptr,
-                &readOverlapped);
-
-            if (!success && GetLastError() == ERROR_IO_PENDING) {
-                HANDLE events[] = {readOverlapped.hEvent, stopEvent};
-                DWORD waitResult = WaitForMultipleObjects(2, events, FALSE,
-                    config.timeoutMs * 10);
-
-                if (waitResult == WAIT_OBJECT_0) {
-                    GetOverlappedResult(conn->pipe, &readOverlapped, &bytesRead, FALSE);
-                } else {
-                    CloseHandle(readOverlapped.hEvent);
-                    break;
-                }
-            } else if (success) {
-                GetOverlappedResult(conn->pipe, &readOverlapped, &bytesRead, FALSE);
-            } else {
-                CloseHandle(readOverlapped.hEvent);
-                break;
-            }
-
-            CloseHandle(readOverlapped.hEvent);
-
-            if (bytesRead >= sizeof(MessageHeader)) {
-                MessageHeader header;
-                std::memcpy(&header, conn->readBuffer.data(), sizeof(MessageHeader));
-
-                if (header.IsValid()) {
-                    header.clientId = clientId;
-                    std::vector<uint8_t> payload(
-                        conn->readBuffer.begin() + sizeof(MessageHeader),
-                        conn->readBuffer.begin() + bytesRead);
-
-                    std::lock_guard lock(callbackMutex);
-                    if (messageCallback) {
-                        messageCallback(header, payload);
-                    }
-                }
-            }
-        }
-
-        // Cleanup client
-        core::Logger::SInfo("NamedPipeServer", "Client {} disconnected", clientId);
-        DisconnectNamedPipe(conn->pipe);
-        CloseHandle(conn->pipe);
-
-        std::lock_guard lock(clientsMutex);
-        clients.erase(clientId);
     }
 };
 
@@ -237,6 +300,8 @@ core::VoidResult NamedPipeServer::Send(
     // Broadcast to all clients
     std::lock_guard lock(m_impl->clientsMutex);
     for (auto& [id, conn] : m_impl->clients) {
+        if (conn->closing.load() || conn->pipe == INVALID_HANDLE_VALUE) continue;
+
         std::vector<uint8_t> buffer(sizeof(MessageHeader) + payload.size());
         std::memcpy(buffer.data(), &header, sizeof(MessageHeader));
         std::memcpy(buffer.data() + sizeof(MessageHeader), payload.data(), payload.size());
@@ -285,13 +350,30 @@ core::VoidResult NamedPipeServer::StartListening() {
             "Server already running"});
     }
 
+    // 1. Create Windows IOCP handle
+    m_impl->iocpHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 0);
+    if (!m_impl->iocpHandle) {
+        return std::unexpected(core::Error{
+            core::ErrorCode::IOError,
+            "Failed to create IO Completion Port: " + std::to_string(GetLastError())});
+    }
+
     m_impl->running.store(true);
     m_impl->state.store(ConnectionState::Connected);
     ResetEvent(m_impl->stopEvent);
 
+    // 2. Start IOCP worker threads
+    for (size_t i = 0; i < Impl::NUM_IOCP_WORKERS; ++i) {
+        m_impl->iocpWorkers.emplace_back([this] {
+            m_impl->IocpWorkerLoop();
+        });
+    }
+
+    // 3. Start listener thread
     m_impl->listenerThread = std::thread([this] { m_impl->ListenerLoop(); });
 
-    core::Logger::SInfo("NamedPipeServer", "Server started on {}", m_impl->config.pipeName);
+    core::Logger::SInfo("NamedPipeServer", "Server started on {} with {} IOCP workers",
+                       m_impl->config.pipeName, m_impl->iocpWorkers.size());
     return {};
 }
 
@@ -302,8 +384,8 @@ void NamedPipeServer::StopListening() {
     m_impl->state.store(ConnectionState::Disconnected);
     SetEvent(m_impl->stopEvent);
 
+    // 1. Wake up and unblock listener
     if (m_impl->listenerThread.joinable()) {
-        // Create a dummy connection to unblock ConnectNamedPipe
         std::wstring widePipeName(m_impl->config.pipeName.begin(),
                                   m_impl->config.pipeName.end());
         HANDLE dummy = CreateFileW(widePipeName.c_str(), GENERIC_READ | GENERIC_WRITE,
@@ -313,13 +395,36 @@ void NamedPipeServer::StopListening() {
         m_impl->listenerThread.join();
     }
 
-    // Close all client connections
-    std::lock_guard lock(m_impl->clientsMutex);
-    for (auto& [id, conn] : m_impl->clients) {
-        DisconnectNamedPipe(conn->pipe);
-        CloseHandle(conn->pipe);
+    // 2. Wake up and join IOCP worker threads
+    if (m_impl->iocpHandle) {
+        for (size_t i = 0; i < m_impl->iocpWorkers.size(); ++i) {
+            PostQueuedCompletionStatus(m_impl->iocpHandle, 0, 0, nullptr);
+        }
+        for (auto& worker : m_impl->iocpWorkers) {
+            if (worker.joinable()) {
+                worker.join();
+            }
+        }
+        m_impl->iocpWorkers.clear();
+        CloseHandle(m_impl->iocpHandle);
+        m_impl->iocpHandle = nullptr;
     }
-    m_impl->clients.clear();
+
+    // 3. Close all client connections
+    std::unordered_map<uint32_t, std::shared_ptr<Impl::ClientConnection>> clientsToClose;
+    {
+        std::lock_guard lock(m_impl->clientsMutex);
+        clientsToClose = std::move(m_impl->clients);
+        m_impl->clients.clear();
+    }
+
+    for (auto& [id, conn] : clientsToClose) {
+        if (conn && conn->pipe != INVALID_HANDLE_VALUE) {
+            DisconnectNamedPipe(conn->pipe);
+            CloseHandle(conn->pipe);
+            conn->pipe = INVALID_HANDLE_VALUE;
+        }
+    }
 
     core::Logger::SInfo("NamedPipeServer", "Server stopped");
 }
@@ -333,12 +438,22 @@ core::VoidResult NamedPipeServer::SendResponse(
     uint32_t clientId,
     const ResponseHeader& response,
     const std::vector<uint8_t>& payload) {
-    std::lock_guard lock(m_impl->clientsMutex);
-    auto it = m_impl->clients.find(clientId);
-    if (it == m_impl->clients.end()) {
+    std::shared_ptr<Impl::ClientConnection> conn;
+    {
+        std::lock_guard lock(m_impl->clientsMutex);
+        auto it = m_impl->clients.find(clientId);
+        if (it == m_impl->clients.end()) {
+            return std::unexpected(core::Error{
+                core::ErrorCode::NotFound,
+                "Client not found: " + std::to_string(clientId)});
+        }
+        conn = it->second;
+    }
+
+    if (conn->closing.load() || conn->pipe == INVALID_HANDLE_VALUE) {
         return std::unexpected(core::Error{
-            core::ErrorCode::NotFound,
-            "Client not found: " + std::to_string(clientId)});
+            core::ErrorCode::IOError,
+            "Client connection is closed"});
     }
 
     std::vector<uint8_t> buffer(sizeof(ResponseHeader) + payload.size());
@@ -349,10 +464,10 @@ core::VoidResult NamedPipeServer::SendResponse(
     writeOverlapped.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
 
     DWORD bytesWritten = 0;
-    BOOL success = WriteFile(it->second->pipe, buffer.data(),
+    BOOL success = WriteFile(conn->pipe, buffer.data(),
                    static_cast<DWORD>(buffer.size()), nullptr, &writeOverlapped);
     if (!success && GetLastError() == ERROR_IO_PENDING) {
-        success = GetOverlappedResult(it->second->pipe, &writeOverlapped, &bytesWritten, TRUE);
+        success = GetOverlappedResult(conn->pipe, &writeOverlapped, &bytesWritten, TRUE);
     }
     CloseHandle(writeOverlapped.hEvent);
 

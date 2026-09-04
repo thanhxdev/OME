@@ -24,28 +24,32 @@ namespace OpenMedia.Core.NET.Tests
         [Fact]
         public void SRTSource_And_Output_Lifecycle()
         {
+            using var srtOutput = new SRTOutput();
+            Assert.NotEqual(IntPtr.Zero, srtOutput.Handle);
+            bool opened = srtOutput.Open("srt://127.0.0.1:19000?mode=listener&latency=50");
+            Assert.True(opened);
+            Assert.True(srtOutput.IsOpen);
+
+            System.Threading.Thread.Sleep(100);
+
             using var srtSource = new SRTSource();
             Assert.NotEqual(IntPtr.Zero, srtSource.Handle);
-            bool connected = srtSource.Connect("srt://127.0.0.1:9000?mode=caller");
+            bool connected = srtSource.Connect("srt://127.0.0.1:19000?mode=caller&latency=50");
             Assert.True(connected);
             Assert.True(srtSource.IsConnected);
+
+            System.Threading.Thread.Sleep(100);
 
             bool hasStats = srtSource.GetStatistics(out var stats);
             Assert.True(hasStats);
             Assert.True(stats.msRTT >= 0);
 
-            srtSource.Disconnect();
-            Assert.False(srtSource.IsConnected);
-
-            using var srtOutput = new SRTOutput();
-            Assert.NotEqual(IntPtr.Zero, srtOutput.Handle);
-            bool opened = srtOutput.Open("srt://127.0.0.1:9000?mode=listener");
-            Assert.True(opened);
-            Assert.True(srtOutput.IsOpen);
-
             bool hasOutStats = srtOutput.GetStatistics(out var outStats);
             Assert.True(hasOutStats);
             Assert.True(outStats.msRTT >= 0);
+
+            srtSource.Disconnect();
+            Assert.False(srtSource.IsConnected);
 
             srtOutput.Close();
             Assert.False(srtOutput.IsOpen);

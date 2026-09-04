@@ -330,6 +330,8 @@ if(GTest_FOUND)
     add_executable(test_sdk
         unit/sdk/test_sdk.cpp
         ../src/server/src/ServerApp.cpp
+        ../src/server/src/PipelineSession.cpp
+        ../src/server/src/PipelineEngineManager.cpp
     )
 
     target_include_directories(test_sdk PRIVATE ../src/server/include)

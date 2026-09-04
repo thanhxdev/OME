@@ -90,6 +90,9 @@ public:
     /// @brief Get the worker pool
     [[nodiscard]] worker_pool::WorkerPool& GetWorkerPool();
 
+    /// @brief Get the pipeline engine manager
+    [[nodiscard]] class PipelineEngineManager& GetPipelineManager();
+
     // --- Info ---
 
     /// @brief Get server uptime

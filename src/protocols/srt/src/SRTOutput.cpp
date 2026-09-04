@@ -16,6 +16,10 @@
 namespace openmedia::srt {
 
 SRTOutput::SRTOutput() {
+#ifdef _WIN32
+    WSADATA wsaData;
+    WSAStartup(MAKEWORD(2, 2), &wsaData);
+#endif
     srt_startup();
 }
 

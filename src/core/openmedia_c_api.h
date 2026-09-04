@@ -108,6 +108,7 @@ typedef void* ome_output_t;
 
 // SRT Output API
 OME_API ome_output_t ome_srt_output_create();
+OME_API void ome_srt_output_destroy(ome_output_t output);
 OME_API bool ome_srt_output_open(ome_output_t output, const char* uri);
 OME_API void ome_srt_output_close(ome_output_t output);
 OME_API bool ome_srt_output_send(ome_output_t output, const uint8_t* data, int size);
