@@ -32,6 +32,7 @@ enum class CommandType : uint32_t {
     GetPipelineState = 0x0106,
     GetPipelineInfo = 0x0107,
     SetAVDelay = 0x0108,
+    SetVideoPTSOffset = 0x0109,
     GetAudioLevels = 0x0110,
 
     // Source commands (0x0200-0x02FF)
@@ -147,6 +148,8 @@ struct ResponseHeader {
         case CommandType::GetPipelineState: return "GetPipelineState";
         case CommandType::GetPipelineInfo:  return "GetPipelineInfo";
         case CommandType::SetAVDelay:       return "SetAVDelay";
+        case CommandType::SetVideoPTSOffset:return "SetVideoPTSOffset";
+        case CommandType::GetAudioLevels:   return "GetAudioLevels";
         
         // Source
         case CommandType::OpenSource:       return "OpenSource";

@@ -503,8 +503,8 @@ namespace OpenMedia.Platform
             if (payload.HasValue)
             {
                 var p = payload.Value;
-                _attachedView.Attach((IntPtr)p.NtHandle0, (int)p.Width, (int)p.Height);
-                Trace.WriteLine($"[MediaPlayer] Shared texture attached: {p.Width}x{p.Height}");
+                _attachedView.Attach((IntPtr)p.NtHandle0, (IntPtr)p.NtHandle1, (int)p.Width, (int)p.Height);
+                Trace.WriteLine($"[MediaPlayer] Shared texture attached: {p.Width}x{p.Height} (Handles: 0x{p.NtHandle0:X}, 0x{p.NtHandle1:X})");
             }
         }
 

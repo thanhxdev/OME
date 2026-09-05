@@ -17,7 +17,8 @@ namespace OpenMedia.Platform.Controls.Wpf
     {
         private ID3D11Device? _d3d11Device;
         private ID3D11DeviceContext? _d3d11Context;
-        private ID3D11Texture2D? _sharedTexture;
+        private ID3D11Texture2D?[] _sharedTextures = new ID3D11Texture2D?[2];
+        private int _currentBufferIndex = 0;
         private ID3D11Texture2D? _stagingTexture;
 
         private WriteableBitmap? _bitmap;
@@ -68,16 +69,33 @@ namespace OpenMedia.Platform.Controls.Wpf
         }
 
         /// <summary>
-        /// Opens a DXGI shared texture by its NT handle and allocates WPF WriteableBitmap.
+        /// Opens a single DXGI shared texture by its NT handle and allocates WPF WriteableBitmap.
         /// </summary>
         internal bool OpenSharedTexture(IntPtr ntHandle, int width, int height)
+        {
+            return OpenSharedTextures(ntHandle, IntPtr.Zero, width, height);
+        }
+
+        /// <summary>
+        /// Opens a double-buffered DXGI shared texture pair by NT handles and allocates WPF WriteableBitmap.
+        /// </summary>
+        internal bool OpenSharedTextures(IntPtr ntHandle0, IntPtr ntHandle1, int width, int height)
         {
             if (_d3d11Device == null) return false;
 
             _stagingTexture?.Dispose();
             _stagingTexture = null;
-            _sharedTexture?.Dispose();
-            _sharedTexture = null;
+
+            if (_sharedTextures != null)
+            {
+                for (int i = 0; i < _sharedTextures.Length; i++)
+                {
+                    _sharedTextures[i]?.Dispose();
+                    _sharedTextures[i] = null;
+                }
+            }
+            _sharedTextures = new ID3D11Texture2D?[2];
+            _currentBufferIndex = 0;
             _bitmap = null;
 
             _width = width;
@@ -85,19 +103,13 @@ namespace OpenMedia.Platform.Controls.Wpf
 
             try
             {
-                // Try opening as legacy KMT shared resource handle (D3D11_RESOURCE_MISC_SHARED)
-                try
-                {
-                    _sharedTexture = _d3d11Device.OpenSharedResource<ID3D11Texture2D>(ntHandle);
-                }
-                catch
-                {
-                    // Fall back to NT shared resource handle (D3D11_RESOURCE_MISC_SHARED_NTHANDLE)
-                    using var device1 = _d3d11Device.QueryInterface<ID3D11Device1>();
-                    _sharedTexture = device1.OpenSharedResource1<ID3D11Texture2D>(ntHandle);
-                }
+                _sharedTextures[0] = OpenTextureResource(ntHandle0);
+                if (_sharedTextures[0] == null) return false;
 
-                if (_sharedTexture == null) return false;
+                if (ntHandle1 != IntPtr.Zero)
+                {
+                    _sharedTextures[1] = OpenTextureResource(ntHandle1);
+                }
 
                 // Create a staging texture for CPU readback (D3D11 → WriteableBitmap bridge)
                 var stagingDesc = new Texture2DDescription
@@ -116,13 +128,47 @@ namespace OpenMedia.Platform.Controls.Wpf
 
                 _bitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
 
-                Trace.WriteLine($"[WpfD3D11Renderer] Shared texture opened: {width}x{height}");
+                Trace.WriteLine($"[WpfD3D11Renderer] Shared texture opened: {width}x{height} (Double-buffered: {_sharedTextures[1] != null})");
                 return true;
             }
             catch (Exception ex)
             {
-                Trace.WriteLine($"[WpfD3D11Renderer] OpenSharedTexture failed: {ex.Message}");
+                Trace.WriteLine($"[WpfD3D11Renderer] OpenSharedTextures failed: {ex.Message}");
                 return false;
+            }
+        }
+
+        private ID3D11Texture2D? OpenTextureResource(IntPtr ntHandle)
+        {
+            if (_d3d11Device == null || ntHandle == IntPtr.Zero)
+            {
+                Console.WriteLine($"[DEBUG-RENDERER] OpenTextureResource: device={_d3d11Device != null}, handle=0x{ntHandle:X}");
+                return null;
+            }
+
+            try
+            {
+                // Try opening as legacy KMT shared resource handle (D3D11_RESOURCE_MISC_SHARED)
+                var tex = _d3d11Device.OpenSharedResource<ID3D11Texture2D>(ntHandle);
+                Console.WriteLine($"[DEBUG-RENDERER] OpenSharedResource (KMT) returned: {tex != null}");
+                return tex;
+            }
+            catch (Exception ex1)
+            {
+                Console.WriteLine($"[DEBUG-RENDERER] OpenSharedResource (KMT) threw: {ex1.Message}");
+                try
+                {
+                    // Fall back to NT shared resource handle (D3D11_RESOURCE_MISC_SHARED_NTHANDLE)
+                    using var device1 = _d3d11Device.QueryInterface<ID3D11Device1>();
+                    var tex1 = device1.OpenSharedResource1<ID3D11Texture2D>(ntHandle);
+                    Console.WriteLine($"[DEBUG-RENDERER] OpenSharedResource1 (NT) returned: {tex1 != null}");
+                    return tex1;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[DEBUG-RENDERER] OpenTextureResource failed: {ex.Message}");
+                    return null;
+                }
             }
         }
 
@@ -132,13 +178,14 @@ namespace OpenMedia.Platform.Controls.Wpf
         /// </summary>
         internal bool RenderFrame()
         {
-            if (_bitmap == null || _sharedTexture == null || _d3d11Context == null || _stagingTexture == null)
+            var textureToRead = _sharedTextures?[0];
+            if (_bitmap == null || textureToRead == null || _d3d11Context == null || _stagingTexture == null)
                 return false;
 
             try
             {
                 // Copy shared texture → staging texture
-                _d3d11Context.CopyResource(_stagingTexture, _sharedTexture);
+                _d3d11Context.CopyResource(_stagingTexture, textureToRead);
 
                 var mapped = _d3d11Context.Map(_stagingTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
                 if (mapped.DataPointer == IntPtr.Zero) return false;
@@ -185,7 +232,14 @@ namespace OpenMedia.Platform.Controls.Wpf
             _disposed = true;
 
             _stagingTexture?.Dispose();
-            _sharedTexture?.Dispose();
+            if (_sharedTextures != null)
+            {
+                for (int i = 0; i < _sharedTextures.Length; i++)
+                {
+                    _sharedTextures[i]?.Dispose();
+                    _sharedTextures[i] = null;
+                }
+            }
             _d3d11Context?.Dispose();
             _d3d11Device?.Dispose();
         }

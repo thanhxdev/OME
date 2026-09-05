@@ -191,7 +191,9 @@ namespace SRT_ENCODE
 
         public async Task HandleFileSourceAsync(string filePath)
         {
+            _currentSource = InputSourceType.File;
             _currentSourcePath = filePath;
+            UpdateViewVisibility();
 
             if (_txtActiveSourceTypeBadge != null)
             {
@@ -261,7 +263,8 @@ namespace SRT_ENCODE
 
             if (info != null && info.Width > 0 && info.Height > 0)
             {
-                _activeAudioChannels = (info.AudioChannels > 0) ? Math.Clamp(info.AudioChannels, 1, 16) : 2;
+                // Chuẩn phát sóng: Tối thiểu 2 kênh Stereo (L/R) để hiển thị đầy đủ và kiểm âm, hỗ trợ đa kênh đến 16 CH
+                _activeAudioChannels = (info.AudioChannels > 1) ? Math.Clamp(info.AudioChannels, 2, 16) : 2;
                 string resTag = (info.Width >= 3840) ? "4K UHD" : (info.Width >= 1920) ? "1080p FHD" : $"{info.Height}p HD";
                 _currentTelemetry.Resolution = $"{info.Width} x {info.Height} ({resTag})";
                 _currentTelemetry.FrameRate = info.FrameRate > 0 ? $"{info.FrameRate:F2} FPS" : "59.94 FPS";

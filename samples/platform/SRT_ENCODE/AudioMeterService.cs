@@ -151,6 +151,17 @@ namespace SRT_ENCODE
                     _isClipping[i] = meterData[i].Clipping || (peak >= -0.1);
                 }
 
+                // Nếu nguồn phát là Mono (1 kênh) nhưng giao diện đang hiển thị Stereo (2 kênh L/R),
+                // tự động sao chép mức âm sang kênh Right để đồng bộ cặp giám sát âm thanh Stereo chuẩn Broadcast.
+                if (count == 1 && channels >= 2)
+                {
+                    _currentPeakDb[1] = _currentPeakDb[0];
+                    _currentRmsDb[1] = _currentRmsDb[0];
+                    _peakHoldDb[1] = _peakHoldDb[0];
+                    _isClipping[1] = _isClipping[0];
+                    count = 2;
+                }
+
                 for (int i = count; i < MAX_CHANNELS; i++)
                 {
                     _currentPeakDb[i] = MIN_DBFS;

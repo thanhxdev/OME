@@ -355,6 +355,7 @@ void ServerApp::RegisterBuiltinHandlers() {
                 m_impl->ipcServer->GetSharedTexturePool(),
                 [this](uint32_t w, uint32_t h) {
                     m_impl->ipcServer->SetVideoResolution(w, h);
+                    m_impl->pipelineManager->UpdateTexturePool(m_impl->ipcServer->GetSharedTexturePool());
                 });
 
             if (!idRes) {
@@ -431,6 +432,26 @@ void ServerApp::RegisterBuiltinHandlers() {
             auto session = m_impl->pipelineManager->GetSession(pipelineId);
             if (session) {
                 session->SetAVDelay(videoDelay, audioDelay, masterDelay);
+            }
+
+            return std::vector<uint8_t>{};
+        });
+
+    // Pipeline: SetVideoPTSOffset
+    dispatcher.Register(ipc::CommandType::SetVideoPTSOffset,
+        [this](uint32_t, const std::vector<uint8_t>& payload)
+            -> core::Result<std::vector<uint8_t>> {
+            ipc::MessageReader reader(payload);
+            uint32_t pipelineId = reader.ReadU32();
+            int32_t offsetMs = reader.ReadI32();
+            
+            if (reader.HasError()) {
+                return std::unexpected(core::Error{core::ErrorCode::InvalidArgument, "Invalid payload for SetVideoPTSOffset"});
+            }
+
+            auto session = m_impl->pipelineManager->GetSession(pipelineId);
+            if (session) {
+                session->SetAVDelay(offsetMs, 0, 0);
             }
 
             return std::vector<uint8_t>{};

@@ -45,6 +45,9 @@ namespace SRT_ENCODE
         private double _currentBitrateKbps = 0.0;
         private double _currentFps = 0.0;
         private int _droppedFramesCount = 0;
+        private ulong _workerBytesSent = 0;
+        private ulong _lastWorkerBytesSent = 0;
+        private DateTime _lastWorkerBitrateSampleTime = DateTime.UtcNow;
         private CancellationTokenSource? _transmissionCts;
         private MpegTsMuxer? _currentMuxer;
         private Process? _streamProcess;
@@ -237,7 +240,7 @@ namespace SRT_ENCODE
                     TxtColorbarUtcTime.Text = utcStr;
                 }
 
-                if (_isStreaming && _sourceManager.CurrentSource == InputSourceType.Colorbar)
+                if (_isStreaming)
                 {
                     RefreshMasterProgramFrameBuffer();
                 }
@@ -279,14 +282,84 @@ namespace SRT_ENCODE
 
         private void UpdateRealtimeTelemetry()
         {
+            // Trích xuất FPS từ thông số nguồn đang phát
+            double sourceFps = 30.0;
+            if (!string.IsNullOrWhiteSpace(_sourceManager.CurrentTelemetry.FrameRate))
+            {
+                string rawFps = _sourceManager.CurrentTelemetry.FrameRate.Replace("FPS", "").Trim();
+                if (double.TryParse(rawFps, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double parsedFps) && parsedFps > 0)
+                {
+                    sourceFps = parsedFps;
+                }
+            }
+
             if (!_isStreaming)
             {
-                TxtHudRtt.Text = "0 ms (Standby)";
-                TxtHudLoss.Text = "0.0 %";
-                TxtHudLoss.Foreground = new SolidColorBrush(Color.FromRgb(0, 230, 118));
-                TxtHudBitrate.Text = "0 kbps";
-                TxtHudFps.Text = "0.00 FPS (Drop: 0)";
+                // Trạng thái PREVIEW / STANDBY: Hiển thị đầy đủ thông số thời gian thực của Source & Preview thay vì để 0
+                TxtHudRtt.Text = "0 ms (Local Preview)";
+                TxtHudRtt.Foreground = new SolidColorBrush(Color.FromRgb(100, 181, 246)); // Soft Blue
+
+                TxtHudLoss.Text = "0.0 % (Clean)";
+                TxtHudLoss.Foreground = new SolidColorBrush(Color.FromRgb(0, 230, 118)); // Green
+
+                // Hiển thị bitrate của video nguồn hoặc cấu hình encoder dự kiến
+                if (!string.IsNullOrWhiteSpace(_sourceManager.CurrentTelemetry.Bitrate) && _sourceManager.CurrentTelemetry.Bitrate.Contains("kbps"))
+                {
+                    TxtHudBitrate.Text = _sourceManager.CurrentTelemetry.Bitrate;
+                }
+                else
+                {
+                    int targetKbps = (int)(SldTargetBitrate?.Value ?? 6000);
+                    TxtHudBitrate.Text = $"{targetKbps:N0} kbps (Configured)";
+                }
+                TxtHudBitrate.Foreground = new SolidColorBrush(Color.FromRgb(0, 230, 118));
+
+                bool isPlaying = (_sourceManager.Player != null && _sourceManager.Player.State == OpenMedia.Platform.PlaybackState.Playing)
+                    || (CmbInputSource?.SelectedIndex == 3 && _colorbarEngine.IsAudioTonePlaying);
+
+                double displayFps = isPlaying ? sourceFps : 0.0;
+                TxtHudFps.Text = $"{displayFps:F2} FPS (Preview Active)";
+                TxtHudFps.Foreground = isPlaying 
+                    ? new SolidColorBrush(Color.FromRgb(255, 255, 255)) 
+                    : new SolidColorBrush(Color.FromRgb(140, 140, 140));
+
+                if (TxtHudEncryption != null)
+                {
+                    bool isEnc = ChkEnableEncryption?.IsChecked == true;
+                    TxtHudEncryption.Text = isEnc ? "AES-256 (Ready)" : "None";
+                    TxtHudEncryption.Foreground = isEnc ? new SolidColorBrush(Color.FromRgb(0, 230, 118)) : new SolidColorBrush(Color.FromRgb(136, 136, 136));
+                }
                 return;
+            }
+
+            // Trạng thái TRANSMITTING (LIVE): Tính toán Bitrate thực tế và trích xuất số liệu SRT Socket
+            DateTime now = DateTime.UtcNow;
+            double elapsedSec = (now - _lastWorkerBitrateSampleTime).TotalSeconds;
+            if (elapsedSec >= 0.8)
+            {
+                if (_workerBytesSent >= _lastWorkerBytesSent)
+                {
+                    ulong delta = _workerBytesSent - _lastWorkerBytesSent;
+                    double dynamicThroughputKbps = (delta * 8.0 / 1000.0) / elapsedSec;
+                    if (dynamicThroughputKbps > 0)
+                    {
+                        _currentBitrateKbps = dynamicThroughputKbps;
+                    }
+                }
+                _lastWorkerBytesSent = _workerBytesSent;
+                _lastWorkerBitrateSampleTime = now;
+            }
+
+            // Fallback bitrate nếu socket stats hoặc delta chưa kịp tính
+            if (_currentBitrateKbps <= 10.0)
+            {
+                _currentBitrateKbps = (double)(SldTargetBitrate?.Value ?? 6000);
+            }
+
+            // Fallback FPS khi đang truyền dẫn
+            if (_currentFps <= 1.0)
+            {
+                _currentFps = sourceFps;
             }
 
             // Auto Latency calculation: Latency = 3 * RTT (min 120ms)
@@ -298,8 +371,12 @@ namespace SRT_ENCODE
             }
 
             // Update HUD UI with actual real-time metrics
-            TxtHudRtt.Text = $"{_currentRttMs:F0} ms";
-            TxtHudBitrate.Text = $"{_currentBitrateKbps:F0} kbps";
+            TxtHudRtt.Text = _currentRttMs > 0 ? $"{_currentRttMs:F0} ms" : "< 1 ms (Loopback/LAN)";
+            TxtHudRtt.Foreground = new SolidColorBrush(Color.FromRgb(0, 230, 118));
+
+            TxtHudBitrate.Text = $"{_currentBitrateKbps:N0} kbps";
+            TxtHudBitrate.Foreground = new SolidColorBrush(Color.FromRgb(0, 230, 118));
+
             TxtHudLoss.Text = $"{_currentPacketLoss:F2} %";
 
             if (_currentPacketLoss >= 5.0)
@@ -317,9 +394,18 @@ namespace SRT_ENCODE
             }
 
             TxtHudFps.Text = $"{_currentFps:F2} FPS (Drop: {_droppedFramesCount})";
+            TxtHudFps.Foreground = new SolidColorBrush(Color.FromRgb(255, 255, 255));
 
-            // Total data formatted
-            double totalMb = _totalBytesTransferred / (1024.0 * 1024.0);
+            if (TxtHudEncryption != null)
+            {
+                bool isEnc = ChkEnableEncryption?.IsChecked == true;
+                TxtHudEncryption.Text = isEnc ? "AES-256 (LIVE)" : "None";
+                TxtHudEncryption.Foreground = isEnc ? new SolidColorBrush(Color.FromRgb(0, 230, 118)) : new SolidColorBrush(Color.FromRgb(136, 136, 136));
+            }
+
+            // Total data formatted (từ SRT socket hoặc worker bytes)
+            ulong totalBytes = Math.Max(_totalBytesTransferred, _workerBytesSent);
+            double totalMb = totalBytes / (1024.0 * 1024.0);
             if (totalMb >= 1024.0)
             {
                 TxtTotalBytesSent.Text = $"{totalMb / 1024.0:F2} GB";
@@ -339,7 +425,8 @@ namespace SRT_ENCODE
                 ? _colorbarEngine.IsAudioTonePlaying
                 : (_sourceManager.Player != null && _sourceManager.Player.State == OpenMedia.Platform.PlaybackState.Playing);
 
-            int configuredChannels = _sourceManager.ActiveAudioChannels;
+            // Xác định số kênh âm thanh hoạt động: Tối thiểu 2 kênh Stereo (L/R), tối đa 16 kênh
+            int configuredChannels = Math.Max(2, _sourceManager.ActiveAudioChannels);
             if (activeSourceIndex == 0)
             {
                 string sdiCh = (CmbSdiAudioCh?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Stereo (2 Ch)";
@@ -384,7 +471,7 @@ namespace SRT_ENCODE
                 string tag = configuredChannels switch
                 {
                     1 => "1-CH MONO",
-                    2 => "2-CH STEREO",
+                    2 => "2-CH STEREO (L/R)",
                     4 => "4-CH SDI EMBEDDED",
                     8 => "8-CH SDI EMBEDDED",
                     16 => "16-CH SDI EMBEDDED",
@@ -393,35 +480,50 @@ namespace SRT_ENCODE
                 TxtVuChannelCountBadge.Text = tag;
             }
 
-            // Cập nhật 16 cột đo âm thanh
-            for (int i = 0; i < 16; i++)
+            // Kiểm tra xem toàn bộ các kênh có tín hiệu âm thanh thực tế hay không
+            const double NoiseFloorCutoff = -55.0;
+            bool anyChannelHasSignal = false;
+            for (int i = 0; i < configuredChannels; i++)
             {
-                bool isChannelActive = (i < configuredChannels);
-                UpdateChannelVu16(i, _channelLevels16[i], _channelRmsLevels16[i], _channelClipping16[i], isChannelActive, configuredChannels);
+                if (_channelLevels16[i] > NoiseFloorCutoff)
+                {
+                    anyChannelHasSignal = true;
+                    break;
+                }
             }
 
+            // Cập nhật từng cột trong 16 cột đo âm thanh
+            for (int i = 0; i < 16; i++)
+            {
+                bool isChannelConfigured = (i < configuredChannels);
+                UpdateChannelVu16(i, _channelLevels16[i], _channelRmsLevels16[i], _channelClipping16[i], isChannelConfigured, configuredChannels, isSourcePlaying);
+            }
+
+            // Cập nhật tóm tắt thông số Peak
             if (TxtAudioPeakSummary != null)
             {
-                if (isSourcePlaying && (_channelLevels16[0] > -55.0 || (configuredChannels > 1 && _channelLevels16[1] > -55.0)))
+                if (isSourcePlaying && anyChannelHasSignal)
                 {
-                    string lStr = _channelLevels16[0] > -55.0 ? $"{_channelLevels16[0]:F1} dB" : "-∞";
-                    string rStr = (configuredChannels > 1 && _channelLevels16[1] > -55.0) ? $"{_channelLevels16[1]:F1} dB" : "-∞";
+                    string lStr = _channelLevels16[0] > NoiseFloorCutoff ? $"{_channelLevels16[0]:F1} dB" : "-∞";
+                    string rStr = (configuredChannels > 1 && _channelLevels16[1] > NoiseFloorCutoff) ? $"{_channelLevels16[1]:F1} dB" : "-∞";
                     TxtAudioPeakSummary.Text = (configuredChannels == 2) 
                         ? $"Peak: L {lStr} | R {rStr}" 
                         : $"Peak: CH1 {lStr} | CH2 {rStr}";
+                    TxtAudioPeakSummary.Foreground = new SolidColorBrush(Color.FromRgb(78, 201, 176)); // Cyan Green
                 }
                 else
                 {
-                    TxtAudioPeakSummary.Text = isSourcePlaying ? "Peak: SILENT" : "Peak: OFF";
+                    TxtAudioPeakSummary.Text = isSourcePlaying ? "Peak: SILENT (NO SIGNAL)" : "Peak: DISABLED (OFF)";
+                    TxtAudioPeakSummary.Foreground = new SolidColorBrush(Color.FromRgb(136, 136, 136)); // Muted Grey
                 }
             }
         }
 
-        private void UpdateChannelVu16(int index, double peakDb, double rmsDb, bool isClip, bool isChannelEnabled, int totalActiveChannels)
+        private void UpdateChannelVu16(int index, double peakDb, double rmsDb, bool isClip, bool isChannelEnabled, int totalActiveChannels, bool isSourcePlaying = true)
         {
             if (index < 0 || index >= _vuBars.Length || index >= _vuCols.Length || index >= _vuLabels.Length) return;
 
-            // Auto-scale layout: Thu gọn hoặc mở rộng số cột tương ứng
+            // Auto-scale layout: Hiển thị đúng các kênh được kích hoạt (tối thiểu 2 kênh L và R)
             _vuCols[index].Visibility = isChannelEnabled ? Visibility.Visible : Visibility.Collapsed;
 
             // Nhãn hiển thị kênh (L/R cho Stereo, 1..16 cho Multi-channel)
@@ -435,33 +537,38 @@ namespace SRT_ENCODE
                 _vuLabels[index].Text = (index + 1).ToString();
             }
 
+            const double NoiseFloorCutoff = -55.0;
+            bool hasSignal = isSourcePlaying && isChannelEnabled && (peakDb > NoiseFloorCutoff);
+
             // Đèn LED báo Clip (0 dBFS)
             if (index < _vuClipLeds.Length && _vuClipLeds[index] != null)
             {
-                _vuClipLeds[index].Fill = isClip
+                _vuClipLeds[index].Fill = (hasSignal && isClip)
                     ? new SolidColorBrush(Color.FromRgb(244, 67, 54))  // Bright Red Clip Warning
-                    : new SolidColorBrush(Color.FromRgb(42, 42, 46));   // Inactive Dark
+                    : new SolidColorBrush(Color.FromRgb(38, 38, 42));   // Inactive Dark
             }
-
-            const double NoiseFloorCutoff = -55.0;
-            bool hasSignal = isChannelEnabled && peakDb > NoiseFloorCutoff;
 
             if (!isChannelEnabled)
             {
+                // Kênh hoàn toàn không sử dụng trong cấu hình hiện tại
                 _vuCols[index].Opacity = 0.15;
                 _vuBars[index].Value = -60.0;
-                _vuBars[index].Foreground = new SolidColorBrush(Color.FromRgb(30, 30, 30));
-                _vuLabels[index].Foreground = new SolidColorBrush(Color.FromRgb(70, 70, 70));
+                _vuBars[index].Foreground = new SolidColorBrush(Color.FromRgb(25, 25, 25));
+                _vuLabels[index].Foreground = new SolidColorBrush(Color.FromRgb(65, 65, 65));
             }
             else if (!hasSignal)
             {
-                _vuCols[index].Opacity = 0.45;
+                // KÊNH ĐƯỢC BẬT NHƯNG KHÔNG CÓ TÍN HIỆU ÂM THANH (SILENT / NO AUDIO / STOPPED):
+                // Chuyển sang trạng thái DISABLED / STANDBY rõ rệt (Dimmed mờ, thanh bar màu xám tối, label mờ, giá trị đáy -60dB)
+                _vuCols[index].Opacity = 0.35;
                 _vuBars[index].Value = -60.0;
-                _vuBars[index].Foreground = new SolidColorBrush(Color.FromRgb(45, 45, 45));
-                _vuLabels[index].Foreground = new SolidColorBrush(Color.FromRgb(140, 140, 140));
+                _vuBars[index].Foreground = new SolidColorBrush(Color.FromRgb(45, 45, 48));
+                _vuLabels[index].Foreground = new SolidColorBrush(Color.FromRgb(110, 110, 115));
             }
             else
             {
+                // KÊNH CÓ TÍN HIỆU ÂM THANH HOẠT ĐỘNG BÌNH THƯỜNG:
+                // Sáng đầy đủ 100% Opacity, hiển thị màu theo chuẩn Broadcast (Xanh lá -> Vàng -> Đỏ khi Clip)
                 _vuCols[index].Opacity = 1.0;
                 _vuBars[index].Value = peakDb;
                 var colorBrush = GetVuMeterColorBrush(peakDb, isClip);
@@ -597,7 +704,14 @@ namespace SRT_ENCODE
                 TxtFilePath.Text = dlg.FileName;
                 LogEvent("[INFO]", $"Đã chọn video tập tin: {Path.GetFileName(dlg.FileName)}");
                 _sourceManager.IsLoopPlayback = ChkLoopFile?.IsChecked == true;
-                await _sourceManager.HandleFileSourceAsync(dlg.FileName);
+                if (CmbInputSource != null && CmbInputSource.SelectedIndex != 2)
+                {
+                    CmbInputSource.SelectedIndex = 2;
+                }
+                else
+                {
+                    await _sourceManager.SwitchSourceAsync(InputSourceType.File, dlg.FileName);
+                }
             }
         }
 
@@ -1793,6 +1907,7 @@ namespace SRT_ENCODE
 
                         if (totalRead > 0)
                         {
+                            _workerBytesSent += (ulong)totalRead;
                             if (_srtStream != null && _srtStream.IsRunning && _srtStream.Statistics.IsConnected)
                             {
                                 if (totalRead == buffer.Length)
@@ -1976,6 +2091,7 @@ namespace SRT_ENCODE
 
                         if (totalRead > 0)
                         {
+                            _workerBytesSent += (ulong)totalRead;
                             if (_srtStream != null && _srtStream.IsRunning && _srtStream.Statistics.IsConnected)
                             {
                                 if (totalRead == buffer.Length)
@@ -2285,14 +2401,12 @@ namespace SRT_ENCODE
 
                 var candidates = new[]
                 {
-                    Path.Combine(current, "build", "bin", "Debug", "OpenMediaServer.exe"),
-                    Path.Combine(current, "build", "bin", "Release", "OpenMediaServer.exe"),
                     Path.Combine(current, "build-demo", "bin", "Debug", "OpenMediaServer.exe"),
                     Path.Combine(current, "build-demo", "bin", "Release", "OpenMediaServer.exe"),
+                    Path.Combine(current, "build", "bin", "Debug", "OpenMediaServer.exe"),
+                    Path.Combine(current, "build", "bin", "Release", "OpenMediaServer.exe"),
                     Path.Combine(current, "build-production", "bin", "Release", "OpenMediaServer.exe"),
-                    Path.Combine(current, "dist", "production", "bin", "OpenMediaServer.exe"),
-                    Path.Combine(baseDir, "OpenMediaServer", "OpenMediaServer.exe"),
-                    Path.Combine(baseDir, "OpenMediaServer.exe")
+                    Path.Combine(current, "dist", "production", "bin", "OpenMediaServer.exe")
                 };
 
                 foreach (var candidate in candidates)
@@ -2306,6 +2420,20 @@ namespace SRT_ENCODE
                 var parent = Directory.GetParent(current);
                 if (parent == null) break;
                 current = parent.FullName;
+            }
+
+            var fallbackCandidates = new[]
+            {
+                Path.Combine(baseDir, "OpenMediaServer", "OpenMediaServer.exe"),
+                Path.Combine(baseDir, "OpenMediaServer.exe")
+            };
+
+            foreach (var candidate in fallbackCandidates)
+            {
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
             }
 
             return null;

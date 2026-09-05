@@ -122,27 +122,60 @@ namespace OpenMedia.SDK
 
                 // 2. Read Response Header
                 byte[] respHeaderBytes = new byte[Marshal.SizeOf<ResponseHeader>()];
-                int read = await _pipeClient.ReadAsync(respHeaderBytes, 0, respHeaderBytes.Length);
-                if (read != respHeaderBytes.Length) return null;
+                if (!await ReadExactAsync(_pipeClient, respHeaderBytes, 0, respHeaderBytes.Length))
+                {
+                    System.Diagnostics.Trace.WriteLine($"[IPCClient] Read response header failed for ShareD3D11Texture, seq={header.SequenceNumber}");
+                    return null;
+                }
 
                 var respHeader = ByteArrayToStructure<ResponseHeader>(respHeaderBytes);
-                if (respHeader.Status != 0) return null; // Status != Success
+
+                // Drain any stale response from prior commands
+                while (respHeader.SequenceNumber < header.SequenceNumber)
+                {
+                    System.Diagnostics.Trace.WriteLine($"[IPCClient] Draining stale response: respSeq={respHeader.SequenceNumber} < reqSeq={header.SequenceNumber}, size={respHeader.PayloadSize}");
+                    if (respHeader.PayloadSize > 0)
+                    {
+                        byte[] stale = new byte[respHeader.PayloadSize];
+                        await ReadExactAsync(_pipeClient, stale, 0, stale.Length);
+                    }
+                    if (!await ReadExactAsync(_pipeClient, respHeaderBytes, 0, respHeaderBytes.Length))
+                        return null;
+                    respHeader = ByteArrayToStructure<ResponseHeader>(respHeaderBytes);
+                }
+
+                if (respHeader.Status != 0)
+                {
+                    System.Diagnostics.Trace.WriteLine($"[IPCClient] ResponseHeader status != 0: {respHeader.Status}");
+                    return null;
+                }
 
                 // 3. Read Payload
                 if (respHeader.PayloadSize == Marshal.SizeOf<ShareD3D11TexturePayload>())
                 {
                     byte[] payloadBytes = new byte[respHeader.PayloadSize];
-                    read = await _pipeClient.ReadAsync(payloadBytes, 0, payloadBytes.Length);
-                    if (read == payloadBytes.Length)
+                    if (await ReadExactAsync(_pipeClient, payloadBytes, 0, payloadBytes.Length))
                     {
-                        return ByteArrayToStructure<ShareD3D11TexturePayload>(payloadBytes);
+                        var res = ByteArrayToStructure<ShareD3D11TexturePayload>(payloadBytes);
+                        System.Diagnostics.Trace.WriteLine($"[IPCClient] Read shared texture payload: {res.Width}x{res.Height}, H0=0x{res.NtHandle0:X}, H1=0x{res.NtHandle1:X}");
+                        return res;
+                    }
+                    System.Diagnostics.Trace.WriteLine($"[IPCClient] Read payload incomplete for ShareD3D11Texture");
+                }
+                else
+                {
+                    if (respHeader.PayloadSize > 0)
+                    {
+                        byte[] payloadBytes = new byte[respHeader.PayloadSize];
+                        await ReadExactAsync(_pipeClient, payloadBytes, 0, payloadBytes.Length);
                     }
                 }
 
                 return null;
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"[DEBUG-IPC] RequestSharedTextureAsync EXCEPTION: {ex.Message}");
                 return null;
             }
             finally
@@ -180,6 +213,8 @@ namespace OpenMedia.SDK
                     ClientId = 1
                 };
 
+                System.Diagnostics.Trace.WriteLine($"[IPCClient] SendAndReceiveAsync SEND: cmd={type}, seq={header.SequenceNumber}");
+
                 // 1. Send Header + Payload combined in a single write operation (critical for message mode pipes)
                 byte[] headerBytes = StructureToByteArray(header);
                 if (payloadSize > 0 && payload != null)
@@ -196,21 +231,39 @@ namespace OpenMedia.SDK
 
                 // 2. Read Response Header
                 byte[] respHeaderBytes = new byte[Marshal.SizeOf<ResponseHeader>()];
-                int read = await _pipeClient.ReadAsync(respHeaderBytes, 0, respHeaderBytes.Length);
-                if (read != respHeaderBytes.Length) return null;
+                if (!await ReadExactAsync(_pipeClient, respHeaderBytes, 0, respHeaderBytes.Length))
+                {
+                    System.Diagnostics.Trace.WriteLine($"[IPCClient] SendAndReceiveAsync READ FAILED for cmd={type}, seq={header.SequenceNumber}");
+                    return null;
+                }
 
                 var respHeader = ByteArrayToStructure<ResponseHeader>(respHeaderBytes);
+
+                // Drain any stale response from prior commands
+                while (respHeader.SequenceNumber < header.SequenceNumber)
+                {
+                    System.Diagnostics.Trace.WriteLine($"[IPCClient] Draining stale response in SendAndReceive: respSeq={respHeader.SequenceNumber} < reqSeq={header.SequenceNumber}, size={respHeader.PayloadSize}");
+                    if (respHeader.PayloadSize > 0)
+                    {
+                        byte[] stale = new byte[respHeader.PayloadSize];
+                        await ReadExactAsync(_pipeClient, stale, 0, stale.Length);
+                    }
+                    if (!await ReadExactAsync(_pipeClient, respHeaderBytes, 0, respHeaderBytes.Length))
+                        return null;
+                    respHeader = ByteArrayToStructure<ResponseHeader>(respHeaderBytes);
+                }
+
                 if (respHeader.Status != 0) return null; // Status != Success
 
                 // 3. Read Response Payload
                 if (respHeader.PayloadSize > 0)
                 {
                     byte[] respPayload = new byte[respHeader.PayloadSize];
-                    read = await _pipeClient.ReadAsync(respPayload, 0, respPayload.Length);
-                    if (read == respPayload.Length)
+                    if (await ReadExactAsync(_pipeClient, respPayload, 0, respPayload.Length))
                     {
                         return respPayload;
                     }
+                    return null;
                 }
 
                 return new byte[0]; // Empty payload on success
@@ -223,6 +276,18 @@ namespace OpenMedia.SDK
             {
                 try { _pipeLock.Release(); } catch { }
             }
+        }
+
+        private static async Task<bool> ReadExactAsync(Stream stream, byte[] buffer, int offset, int count)
+        {
+            int total = 0;
+            while (total < count)
+            {
+                int read = await stream.ReadAsync(buffer, offset + total, count - total);
+                if (read <= 0) return false;
+                total += read;
+            }
+            return true;
         }
 
         public async Task<bool> ShutdownServerAsync()

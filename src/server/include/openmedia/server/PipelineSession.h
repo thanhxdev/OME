@@ -100,6 +100,8 @@ public:
 
     [[nodiscard]] std::shared_ptr<core::PipelineGraph> GetGraph() const { return m_graph; }
 
+    void SetTexturePool(ipc::D3D11SharedTexturePoolPoC* texturePool) { m_texturePool = texturePool; }
+
 private:
     void RenderLoop();
     void StopRenderThread();

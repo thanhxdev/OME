@@ -18,8 +18,11 @@
   <Target Name="GatherNativeOpenMediaBinaries" BeforeTargets="GetCopyToOutputDirectoryItems;AssignTargetPaths;Build">
     <PropertyGroup>
       <_OMEConfig>$(Configuration)</_OMEConfig>
-      <_OMECandidateDir>$(MSBuildThisFileDirectory)..\..\build\bin\$(_OMEConfig)</_OMECandidateDir>
+      <_OMECandidateDir>$(MSBuildThisFileDirectory)..\..\build-demo\bin\$(_OMEConfig)</_OMECandidateDir>
       <_OMESourceDir Condition="Exists('$(_OMECandidateDir)\OpenMediaServer.exe')">$(_OMECandidateDir)</_OMESourceDir>
+      <_OMESourceDir Condition="'$(_OMESourceDir)' == '' and Exists('$(MSBuildThisFileDirectory)..\..\build-demo\bin\Debug\OpenMediaServer.exe')">$(MSBuildThisFileDirectory)..\..\build-demo\bin\Debug</_OMESourceDir>
+      <_OMESourceDir Condition="'$(_OMESourceDir)' == '' and Exists('$(MSBuildThisFileDirectory)..\..\build-demo\bin\Release\OpenMediaServer.exe')">$(MSBuildThisFileDirectory)..\..\build-demo\bin\Release</_OMESourceDir>
+      <_OMESourceDir Condition="'$(_OMESourceDir)' == '' and Exists('$(MSBuildThisFileDirectory)..\..\build\bin\$(_OMEConfig)\OpenMediaServer.exe')">$(MSBuildThisFileDirectory)..\..\build\bin\$(_OMEConfig)</_OMESourceDir>
       <_OMESourceDir Condition="'$(_OMESourceDir)' == '' and Exists('$(MSBuildThisFileDirectory)..\..\build\bin\Debug\OpenMediaServer.exe')">$(MSBuildThisFileDirectory)..\..\build\bin\Debug</_OMESourceDir>
       <_OMESourceDir Condition="'$(_OMESourceDir)' == '' and Exists('$(MSBuildThisFileDirectory)..\..\build\bin\Release\OpenMediaServer.exe')">$(MSBuildThisFileDirectory)..\..\build\bin\Release</_OMESourceDir>
     </PropertyGroup>

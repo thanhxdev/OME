@@ -21,8 +21,8 @@ public:
     };
 
     struct Config {
-        double syncThresholdSec = 0.04;   ///< ±40ms tolerance (1 frame at 25fps)
-        double maxDropThresholdSec = 0.1;  ///< Drop if >100ms behind
+        double syncThresholdSec = 0.05;   ///< ±50ms tolerance (1-2 frames buffer)
+        double maxDropThresholdSec = 0.25; ///< Drop only if >250ms behind (prevents micro-stutter)
         double maxWaitThresholdSec = 0.5;  ///< Force display if audio clock stalls
     };
 

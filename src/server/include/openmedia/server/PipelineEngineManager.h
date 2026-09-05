@@ -41,6 +41,9 @@ public:
     /// @brief Stop and tear down all sessions (during shutdown)
     void StopAll();
 
+    /// @brief Update texture pool reference across all active sessions
+    void UpdateTexturePool(ipc::D3D11SharedTexturePoolPoC* pool);
+
 private:
     std::atomic<uint32_t> m_nextPipelineId{1};
     mutable std::shared_mutex m_mutex;

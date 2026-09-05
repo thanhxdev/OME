@@ -16,6 +16,18 @@ namespace OpenMedia.Platform
         void Attach(IntPtr sharedTextureHandle, int width, int height);
 
         /// <summary>
+        /// Attaches the view to a double-buffered shared D3D11 texture pair.
+        /// </summary>
+        /// <param name="sharedTextureHandle0">NT handle to the first DXGI shared texture.</param>
+        /// <param name="sharedTextureHandle1">NT handle to the second DXGI shared texture.</param>
+        /// <param name="width">Texture width in pixels.</param>
+        /// <param name="height">Texture height in pixels.</param>
+        void Attach(IntPtr sharedTextureHandle0, IntPtr sharedTextureHandle1, int width, int height)
+        {
+            Attach(sharedTextureHandle0, width, height);
+        }
+
+        /// <summary>
         /// Detaches the view, releasing the shared texture reference.
         /// </summary>
         void Detach();

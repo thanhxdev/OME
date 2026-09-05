@@ -182,6 +182,12 @@ struct NamedPipeServer::Impl {
                 continue;
             }
 
+            // CRITICAL: Only process read completions. WriteFile operations also complete on the IOCP
+            // and must NOT be treated as incoming read requests!
+            if (pOverlapped != &conn->readOverlapped) {
+                continue;
+            }
+
             if (bytesTransferred >= sizeof(MessageHeader)) {
                 MessageHeader header;
                 std::memcpy(&header, conn->readBuffer.data(), sizeof(MessageHeader));
@@ -307,20 +313,21 @@ core::VoidResult NamedPipeServer::Send(
         std::memcpy(buffer.data() + sizeof(MessageHeader), payload.data(), payload.size());
 
         OVERLAPPED writeOverlapped{};
-        writeOverlapped.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+        HANDLE hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+        writeOverlapped.hEvent = (HANDLE)((ULONG_PTR)hEvent | 1);
         
         DWORD bytesWritten = 0;
         BOOL success = WriteFile(conn->pipe, buffer.data(),
                   static_cast<DWORD>(buffer.size()), nullptr, &writeOverlapped);
         if (!success && GetLastError() == ERROR_IO_PENDING) {
-            DWORD waitResult = WaitForSingleObject(writeOverlapped.hEvent, 5);
+            DWORD waitResult = WaitForSingleObject(hEvent, 5);
             if (waitResult == WAIT_OBJECT_0) {
                 GetOverlappedResult(conn->pipe, &writeOverlapped, &bytesWritten, FALSE);
             } else {
                 CancelIoEx(conn->pipe, &writeOverlapped);
             }
         }
-        CloseHandle(writeOverlapped.hEvent);
+        CloseHandle(hEvent);
     }
     return {};
 }
@@ -461,7 +468,8 @@ core::VoidResult NamedPipeServer::SendResponse(
     std::memcpy(buffer.data() + sizeof(ResponseHeader), payload.data(), payload.size());
 
     OVERLAPPED writeOverlapped{};
-    writeOverlapped.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    HANDLE hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    writeOverlapped.hEvent = (HANDLE)((ULONG_PTR)hEvent | 1);
 
     DWORD bytesWritten = 0;
     BOOL success = WriteFile(conn->pipe, buffer.data(),
@@ -469,7 +477,7 @@ core::VoidResult NamedPipeServer::SendResponse(
     if (!success && GetLastError() == ERROR_IO_PENDING) {
         success = GetOverlappedResult(conn->pipe, &writeOverlapped, &bytesWritten, TRUE);
     }
-    CloseHandle(writeOverlapped.hEvent);
+    CloseHandle(hEvent);
 
     if (!success) {
         return std::unexpected(core::Error{

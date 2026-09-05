@@ -99,13 +99,32 @@ namespace OpenMedia.Platform.Controls.Wpf
         /// <inheritdoc />
         public void Attach(IntPtr sharedTextureHandle, int width, int height)
         {
-            if (!EnsureRendererInitialized() || _renderer == null) return;
+            Attach(sharedTextureHandle, IntPtr.Zero, width, height);
+        }
+
+        /// <inheritdoc />
+        public void Attach(IntPtr sharedTextureHandle0, IntPtr sharedTextureHandle1, int width, int height)
+        {
+            Console.WriteLine($"[DEBUG-VIEW] Attach called: H0=0x{sharedTextureHandle0:X}, H1=0x{sharedTextureHandle1:X}, {width}x{height}, CheckAccess={Dispatcher.CheckAccess()}");
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.Invoke(() => Attach(sharedTextureHandle0, sharedTextureHandle1, width, height));
+                return;
+            }
+
+            if (!EnsureRendererInitialized() || _renderer == null)
+            {
+                return;
+            }
+
             if (_isAttached)
             {
                 Detach();
             }
 
-            if (_renderer.OpenSharedTexture(sharedTextureHandle, width, height))
+            bool opened = _renderer.OpenSharedTextures(sharedTextureHandle0, sharedTextureHandle1, width, height);
+
+            if (opened)
             {
                 if (_renderer.Bitmap != null)
                 {
@@ -115,13 +134,19 @@ namespace OpenMedia.Platform.Controls.Wpf
                 CompositionTarget.Rendering += OnRendering;
                 _isAttached = true;
                 IsPlaying = true;
-                Trace.WriteLine($"[OpenMediaVideoView] Attached: {width}x{height}");
+                Trace.WriteLine($"[OpenMediaVideoView] Attached: {width}x{height} (Double-buffered: {sharedTextureHandle1 != IntPtr.Zero})");
             }
         }
 
         /// <inheritdoc />
         public void Detach()
         {
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.Invoke(Detach);
+                return;
+            }
+
             if (!_isAttached) return;
 
             CompositionTarget.Rendering -= OnRendering;

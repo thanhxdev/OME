@@ -84,4 +84,13 @@ void PipelineEngineManager::StopAll() {
     }
 }
 
+void PipelineEngineManager::UpdateTexturePool(ipc::D3D11SharedTexturePoolPoC* pool) {
+    std::shared_lock lock(m_mutex);
+    for (auto& [id, session] : m_sessions) {
+        if (session) {
+            session->SetTexturePool(pool);
+        }
+    }
+}
+
 } // namespace openmedia::server

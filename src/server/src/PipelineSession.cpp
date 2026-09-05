@@ -241,7 +241,6 @@ void PipelineSession::RenderLoop() {
 
     core::AVSyncClock syncClock;
     std::shared_ptr<core::MediaFrame> pendingVideoFrame = nullptr;
-    size_t bufferIndex = 0;
 
     while (m_running.load()) {
         if (m_seekRequested.exchange(false)) {
@@ -264,10 +263,9 @@ void PipelineSession::RenderLoop() {
                 if (frameRes && *frameRes) {
                     auto frame = *frameRes;
                     if (m_texturePool) {
-                        if (m_texturePool->AcquireWriteLock(bufferIndex, 100)) {
-                            m_texturePool->UpdateFrame(bufferIndex, frame->GetVideoPlane(0), static_cast<uint32_t>(frame->GetLineSize(0)));
-                            m_texturePool->ReleaseWriteLock(bufferIndex);
-                            bufferIndex = (bufferIndex + 1) % 2;
+                        if (m_texturePool->AcquireWriteLock(0, 100)) {
+                            m_texturePool->UpdateFrame(0, frame->GetVideoPlane(0), static_cast<uint32_t>(frame->GetLineSize(0)));
+                            m_texturePool->ReleaseWriteLock(0);
                         }
                     }
                 }
@@ -343,11 +341,10 @@ void PipelineSession::RenderLoop() {
             switch (action) {
                 case core::AVSyncClock::VideoAction::Display:
                     if (m_texturePool) {
-                        if (m_texturePool->AcquireWriteLock(bufferIndex, 100)) {
-                            m_texturePool->UpdateFrame(bufferIndex, pendingVideoFrame->GetVideoPlane(0),
+                        if (m_texturePool->AcquireWriteLock(0, 100)) {
+                            m_texturePool->UpdateFrame(0, pendingVideoFrame->GetVideoPlane(0),
                                                        static_cast<uint32_t>(pendingVideoFrame->GetLineSize(0)));
-                            m_texturePool->ReleaseWriteLock(bufferIndex);
-                            bufferIndex = (bufferIndex + 1) % 2;
+                            m_texturePool->ReleaseWriteLock(0);
 
                             double ptsSec = core::AVSyncClock::PtsToSeconds(*pendingVideoFrame);
                             if (ptsSec >= 0.0) {

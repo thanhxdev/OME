@@ -220,6 +220,11 @@ D3D11SharedTexturePoolPoC* IPCServer::GetSharedTexturePool() {
 
 void IPCServer::SetVideoResolution(uint32_t width, uint32_t height) {
     if (width == 0 || height == 0) return;
+
+    if (m_impl->texturePool && m_impl->videoWidth == width && m_impl->videoHeight == height) {
+        return;
+    }
+
     m_impl->videoWidth = width;
     m_impl->videoHeight = height;
 
