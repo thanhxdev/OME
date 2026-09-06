@@ -147,6 +147,7 @@ namespace SRT_DECODE
         public event Action<int, double>? ChannelGainChanged;
         public event Action<int, double>? ChannelPanChanged;
         public event Action<int, bool>? ChannelMuteChanged;
+        public event Action<byte[], int, int>? ProgramMixedPcmAvailable;
 
         public AudioChannelConfiguration ChannelConfig
         {
@@ -418,6 +419,9 @@ namespace SRT_DECODE
 
             // Feed actual mixed PCM into program meter
             _programMeter.ProcessPcmBytes(destination, offset, count, 16, 2, 48000, isFloat: false);
+
+            // Emit mixed Program PCM audio for NDI, SDI, Recording & SRT Bridge outputs
+            ProgramMixedPcmAvailable?.Invoke(destination, offset, count);
 
             return count;
         }

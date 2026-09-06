@@ -195,7 +195,7 @@ namespace SRT_DECODE
                     try
                     {
                         _process.Kill();
-                        _process.WaitForExit(500);
+                        _process.WaitForExit(100);
                     }
                     catch { }
                     _process.Dispose();

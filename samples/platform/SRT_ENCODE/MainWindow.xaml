@@ -991,7 +991,7 @@
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
                                                 <ComboBox x:Name="CmbSdiDevices" Grid.Column="0" Margin="0,0,8,0" SelectionChanged="CmbSdiDevices_SelectionChanged"/>
-                                                <Button Grid.Column="1" Content="🔄 Scan Cards" Style="{StaticResource ActionButtonStyle}" Click="BtnScanSdi_Click"/>
+                                                <Button Grid.Column="1" Content="🔄 Scan SDI" Style="{StaticResource ActionButtonStyle}" Click="BtnScanSdi_Click"/>
                                             </Grid>
 
                                             <Grid Margin="0,8,0,0">

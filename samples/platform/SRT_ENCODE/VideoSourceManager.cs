@@ -1,9 +1,11 @@
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using OpenMedia.Platform;
 using OpenMedia.Platform.Controls.Wpf;
 using OpenMedia.Platform.Models;
@@ -41,12 +43,20 @@ namespace SRT_ENCODE
     /// <summary>
     /// Quản lý tập trung toàn bộ nguồn video đầu vào (SDI, NDI, File, Colorbar),
     /// điều khiển MediaPlayer giải mã phát lại trên Preview (ReviewView),
+    /// điều khiển NDI Receiver & SDI Capture loop thời gian thực,
     /// đồng bộ hóa âm thanh kiểm âm (Audio Monitor) và cập nhật thông số nguồn thật.
     /// </summary>
     public sealed class VideoSourceManager : IDisposable
     {
         private PlatformMediaPlayer? _player;
         private readonly ColorbarEngine _colorbarEngine;
+
+        // Direct Live Capture Receivers
+        private NdiReceiver? _ndiReceiver;
+        private SdiDeviceCapture? _sdiCapture;
+        private WriteableBitmap? _previewBitmap;
+        private byte[]? _latestMasterFrame;
+        private readonly object _masterFrameLock = new();
 
         // UI references
         private OpenMediaVideoView? _reviewView;
@@ -89,6 +99,18 @@ namespace SRT_ENCODE
         public InputSourceType CurrentSource => _currentSource;
         public string CurrentSourcePath => _currentSourcePath;
         public VideoSourceTelemetry CurrentTelemetry => _currentTelemetry;
+
+        public byte[]? LatestMasterFrame
+        {
+            get
+            {
+                lock (_masterFrameLock)
+                {
+                    return _latestMasterFrame;
+                }
+            }
+        }
+
         private int _activeAudioChannels = 2;
         public int ActiveAudioChannels
         {
@@ -99,6 +121,7 @@ namespace SRT_ENCODE
         public event Action<string, string>? LogRequested;
         public event Action<InputSourceType, string>? SourceChanged;
         public event Action<VideoSourceTelemetry>? TelemetryUpdated;
+        public event Action<float[], int, int>? AudioSamplesArrived;
 
         public VideoSourceManager(ColorbarEngine colorbarEngine)
         {
@@ -154,6 +177,27 @@ namespace SRT_ENCODE
         }
 
         /// <summary>
+        /// Dừng các luồng bắt hình trực tiếp NDI / SDI
+        /// </summary>
+        private void StopLiveCaptures()
+        {
+            if (_ndiReceiver != null)
+            {
+                _ndiReceiver.VideoFrameReceived -= OnNdiVideoFrameReceived;
+                _ndiReceiver.AudioSamplesReceived -= OnNdiAudioSamplesReceived;
+                _ndiReceiver.Dispose();
+                _ndiReceiver = null;
+            }
+
+            if (_sdiCapture != null)
+            {
+                _sdiCapture.VideoFrameReceived -= OnSdiVideoFrameReceived;
+                _sdiCapture.Dispose();
+                _sdiCapture = null;
+            }
+        }
+
+        /// <summary>
         /// Chuyển đổi nguồn phát sóng đầu vào
         /// </summary>
         public async Task SwitchSourceAsync(InputSourceType sourceType, string? sourceParam = null, string? videoMode = null, string? audioCh = null)
@@ -164,22 +208,25 @@ namespace SRT_ENCODE
             switch (sourceType)
             {
                 case InputSourceType.SDI:
-                    await HandleSdiSourceAsync(sourceParam ?? "Blackmagic DeckLink 8K Pro (SDI 1 - 1080p59.94)", videoMode, audioCh);
+                    await HandleSdiSourceAsync(sourceParam ?? "Default SDI Capture Card", videoMode, audioCh);
                     break;
 
                 case InputSourceType.NDI:
-                    await HandleNdiSourceAsync(sourceParam ?? "STUDIO-MCR-01 (Main Program Feed)");
+                    await HandleNdiSourceAsync(sourceParam ?? "");
                     break;
 
                 case InputSourceType.File:
+                    StopLiveCaptures();
                     await HandleFileSourceAsync(sourceParam ?? string.Empty);
                     break;
 
                 case InputSourceType.Colorbar:
+                    StopLiveCaptures();
                     HandleColorbarSource();
                     break;
 
                 case InputSourceType.SRT:
+                    StopLiveCaptures();
                     await HandleSrtSourceAsync(sourceParam ?? "srt://127.0.0.1:9000?mode=caller");
                     break;
             }
@@ -263,7 +310,6 @@ namespace SRT_ENCODE
 
             if (info != null && info.Width > 0 && info.Height > 0)
             {
-                // Chuẩn phát sóng: Tối thiểu 2 kênh Stereo (L/R) để hiển thị đầy đủ và kiểm âm, hỗ trợ đa kênh đến 16 CH
                 _activeAudioChannels = (info.AudioChannels > 1) ? Math.Clamp(info.AudioChannels, 2, 16) : 2;
                 string resTag = (info.Width >= 3840) ? "4K UHD" : (info.Width >= 1920) ? "1080p FHD" : $"{info.Height}p HD";
                 _currentTelemetry.Resolution = $"{info.Width} x {info.Height} ({resTag})";
@@ -310,7 +356,7 @@ namespace SRT_ENCODE
 
         #endregion
 
-        #region SDI Input Handler
+        #region SDI Input Handler (DirectShow COM Hardware Capture)
 
         public async Task HandleSdiSourceAsync(string deviceName, string? videoMode = null, string? audioCh = null)
         {
@@ -327,33 +373,124 @@ namespace SRT_ENCODE
             }
 
             _colorbarEngine.StopAudioTone();
+            StopLiveCaptures();
+
+            if (_player != null)
+            {
+                try { await _player.PauseAsync(); } catch { }
+            }
+
+            if (string.IsNullOrWhiteSpace(deviceName) ||
+                deviceName.Contains("Không tìm thấy", StringComparison.OrdinalIgnoreCase) ||
+                deviceName.Contains("Chưa kết nối", StringComparison.OrdinalIgnoreCase))
+            {
+                Log("[WARN]", "Chưa có thiết bị SDI/Capture card nào được chọn hoặc không tìm thấy card.");
+                UpdateTelemetryForSdiNoHardware();
+                return;
+            }
+
+            // Phân tích video mode
+            string mode = videoMode ?? "1080p 59.94 fps";
+            int width = 1920;
+            int height = 1080;
+            double fps = 59.94;
+
+            if (mode.Contains("2160p") || mode.Contains("4K"))
+            {
+                width = 3840;
+                height = 2160;
+                fps = 59.94;
+            }
+            else if (mode.Contains("50 fps"))
+            {
+                fps = 50.0;
+            }
+            else if (mode.Contains("29.97"))
+            {
+                fps = 29.97;
+            }
 
             try
             {
-                Log("[INFO]", $"Đang kết nối tín hiệu từ Card phần cứng SDI [{deviceName}]...");
+                Log("[INFO]", $"Đang kết nối tín hiệu từ Card phần cứng SDI/Capture [{deviceName}] ({width}x{height} @ {fps:F2} fps)...");
 
-                if (_player == null)
+                _sdiCapture = new SdiDeviceCapture(deviceName);
+                _sdiCapture.LogRequested += (tag, msg) => Log(tag, msg);
+                _sdiCapture.VideoFrameReceived += OnSdiVideoFrameReceived;
+
+                bool started = _sdiCapture.Start(width, height, fps);
+                if (started)
                 {
-                    await RecreatePlayerAsync();
+                    Log("[INFO]", $"✅ [SUCCESS] Đã kích hoạt Capture Loop cho SDI/Capture Device: {deviceName}");
                 }
-
-                if (_player != null)
+                else
                 {
-                    _player.Volume = _monitorVolume;
-                    _player.IsMuted = !_isAudioMonitorEnabled;
-
-                    await _player.OpenAsync($"device://{deviceName}");
-                    await _player.PlayAsync();
-
-                    Log("[INFO]", $"✅ [SUCCESS] Đã kết nối luồng tín hiệu SDI: {deviceName}");
+                    Log("[WARN]", $"Chưa thể mở luồng SDI từ {deviceName}. Đang ở trạng thái chờ tín hiệu.");
                 }
             }
             catch (Exception ex)
             {
-                Log("[WARN]", $"Tín hiệu phần cứng SDI Studio Simulator: {ex.Message}");
+                Log("[WARN]", $"Lỗi khởi tạo bắt hình SDI: {ex.Message}");
             }
 
             UpdateTelemetryForSdi(deviceName, videoMode, audioCh);
+        }
+
+        private void OnSdiVideoFrameReceived(byte[] frameData, int width, int height, int stride, double fps)
+        {
+            lock (_masterFrameLock)
+            {
+                _latestMasterFrame = frameData;
+            }
+
+            if (_reviewView != null && _currentSource == InputSourceType.SDI && _isPreviewEnabled)
+            {
+                _reviewView.Dispatcher.InvokeAsync(() =>
+                {
+                    if (_reviewView == null || _currentSource != InputSourceType.SDI) return;
+
+                    if (_previewBitmap == null || _previewBitmap.PixelWidth != width || _previewBitmap.PixelHeight != height)
+                    {
+                        _previewBitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
+                        _reviewView.PresentBitmap(_previewBitmap);
+                    }
+
+                    _previewBitmap.Lock();
+                    try
+                    {
+                        unsafe
+                        {
+                            int copyBytes = Math.Min(frameData.Length, _previewBitmap.BackBufferStride * height);
+                            fixed (byte* pSrc = frameData)
+                            {
+                                Buffer.MemoryCopy(pSrc, (void*)_previewBitmap.BackBuffer, copyBytes, copyBytes);
+                            }
+                        }
+                        _previewBitmap.AddDirtyRect(new Int32Rect(0, 0, width, height));
+                    }
+                    finally
+                    {
+                        _previewBitmap.Unlock();
+                    }
+                }, System.Windows.Threading.DispatcherPriority.Render);
+            }
+        }
+
+        private void UpdateTelemetryForSdiNoHardware()
+        {
+            _currentTelemetry.SourceName = "No SDI Device Connected";
+            _currentTelemetry.SourceType = "SDI / HARDWARE";
+            _currentTelemetry.Status = "○ NO SDI SIGNAL";
+            _currentTelemetry.IsLocked = false;
+            _currentTelemetry.Resolution = "-- x --";
+            _currentTelemetry.FrameRate = "0.00 FPS";
+            _currentTelemetry.VideoCodec = "None";
+            _currentTelemetry.Bitrate = "0 Gbps";
+            _currentTelemetry.AudioFormat = "No SDI Audio";
+            _currentTelemetry.ColorSpace = "None";
+            _currentTelemetry.PipelineDetails = "Chưa phát hiện phần cứng SDI. Vui lòng cắm Card DeckLink/Magewell hoặc bấm 'Scan SDI'.";
+
+            TelemetryUpdated?.Invoke(_currentTelemetry);
         }
 
         private void UpdateTelemetryForSdi(string deviceName, string? videoMode, string? audioCh)
@@ -367,8 +504,8 @@ namespace SRT_ENCODE
             else _activeAudioChannels = 2;
 
             _currentTelemetry.SourceName = deviceName;
-            _currentTelemetry.SourceType = "SDI / DECKLINK";
-            _currentTelemetry.Status = "● HARDWARE LOCKED (SDI SIGNAL OK)";
+            _currentTelemetry.SourceType = "SDI / CAPTURE";
+            _currentTelemetry.Status = "● HARDWARE LOCKED (SIGNAL OK)";
             _currentTelemetry.IsLocked = true;
 
             if (mode.Contains("2160p") || mode.Contains("4K"))
@@ -399,14 +536,14 @@ namespace SRT_ENCODE
             _currentTelemetry.VideoCodec = "Uncompressed 10-bit YUV (v210 / UYVY)";
             _currentTelemetry.AudioFormat = $"{audio} @ 48.0 kHz 24-bit PCM (SDI Embedded)";
             _currentTelemetry.ColorSpace = "ITU-R BT.709 (4:2:2 10-bit Broadcast Studio)";
-            _currentTelemetry.PipelineDetails = "Blackmagic DeckLink Direct3D 11 Zero-Copy Capture Pipeline";
+            _currentTelemetry.PipelineDetails = "Blackmagic DeckLink / DirectShow Zero-Copy Capture Pipeline";
 
             TelemetryUpdated?.Invoke(_currentTelemetry);
         }
 
         #endregion
 
-        #region NDI Input Handler
+        #region NDI Input Handler (NDI 6 SDK Live Receiver Loop)
 
         public async Task HandleNdiSourceAsync(string ndiSourceName)
         {
@@ -423,40 +560,122 @@ namespace SRT_ENCODE
             }
 
             _colorbarEngine.StopAudioTone();
+            StopLiveCaptures();
+
+            if (_player != null)
+            {
+                try { await _player.PauseAsync(); } catch { }
+            }
+
+            if (string.IsNullOrWhiteSpace(ndiSourceName) ||
+                ndiSourceName.Contains("Không tìm thấy", StringComparison.OrdinalIgnoreCase))
+            {
+                Log("[WARN]", "Chưa chọn nguồn NDI hợp lệ hoặc không tìm thấy nguồn NDI trên mạng LAN.");
+                UpdateTelemetryForNdiNoSignal();
+                return;
+            }
 
             try
             {
-                Log("[INFO]", $"Đang bắt luồng mạng NDI [{ndiSourceName}]...");
+                Log("[INFO]", $"Đang kết nối luồng mạng NDI thời gian thực [{ndiSourceName}]...");
 
-                if (_player == null)
+                _ndiReceiver = new NdiReceiver(ndiSourceName);
+                _ndiReceiver.LogRequested += (tag, msg) => Log(tag, msg);
+                _ndiReceiver.VideoFrameReceived += OnNdiVideoFrameReceived;
+                _ndiReceiver.AudioSamplesReceived += OnNdiAudioSamplesReceived;
+
+                bool started = _ndiReceiver.Start();
+                if (started)
                 {
-                    await RecreatePlayerAsync();
+                    Log("[INFO]", $"✅ [SUCCESS] Đã kích hoạt NDI Receiver Loop: {ndiSourceName}");
                 }
-
-                if (_player != null)
+                else
                 {
-                    _player.Volume = _monitorVolume;
-                    _player.IsMuted = !_isAudioMonitorEnabled;
-
-                    await _player.OpenAsync($"ndi://{ndiSourceName}");
-                    await _player.PlayAsync();
-
-                    Log("[INFO]", $"✅ [SUCCESS] Đã kết nối luồng NDI Network Stream: {ndiSourceName}");
+                    Log("[WARN]", $"Chưa thể kích hoạt NDI Receiver cho: {ndiSourceName}");
                 }
             }
             catch (Exception ex)
             {
-                Log("[WARN]", $"Bắt luồng mạng NDI Network Stream Simulator: {ex.Message}");
+                Log("[WARN]", $"Lỗi kết nối NDI: {ex.Message}");
             }
 
             UpdateTelemetryForNdi(ndiSourceName);
+            await Task.CompletedTask;
+        }
+
+        private void OnNdiVideoFrameReceived(byte[] frameData, int width, int height, int stride, double fps)
+        {
+            lock (_masterFrameLock)
+            {
+                _latestMasterFrame = frameData;
+            }
+
+            if (_reviewView != null && _currentSource == InputSourceType.NDI && _isPreviewEnabled)
+            {
+                _reviewView.Dispatcher.InvokeAsync(() =>
+                {
+                    if (_reviewView == null || _currentSource != InputSourceType.NDI) return;
+
+                    if (_previewBitmap == null || _previewBitmap.PixelWidth != width || _previewBitmap.PixelHeight != height)
+                    {
+                        _previewBitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
+                        _reviewView.PresentBitmap(_previewBitmap);
+                    }
+
+                    _previewBitmap.Lock();
+                    try
+                    {
+                        unsafe
+                        {
+                            int copyBytes = Math.Min(frameData.Length, _previewBitmap.BackBufferStride * height);
+                            fixed (byte* pSrc = frameData)
+                            {
+                                Buffer.MemoryCopy(pSrc, (void*)_previewBitmap.BackBuffer, copyBytes, copyBytes);
+                            }
+                        }
+                        _previewBitmap.AddDirtyRect(new Int32Rect(0, 0, width, height));
+                    }
+                    finally
+                    {
+                        _previewBitmap.Unlock();
+                    }
+                }, System.Windows.Threading.DispatcherPriority.Render);
+            }
+
+            _currentTelemetry.Resolution = $"{width} x {height} (NDI Native)";
+            _currentTelemetry.FrameRate = $"{fps:F2} FPS";
+            _currentTelemetry.Status = "● NDI STREAM LOCKED (LAN ACTIVE)";
+            _currentTelemetry.IsLocked = true;
+            TelemetryUpdated?.Invoke(_currentTelemetry);
+        }
+
+        private void OnNdiAudioSamplesReceived(float[] samples, int channels, int sampleRate)
+        {
+            AudioSamplesArrived?.Invoke(samples, channels, sampleRate);
+        }
+
+        private void UpdateTelemetryForNdiNoSignal()
+        {
+            _currentTelemetry.SourceName = "No NDI Source";
+            _currentTelemetry.SourceType = "NDI IP STREAM";
+            _currentTelemetry.Status = "○ NO NDI SIGNAL";
+            _currentTelemetry.IsLocked = false;
+            _currentTelemetry.Resolution = "-- x --";
+            _currentTelemetry.FrameRate = "0.00 FPS";
+            _currentTelemetry.VideoCodec = "None";
+            _currentTelemetry.Bitrate = "0 Mbps";
+            _currentTelemetry.AudioFormat = "No NDI Audio";
+            _currentTelemetry.ColorSpace = "None";
+            _currentTelemetry.PipelineDetails = "Không phát hiện luồng NDI trên mạng LAN. Bấm 'Find NDI' để quét lại.";
+
+            TelemetryUpdated?.Invoke(_currentTelemetry);
         }
 
         private void UpdateTelemetryForNdi(string ndiSourceName)
         {
             _currentTelemetry.SourceName = ndiSourceName;
             _currentTelemetry.SourceType = "NDI IP STREAM";
-            _currentTelemetry.Status = "● NDI STREAM LOCKED (LAN ACTIVE)";
+            _currentTelemetry.Status = "● NDI STREAM CONNECTING...";
             _currentTelemetry.IsLocked = true;
 
             if (ndiSourceName.Contains("4K", StringComparison.OrdinalIgnoreCase))
@@ -472,10 +691,10 @@ namespace SRT_ENCODE
                 _currentTelemetry.Bitrate = "125.0 Mbps (NDI High Bandwidth)";
             }
 
-            _currentTelemetry.VideoCodec = "NDI SpeedHQ / SHQ2 (YUV 4:2:2 Variable)";
+            _currentTelemetry.VideoCodec = "NDI SpeedHQ / SHQ2 (BGRA Raw Interop)";
             _currentTelemetry.AudioFormat = "Stereo (2 Ch) @ 48.0 kHz 32-bit Float PCM";
             _currentTelemetry.ColorSpace = "ITU-R BT.709 / YUV 4:2:2 (Full Color Dynamic)";
-            _currentTelemetry.PipelineDetails = "NewTek NDI 6.0 Advanced SDK Receiver • mDNS LAN Auto-Discovery";
+            _currentTelemetry.PipelineDetails = "NewTek NDI 6.0 Advanced SDK Receiver • Zero-Latency Direct Surface";
 
             TelemetryUpdated?.Invoke(_currentTelemetry);
         }
@@ -581,7 +800,6 @@ namespace SRT_ENCODE
                 var config = customConfig ?? new SRTStreamConfig();
                 if (!string.IsNullOrEmpty(srtUri) && srtUri.StartsWith("srt://", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Trích xuất host / port cơ bản nếu là URL
                     try
                     {
                         var uri = new Uri(srtUri);
@@ -725,6 +943,7 @@ namespace SRT_ENCODE
 
         public void Dispose()
         {
+            StopLiveCaptures();
             _colorbarEngine.Dispose();
             _srtStreamSource?.Dispose();
             _srtStreamSource = null;

@@ -80,6 +80,10 @@ namespace SRT_ENCODE
             _sourceManager = new VideoSourceManager(_colorbarEngine);
             _sourceManager.LogRequested += (tag, msg) => LogEvent(tag, msg);
             _sourceManager.TelemetryUpdated += UpdateSourceTelemetryUI;
+            _sourceManager.AudioSamplesArrived += (samples, channels, sampleRate) =>
+            {
+                _audioMeterService.TapPcmDirect(samples, channels, sampleRate);
+            };
             _isInitialized = true;
             Loaded += MainWindow_Loaded;
             Closing += MainWindow_Closing;
@@ -446,10 +450,13 @@ namespace SRT_ENCODE
                         break;
 
                     case InputSourceType.File:
-                    case InputSourceType.SDI:
-                    case InputSourceType.NDI:
                     case InputSourceType.SRT:
                         _ = _audioMeterService.TapPlayerAudioAsync(_sourceManager.Player, configuredChannels);
+                        break;
+
+                    case InputSourceType.NDI:
+                    case InputSourceType.SDI:
+                        // Âm thanh NDI/SDI được đẩy trực tiếp qua AudioSamplesArrived -> TapPcmDirect
                         break;
                 }
             }
@@ -603,50 +610,36 @@ namespace SRT_ENCODE
         {
             try
             {
-                LogEvent("[INFO]", "Đang quét các thiết bị phần cứng SDI / DeckLink / Video Capture trên hệ thống...");
+                LogEvent("[INFO]", "Đang quét các thiết bị phần cứng SDI / DeckLink / Video Capture trên hệ thống qua DirectShow...");
                 CmbSdiDevices.Items.Clear();
 
-                var devices = await DeviceCapture.RefreshDevicesAsync();
-                var sdiDevices = devices.Where(d => d.Type == DeviceCapture.DeviceType.DeckLink || 
-                                                    d.Name.Contains("DeckLink", StringComparison.OrdinalIgnoreCase) || 
-                                                    d.Name.Contains("AJA", StringComparison.OrdinalIgnoreCase) || 
-                                                    d.Name.Contains("SDI", StringComparison.OrdinalIgnoreCase) ||
-                                                    d.Name.Contains("Magewell", StringComparison.OrdinalIgnoreCase) ||
-                                                    d.Name.Contains("Blackmagic", StringComparison.OrdinalIgnoreCase)).ToList();
+                var devices = await HardwareDeviceScanner.ScanDevicesAsync();
 
-                if (sdiDevices.Count > 0)
+                if (devices.Count > 0)
                 {
-                    foreach (var dev in sdiDevices)
+                    foreach (var dev in devices)
                     {
-                        CmbSdiDevices.Items.Add(dev.Name);
+                        CmbSdiDevices.Items.Add(dev.DisplayLabel);
                     }
                     CmbSdiDevices.SelectedIndex = 0;
-                    LogEvent("[INFO]", $"✅ Tìm thấy {sdiDevices.Count} thiết bị phần cứng SDI/Capture kết nối.");
+                    int sdiCount = devices.Count(d => d.IsSdiHardware);
+                    LogEvent("[INFO]", $"✅ Tìm thấy {devices.Count} thiết bị Video Capture ({sdiCount} thiết bị SDI/Broadcast chuyên dụng).");
                 }
                 else
                 {
-                    // Liệt kê các thiết bị video capture / webcam thực tế khác có sẵn trên máy
-                    var otherVideoDevices = devices.Where(d => d.Type == DeviceCapture.DeviceType.Camera || d.Type == DeviceCapture.DeviceType.Screen).ToList();
-                    if (otherVideoDevices.Count > 0)
-                    {
-                        foreach (var dev in otherVideoDevices)
-                        {
-                            CmbSdiDevices.Items.Add($"{dev.Name} (System Video Device)");
-                        }
-                        CmbSdiDevices.SelectedIndex = 0;
-                        LogEvent("[INFO]", $"Phát hiện {otherVideoDevices.Count} thiết bị video capture/webcam hệ thống.");
-                    }
-                    else
-                    {
-                        CmbSdiDevices.Items.Add("Không tìm thấy thiết bị phần cứng SDI (Chưa kết nối card)");
-                        CmbSdiDevices.SelectedIndex = 0;
-                        LogEvent("[WARN]", "Không tìm thấy thiết bị phần cứng SDI/DeckLink nào đang kết nối trên máy.");
-                    }
+                    CmbSdiDevices.Items.Add("[Không tìm thấy thiết bị phần cứng SDI/Capture nào]");
+                    CmbSdiDevices.SelectedIndex = 0;
+                    LogEvent("[WARN]", "Không tìm thấy thiết bị phần cứng SDI/DeckLink nào đang kết nối trên máy.");
                 }
             }
             catch (Exception ex)
             {
                 LogEvent("[WARN]", $"Lỗi quét SDI: {ex.Message}");
+                if (CmbSdiDevices.Items.Count == 0)
+                {
+                    CmbSdiDevices.Items.Add("[Không tìm thấy thiết bị phần cứng SDI/Capture nào]");
+                    CmbSdiDevices.SelectedIndex = 0;
+                }
             }
         }
 
@@ -659,35 +652,35 @@ namespace SRT_ENCODE
         {
             try
             {
-                LogEvent("[INFO]", "Đang quét các luồng NDI thời gian thực trên mạng LAN nội bộ...");
+                LogEvent("[INFO]", "Đang quét các luồng NDI thời gian thực trên mạng LAN (NDI 6 SDK mDNS Finder)...");
                 CmbNdiSources.Items.Clear();
 
-                var discoveredSources = new List<string>();
+                var discoveredSources = await NdiNativeFinder.FindSourcesAsync(800);
 
-                // Khởi tạo NDI Engine nếu chưa chạy
-                try
+                if (discoveredSources.Count > 0)
                 {
-                    OpenMedia.NDI.NDIEngine.Initialize();
+                    foreach (var src in discoveredSources)
+                    {
+                        CmbNdiSources.Items.Add(src);
+                    }
+                    CmbNdiSources.SelectedIndex = 0;
+                    LogEvent("[INFO]", $"✅ Đã phát hiện {discoveredSources.Count} luồng NDI Network Stream thời gian thực trên mạng LAN.");
                 }
-                catch { }
-
-                // Quét các thiết bị mạng nội bộ và tên máy host cho NDI
-                string hostName = Environment.MachineName;
-                discoveredSources.Add($"{hostName} (Primary NDI Program Out)");
-                discoveredSources.Add($"{hostName} (Studio Camera Feed)");
-
-                foreach (var src in discoveredSources)
+                else
                 {
-                    CmbNdiSources.Items.Add(src);
+                    CmbNdiSources.Items.Add("[Không tìm thấy nguồn NDI nào trên mạng]");
+                    CmbNdiSources.SelectedIndex = 0;
+                    LogEvent("[WARN]", "Không tìm thấy nguồn NDI nào đang phát trên mạng LAN.");
                 }
-                CmbNdiSources.SelectedIndex = 0;
-
-                LogEvent("[INFO]", $"✅ Đã phát hiện {discoveredSources.Count} luồng NDI Network Stream khả dụng trên máy [{hostName}].");
-                await Task.CompletedTask;
             }
             catch (Exception ex)
             {
                 LogEvent("[WARN]", $"Lỗi quét NDI: {ex.Message}");
+                if (CmbNdiSources.Items.Count == 0)
+                {
+                    CmbNdiSources.Items.Add("[Không tìm thấy nguồn NDI nào trên mạng]");
+                    CmbNdiSources.SelectedIndex = 0;
+                }
             }
         }
 
@@ -841,6 +834,20 @@ namespace SRT_ENCODE
 
             try
             {
+                // Ưu tiên nạp trực tiếp byte buffer từ luồng NDI / SDI thực tế (Zero Render Latency, không tốn RenderTargetBitmap)
+                if (_sourceManager.CurrentSource == InputSourceType.NDI || _sourceManager.CurrentSource == InputSourceType.SDI)
+                {
+                    byte[]? rawLiveFrame = _sourceManager.LatestMasterFrame;
+                    if (rawLiveFrame != null && rawLiveFrame.Length > 0)
+                    {
+                        lock (_programFrameLock)
+                        {
+                            _currentProgramFrameBytes = rawLiveFrame;
+                        }
+                        return;
+                    }
+                }
+
                 FrameworkElement? visualToCapture = null;
                 if (_sourceManager.CurrentSource == InputSourceType.Colorbar)
                 {
@@ -1996,6 +2003,18 @@ namespace SRT_ENCODE
                 // Master PGM Output với nguồn File: Video là luồng WYSIWYG từ Master Program Bus, Audio được đọc từ Media File
                 ffmpegArgs = $"-hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s 1920x1080 -r 30 -i pipe:0 -re -stream_loop -1 -i \"{currentFilePath}\" -map 0:v:0 -map 1:a? {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} -c:a aac -b:a 192k -ar 48000 -ac 2 -f mpegts -mpegts_flags resend_headers -pcr_period 20 pipe:1";
                 LogEvent("[PIPELINE]", $"🎬 Nạp nguồn Master PGM File (WYSIWYG 1920x1080 @ 30 FPS) vào Video Encoder ({normalizedCodec} via {hwEncoder})");
+            }
+            else if (currentSource == InputSourceType.NDI)
+            {
+                // Master PGM Output với nguồn NDI Live: Video từ NDI Receiver BGRA frame buffer
+                ffmpegArgs = $"-hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s 1920x1080 -r 30 -i pipe:0 -f lavfi -i \"anullsrc=channel_layout=stereo:sample_rate=48000\" {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} -c:a aac -b:a 192k -ar 48000 -ac 2 -f mpegts -mpegts_flags resend_headers -pcr_period 20 pipe:1";
+                LogEvent("[PIPELINE]", $"🌐 Nạp nguồn Master PGM NDI Stream ({_sourceManager.CurrentSourcePath}) vào Video Encoder ({normalizedCodec} via {hwEncoder})");
+            }
+            else if (currentSource == InputSourceType.SDI)
+            {
+                // Master PGM Output với nguồn SDI Live: Video từ SDI Device Capture BGRA frame buffer
+                ffmpegArgs = $"-hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s 1920x1080 -r 30 -i pipe:0 -f lavfi -i \"anullsrc=channel_layout=stereo:sample_rate=48000\" {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} -c:a aac -b:a 192k -ar 48000 -ac 2 -f mpegts -mpegts_flags resend_headers -pcr_period 20 pipe:1";
+                LogEvent("[PIPELINE]", $"📡 Nạp nguồn Master PGM SDI/Capture ({_sourceManager.CurrentSourcePath}) vào Video Encoder ({normalizedCodec} via {hwEncoder})");
             }
             else
             {

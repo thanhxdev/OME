@@ -1953,7 +1953,10 @@
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
                                                     <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                                        <CheckBox x:Name="ChkOutputSdiCam1" Content="SDI Card Port" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,3"/>
+                                                        <Grid Margin="0,0,0,3">
+                                                            <CheckBox x:Name="ChkOutputSdiCam1" Content="SDI Card Port" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                                            <Button x:Name="BtnScanIsoSdiCam1" Content="🔄 Scan SDI" Click="BtnScanSdi_Click" Background="#23232C" Foreground="#00FFCC" FontWeight="Bold" FontSize="10" Padding="6,2" HorizontalAlignment="Right" Cursor="Hand" ToolTip="Làm mới đồng thời danh sách card/cổng SDI cho toàn bộ 10 kênh ISO"/>
+                                                        </Grid>
                                                         <ComboBox x:Name="CmbOutputSdiPortCam1">
                                                             <ComboBoxItem Content="Blackmagic DeckLink (Port 1)" IsSelected="True"/>
                                                             <ComboBoxItem Content="Blackmagic DeckLink (Port 2)"/>
@@ -1986,6 +1989,10 @@
                                                     <TextBox x:Name="TxtOutputSrtHostCam1" Text="192.168.1.150" Grid.Column="0" Margin="0,0,4,0"/>
                                                     <TextBox x:Name="TxtOutputSrtPortCam1" Text="9101" Grid.Column="1"/>
                                                 </Grid>
+                                                <ComboBox x:Name="CmbOutputSrtModeCam1" Margin="0,0,0,4">
+                                                    <ComboBoxItem Content="Caller (Chủ động gửi)" IsSelected="True"/>
+                                                    <ComboBoxItem Content="Listener (Chờ kết nối)"/>
+                                                </ComboBox>
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>
@@ -2103,7 +2110,10 @@
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
                                                     <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                                        <CheckBox x:Name="ChkOutputSdiCam2" Content="SDI Card Port" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,3"/>
+                                                        <Grid Margin="0,0,0,3">
+                                                            <CheckBox x:Name="ChkOutputSdiCam2" Content="SDI Card Port" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                                            <Button x:Name="BtnScanIsoSdiCam2" Content="🔄 Scan SDI" Click="BtnScanSdi_Click" Background="#23232C" Foreground="#00FFCC" FontWeight="Bold" FontSize="10" Padding="6,2" HorizontalAlignment="Right" Cursor="Hand" ToolTip="Làm mới đồng thời danh sách card/cổng SDI cho toàn bộ 10 kênh ISO"/>
+                                                        </Grid>
                                                         <ComboBox x:Name="CmbOutputSdiPortCam2">
                                                             <ComboBoxItem Content="Blackmagic DeckLink (Port 2)" IsSelected="True"/>
                                                             <ComboBoxItem Content="Blackmagic DeckLink (Port 1)"/>
@@ -2135,6 +2145,10 @@
                                                     <TextBox x:Name="TxtOutputSrtHostCam2" Text="192.168.1.150" Grid.Column="0" Margin="0,0,4,0"/>
                                                     <TextBox x:Name="TxtOutputSrtPortCam2" Text="9102" Grid.Column="1"/>
                                                 </Grid>
+                                                <ComboBox x:Name="CmbOutputSrtModeCam2" Margin="0,0,0,4">
+                                                    <ComboBoxItem Content="Caller (Chủ động gửi)" IsSelected="True"/>
+                                                    <ComboBoxItem Content="Listener (Chờ kết nối)"/>
+                                                </ComboBox>
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>
@@ -2252,7 +2266,10 @@
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
                                                     <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                                        <CheckBox x:Name="ChkOutputSdiCam3" Content="SDI Card Port" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,3"/>
+                                                        <Grid Margin="0,0,0,3">
+                                                            <CheckBox x:Name="ChkOutputSdiCam3" Content="SDI Card Port" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                                            <Button x:Name="BtnScanIsoSdiCam3" Content="🔄 Scan SDI" Click="BtnScanSdi_Click" Background="#23232C" Foreground="#00FFCC" FontWeight="Bold" FontSize="10" Padding="6,2" HorizontalAlignment="Right" Cursor="Hand" ToolTip="Làm mới đồng thời danh sách card/cổng SDI cho toàn bộ 10 kênh ISO"/>
+                                                        </Grid>
                                                         <ComboBox x:Name="CmbOutputSdiPortCam3">
                                                             <ComboBoxItem Content="Blackmagic DeckLink (Port 3)" IsSelected="True"/>
                                                             <ComboBoxItem Content="Blackmagic DeckLink (Port 1)"/>
@@ -2283,6 +2300,10 @@
                                                     <TextBox x:Name="TxtOutputSrtHostCam3" Text="192.168.1.150" Grid.Column="0" Margin="0,0,4,0"/>
                                                     <TextBox x:Name="TxtOutputSrtPortCam3" Text="9103" Grid.Column="1"/>
                                                 </Grid>
+                                                <ComboBox x:Name="CmbOutputSrtModeCam3" Margin="0,0,0,4">
+                                                    <ComboBoxItem Content="Caller (Chủ động gửi)" IsSelected="True"/>
+                                                    <ComboBoxItem Content="Listener (Chờ kết nối)"/>
+                                                </ComboBox>
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>
@@ -2398,7 +2419,10 @@
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
                                                     <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                                        <CheckBox x:Name="ChkOutputSdiCam4" Content="SDI Card Port" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,3"/>
+                                                        <Grid Margin="0,0,0,3">
+                                                            <CheckBox x:Name="ChkOutputSdiCam4" Content="SDI Card Port" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                                            <Button x:Name="BtnScanIsoSdiCam4" Content="🔄 Scan SDI" Click="BtnScanSdi_Click" Background="#23232C" Foreground="#00FFCC" FontWeight="Bold" FontSize="10" Padding="6,2" HorizontalAlignment="Right" Cursor="Hand" ToolTip="Làm mới đồng thời danh sách card/cổng SDI cho toàn bộ 10 kênh ISO"/>
+                                                        </Grid>
                                                         <ComboBox x:Name="CmbOutputSdiPortCam4">
                                                             <ComboBoxItem Content="Blackmagic DeckLink (Port 4)" IsSelected="True"/>
                                                             <ComboBoxItem Content="Blackmagic DeckLink (Port 1)"/>
@@ -2427,6 +2451,10 @@
                                                     <TextBox x:Name="TxtOutputSrtHostCam4" Text="192.168.1.150" Grid.Column="0" Margin="0,0,4,0"/>
                                                     <TextBox x:Name="TxtOutputSrtPortCam4" Text="9104" Grid.Column="1"/>
                                                 </Grid>
+                                                <ComboBox x:Name="CmbOutputSrtModeCam4" Margin="0,0,0,4">
+                                                    <ComboBoxItem Content="Caller (Chủ động gửi)" IsSelected="True"/>
+                                                    <ComboBoxItem Content="Listener (Chờ kết nối)"/>
+                                                </ComboBox>
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>
@@ -2538,7 +2566,10 @@
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
                                                     <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                                        <CheckBox x:Name="ChkOutputSdiCam5" Content="SDI Card Port" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,3"/>
+                                                        <Grid Margin="0,0,0,3">
+                                                            <CheckBox x:Name="ChkOutputSdiCam5" Content="SDI Card Port" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                                            <Button x:Name="BtnScanIsoSdiCam5" Content="🔄 Scan SDI" Click="BtnScanSdi_Click" Background="#23232C" Foreground="#00FFCC" FontWeight="Bold" FontSize="10" Padding="6,2" HorizontalAlignment="Right" Cursor="Hand" ToolTip="Làm mới đồng thời danh sách card/cổng SDI cho toàn bộ 10 kênh ISO"/>
+                                                        </Grid>
                                                         <ComboBox x:Name="CmbOutputSdiPortCam5">
                                                             <ComboBoxItem Content="DeckLink 8K Pro (Port 1)" IsSelected="True"/>
                                                             <ComboBoxItem Content="DeckLink 8K Pro (Port 2)"/>
@@ -2567,6 +2598,10 @@
                                                     <TextBox x:Name="TxtOutputSrtHostCam5" Text="192.168.1.150" Grid.Column="0" Margin="0,0,4,0"/>
                                                     <TextBox x:Name="TxtOutputSrtPortCam5" Text="9105" Grid.Column="1"/>
                                                 </Grid>
+                                                <ComboBox x:Name="CmbOutputSrtModeCam5" Margin="0,0,0,4">
+                                                    <ComboBoxItem Content="Caller (Chủ động gửi)" IsSelected="True"/>
+                                                    <ComboBoxItem Content="Listener (Chờ kết nối)"/>
+                                                </ComboBox>
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>
@@ -2678,7 +2713,10 @@
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
                                                     <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                                        <CheckBox x:Name="ChkOutputSdiCam6" Content="SDI Card Port" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,3"/>
+                                                        <Grid Margin="0,0,0,3">
+                                                            <CheckBox x:Name="ChkOutputSdiCam6" Content="SDI Card Port" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                                            <Button x:Name="BtnScanIsoSdiCam6" Content="🔄 Scan SDI" Click="BtnScanSdi_Click" Background="#23232C" Foreground="#00FFCC" FontWeight="Bold" FontSize="10" Padding="6,2" HorizontalAlignment="Right" Cursor="Hand" ToolTip="Làm mới đồng thời danh sách card/cổng SDI cho toàn bộ 10 kênh ISO"/>
+                                                        </Grid>
                                                         <ComboBox x:Name="CmbOutputSdiPortCam6">
                                                             <ComboBoxItem Content="DeckLink 8K Pro (Port 2)" IsSelected="True"/>
                                                             <ComboBoxItem Content="DeckLink 8K Pro (Port 1)"/>
@@ -2706,6 +2744,10 @@
                                                     <TextBox x:Name="TxtOutputSrtHostCam6" Text="192.168.1.150" Grid.Column="0" Margin="0,0,4,0"/>
                                                     <TextBox x:Name="TxtOutputSrtPortCam6" Text="9106" Grid.Column="1"/>
                                                 </Grid>
+                                                <ComboBox x:Name="CmbOutputSrtModeCam6" Margin="0,0,0,4">
+                                                    <ComboBoxItem Content="Caller (Chủ động gửi)" IsSelected="True"/>
+                                                    <ComboBoxItem Content="Listener (Chờ kết nối)"/>
+                                                </ComboBox>
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>
@@ -2817,7 +2859,10 @@
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
                                                     <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                                        <CheckBox x:Name="ChkOutputSdiCam7" Content="SDI Card Port" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,3"/>
+                                                        <Grid Margin="0,0,0,3">
+                                                            <CheckBox x:Name="ChkOutputSdiCam7" Content="SDI Card Port" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                                            <Button x:Name="BtnScanIsoSdiCam7" Content="🔄 Scan SDI" Click="BtnScanSdi_Click" Background="#23232C" Foreground="#00FFCC" FontWeight="Bold" FontSize="10" Padding="6,2" HorizontalAlignment="Right" Cursor="Hand" ToolTip="Làm mới đồng thời danh sách card/cổng SDI cho toàn bộ 10 kênh ISO"/>
+                                                        </Grid>
                                                         <ComboBox x:Name="CmbOutputSdiPortCam7">
                                                             <ComboBoxItem Content="DeckLink 8K Pro (Port 3)" IsSelected="True"/>
                                                             <ComboBoxItem Content="DeckLink 8K Pro (Port 1)"/>
@@ -2844,6 +2889,10 @@
                                                     <TextBox x:Name="TxtOutputSrtHostCam7" Text="192.168.1.150" Grid.Column="0" Margin="0,0,4,0"/>
                                                     <TextBox x:Name="TxtOutputSrtPortCam7" Text="9107" Grid.Column="1"/>
                                                 </Grid>
+                                                <ComboBox x:Name="CmbOutputSrtModeCam7" Margin="0,0,0,4">
+                                                    <ComboBoxItem Content="Caller (Chủ động gửi)" IsSelected="True"/>
+                                                    <ComboBoxItem Content="Listener (Chờ kết nối)"/>
+                                                </ComboBox>
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>
@@ -2955,7 +3004,10 @@
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
                                                     <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                                        <CheckBox x:Name="ChkOutputSdiCam8" Content="SDI Card Port" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,3"/>
+                                                        <Grid Margin="0,0,0,3">
+                                                            <CheckBox x:Name="ChkOutputSdiCam8" Content="SDI Card Port" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                                            <Button x:Name="BtnScanIsoSdiCam8" Content="🔄 Scan SDI" Click="BtnScanSdi_Click" Background="#23232C" Foreground="#00FFCC" FontWeight="Bold" FontSize="10" Padding="6,2" HorizontalAlignment="Right" Cursor="Hand" ToolTip="Làm mới đồng thời danh sách card/cổng SDI cho toàn bộ 10 kênh ISO"/>
+                                                        </Grid>
                                                         <ComboBox x:Name="CmbOutputSdiPortCam8">
                                                             <ComboBoxItem Content="DeckLink 8K Pro (Port 4)" IsSelected="True"/>
                                                             <ComboBoxItem Content="DeckLink 8K Pro (Port 1)"/>
@@ -2982,6 +3034,10 @@
                                                     <TextBox x:Name="TxtOutputSrtHostCam8" Text="192.168.1.150" Grid.Column="0" Margin="0,0,4,0"/>
                                                     <TextBox x:Name="TxtOutputSrtPortCam8" Text="9108" Grid.Column="1"/>
                                                 </Grid>
+                                                <ComboBox x:Name="CmbOutputSrtModeCam8" Margin="0,0,0,4">
+                                                    <ComboBoxItem Content="Caller (Chủ động gửi)" IsSelected="True"/>
+                                                    <ComboBoxItem Content="Listener (Chờ kết nối)"/>
+                                                </ComboBox>
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>
@@ -3093,7 +3149,10 @@
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
                                                     <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                                        <CheckBox x:Name="ChkOutputSdiCam9" Content="SDI Card Port" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,3"/>
+                                                        <Grid Margin="0,0,0,3">
+                                                            <CheckBox x:Name="ChkOutputSdiCam9" Content="SDI Card Port" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                                            <Button x:Name="BtnScanIsoSdiCam9" Content="🔄 Scan SDI" Click="BtnScanSdi_Click" Background="#23232C" Foreground="#00FFCC" FontWeight="Bold" FontSize="10" Padding="6,2" HorizontalAlignment="Right" Cursor="Hand" ToolTip="Làm mới đồng thời danh sách card/cổng SDI cho toàn bộ 10 kênh ISO"/>
+                                                        </Grid>
                                                         <ComboBox x:Name="CmbOutputSdiPortCam9">
                                                             <ComboBoxItem Content="DeckLink 8K Pro (Port 1)" IsSelected="True"/>
                                                             <ComboBoxItem Content="DeckLink 8K Pro (Port 2)"/>
@@ -3120,6 +3179,10 @@
                                                     <TextBox x:Name="TxtOutputSrtHostCam9" Text="192.168.1.150" Grid.Column="0" Margin="0,0,4,0"/>
                                                     <TextBox x:Name="TxtOutputSrtPortCam9" Text="9109" Grid.Column="1"/>
                                                 </Grid>
+                                                <ComboBox x:Name="CmbOutputSrtModeCam9" Margin="0,0,0,4">
+                                                    <ComboBoxItem Content="Caller (Chủ động gửi)" IsSelected="True"/>
+                                                    <ComboBoxItem Content="Listener (Chờ kết nối)"/>
+                                                </ComboBox>
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>
@@ -3231,7 +3294,10 @@
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
                                                     <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                                        <CheckBox x:Name="ChkOutputSdiCam10" Content="SDI Card Port" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,3"/>
+                                                        <Grid Margin="0,0,0,3">
+                                                            <CheckBox x:Name="ChkOutputSdiCam10" Content="SDI Card Port" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                                            <Button x:Name="BtnScanIsoSdiCam10" Content="🔄 Scan SDI" Click="BtnScanSdi_Click" Background="#23232C" Foreground="#00FFCC" FontWeight="Bold" FontSize="10" Padding="6,2" HorizontalAlignment="Right" Cursor="Hand" ToolTip="Làm mới đồng thời danh sách card/cổng SDI cho toàn bộ 10 kênh ISO"/>
+                                                        </Grid>
                                                         <ComboBox x:Name="CmbOutputSdiPortCam10">
                                                             <ComboBoxItem Content="DeckLink 8K Pro (Port 2)" IsSelected="True"/>
                                                             <ComboBoxItem Content="DeckLink 8K Pro (Port 1)"/>
@@ -3258,6 +3324,10 @@
                                                     <TextBox x:Name="TxtOutputSrtHostCam10" Text="192.168.1.150" Grid.Column="0" Margin="0,0,4,0"/>
                                                     <TextBox x:Name="TxtOutputSrtPortCam10" Text="9110" Grid.Column="1"/>
                                                 </Grid>
+                                                <ComboBox x:Name="CmbOutputSrtModeCam10" Margin="0,0,0,4">
+                                                    <ComboBoxItem Content="Caller (Chủ động gửi)" IsSelected="True"/>
+                                                    <ComboBoxItem Content="Listener (Chờ kết nối)"/>
+                                                </ComboBox>
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>
@@ -3370,6 +3440,45 @@
                                             </Border>
                                         </Grid>
 
+                                        <!-- 0. Fullscreen Monitor Playout & Hardware Discovery -->
+                                        <Border Style="{StaticResource SubCardBorderStyle}" Background="#16161B" BorderBrush="#00FFCC" BorderThickness="1" Margin="0,0,0,8">
+                                            <StackPanel>
+                                                <Grid Margin="0,0,0,6">
+                                                    <TextBlock Text="🖥️ FULLSCREEN MONITOR PLAYOUT" FontWeight="Bold" FontSize="11.5" Foreground="#00FFCC" VerticalAlignment="Center"/>
+                                                    <Button x:Name="BtnRefreshDevices" Content="🔄 Scan Devices" Click="BtnRefreshDevices_Click" HorizontalAlignment="Right"
+                                                            Background="#2A2A35" Foreground="#00FFCC" BorderBrush="#3A3A4A" BorderThickness="1" Padding="8,3" FontSize="10.5" FontWeight="Bold" Cursor="Hand"
+                                                            ToolTip="Quét lại danh sách màn hình hiển thị và thiết bị xuất"/>
+                                                </Grid>
+
+                                                <Grid Margin="0,0,0,4">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="2*"/>
+                                                        <ColumnDefinition Width="1.2*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0" Margin="0,0,4,0">
+                                                        <TextBlock Text="Màn hình xuất (Display Screen)" Style="{StaticResource HeaderLabelStyle}"/>
+                                                        <ComboBox x:Name="CmbDisplayMonitors"/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1" Margin="4,0,0,0">
+                                                        <TextBlock Text="Nguồn tín hiệu" Style="{StaticResource HeaderLabelStyle}"/>
+                                                        <ComboBox x:Name="CmbPlayoutSource" SelectionChanged="CmbPlayoutSource_SelectionChanged">
+                                                            <ComboBoxItem Content="Master Program (PGM)" IsSelected="True"/>
+                                                            <ComboBoxItem Content="Multiviewer Grid"/>
+                                                        </ComboBox>
+                                                    </StackPanel>
+                                                </Grid>
+
+                                                <Button x:Name="BtnLaunchFullscreenPlayout" Content="🖥️ Khởi chạy Fullscreen Playout (Màn hình ngoài)" Click="BtnLaunchFullscreenPlayout_Click"
+                                                        Background="#007ACC" Foreground="White" FontWeight="Bold" FontSize="11.5" Padding="10,6" Margin="0,4,0,0" Cursor="Hand">
+                                                    <Button.Resources>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="CornerRadius" Value="4"/>
+                                                        </Style>
+                                                    </Button.Resources>
+                                                </Button>
+                                            </StackPanel>
+                                        </Border>
+
                                         <!-- 1. Master Video Codec Output Settings -->
                                         <Border Style="{StaticResource SubCardBorderStyle}" Background="#16161B" BorderBrush="#383845">
                                             <StackPanel>
@@ -3442,7 +3551,10 @@
                                                     </StackPanel>
                                                     <CheckBox x:Name="ChkSdiOutput" Style="{StaticResource ToggleSwitchStyle}" Checked="ChkSdiOutput_Changed" Unchecked="ChkSdiOutput_Changed" HorizontalAlignment="Right"/>
                                                 </Grid>
-                                                <TextBlock Text="Output Device" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <Grid Margin="0,0,0,3">
+                                                    <TextBlock Text="Output Device" Style="{StaticResource HeaderLabelStyle}" VerticalAlignment="Center"/>
+                                                    <Button x:Name="BtnScanSdi" Content="🔄 Scan SDI" Click="BtnScanSdi_Click" Background="#2A2A33" Foreground="#00FFCC" FontWeight="SemiBold" FontSize="10" Padding="6,2" HorizontalAlignment="Right" Cursor="Hand" ToolTip="Quét lại các thiết bị card xuất SDI phần cứng"/>
+                                                </Grid>
                                                 <ComboBox x:Name="CmbSdiDevice" Margin="0,0,0,6">
                                                     <ComboBoxItem Content="Blackmagic DeckLink 8K Pro (Port 1)" IsSelected="True"/>
                                                     <ComboBoxItem Content="Blackmagic DeckLink Studio 4K"/>
@@ -3457,19 +3569,49 @@
                                             </StackPanel>
                                         </Border>
 
-                                        <!-- 3. NDI Output Card -->
-                                        <Border Style="{StaticResource SubCardBorderStyle}">
+                                        <!-- 3. NDI Output Card (Broadcast Studio Grade) -->
+                                        <Border Style="{StaticResource SubCardBorderStyle}" Background="#16161C" BorderBrush="#007ACC" BorderThickness="1.2">
                                             <StackPanel>
+                                                <!-- Header with Live On-Air / Offline Status Pill -->
                                                 <Grid Margin="0,0,0,6">
                                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                        <TextBlock Text="🌐 NDI NETWORK OUTPUT" FontWeight="Bold" FontSize="11.5" Foreground="#FFFFFF"/>
-                                                        <TextBlock Text=" (LAN / Graphics)" FontSize="10.5" Foreground="#888888"/>
+                                                        <TextBlock Text="🌐 NDI® BROADCAST OUTPUT" FontWeight="Bold" FontSize="11.5" Foreground="#00FFCC"/>
+                                                        <Border x:Name="BadgeNdiStatusPill" Background="#26262B" CornerRadius="3" Padding="5,1" Margin="8,0,0,0" VerticalAlignment="Center">
+                                                            <TextBlock x:Name="TxtNdiStatusPill" Text="OFFLINE" FontWeight="Bold" FontSize="9" Foreground="#888888"/>
+                                                        </Border>
                                                     </StackPanel>
-                                                    <CheckBox x:Name="ChkNDIOutput" Style="{StaticResource ToggleSwitchStyle}" Checked="ChkNdiOutput_Changed" Unchecked="ChkNdiOutput_Changed" HorizontalAlignment="Right"/>
+                                                    <CheckBox x:Name="ChkNDIOutput" Style="{StaticResource ToggleSwitchStyle}" Checked="ChkNdiOutput_Changed" Unchecked="ChkNdiOutput_Changed" HorizontalAlignment="Right" ToolTip="Bật/tắt phát sóng luồng mạng NDI"/>
                                                 </Grid>
-                                                <TextBlock Text="NDI Stream Name" Style="{StaticResource HeaderLabelStyle}"/>
-                                                <TextBox x:Name="TxtNdiName" Text="OME_STUDIO_PROGRAM" Margin="0,0,0,6"/>
-                                                <CheckBox x:Name="ChkNdiMultiviewer" Content="Send Multiviewer Grid instead of Program" Foreground="#AAAAAA" FontSize="11"/>
+
+                                                <!-- Stream Name input with quick preset button -->
+                                                <TextBlock Text="Tên Luồng NDI (Stream Name)" Style="{StaticResource HeaderLabelStyle}" Margin="0,0,0,3"/>
+                                                <TextBox x:Name="TxtNdiName" Text="OME_STUDIO_PROGRAM" Margin="0,0,0,6" TextChanged="TxtNdiName_TextChanged"/>
+
+                                                <!-- Signal Source Selection Box -->
+                                                <Border Background="#1A1A22" BorderBrush="#2D2D38" BorderThickness="1" CornerRadius="4" Padding="8,6" Margin="0,0,0,6">
+                                                    <StackPanel>
+                                                        <Grid Margin="0,0,0,4">
+                                                            <TextBlock Text="Nguồn Tín Hiệu NDI (Source Feed)" Style="{StaticResource HeaderLabelStyle}" VerticalAlignment="Center"/>
+                                                            <Border x:Name="BadgeNdiSourceType" Background="#2A1B1B" BorderBrush="#DC2626" BorderThickness="1" CornerRadius="3" Padding="6,1" HorizontalAlignment="Right">
+                                                                <TextBlock x:Name="TxtNdiSourceType" Text="MASTER PGM" FontWeight="Bold" FontSize="9.5" Foreground="#DC2626"/>
+                                                            </Border>
+                                                        </Grid>
+
+                                                        <CheckBox x:Name="ChkNdiMultiviewer" Content="Send Multiviewer Grid instead of Program" 
+                                                                  Foreground="#E2E8F0" FontWeight="SemiBold" FontSize="11"
+                                                                  Checked="ChkNdiMultiviewer_Changed" Unchecked="ChkNdiMultiviewer_Changed" Margin="0,2,0,4"/>
+
+                                                        <!-- Multiviewer Specifications info text -->
+                                                        <TextBlock x:Name="TxtNdiGridHint" Text="⚡ Auto Grid: 1-4 CAM (2x2) • 5-9 CAM (3x3) • 10 CAM (4x3) @ 1080p59.94 với viền Tally PGM/PVW" 
+                                                                   FontSize="9.5" Foreground="#64748B" TextWrapping="Wrap"/>
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <!-- NDI Protocol & Network Compatibility Notice -->
+                                                <Grid>
+                                                    <TextBlock Text="1080p59.94 • BGRA • LAN Discovery" FontSize="9.5" FontFamily="Consolas" Foreground="#00E676" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="vMix / OBS / TriCaster" FontSize="9.5" Foreground="#8E8E93" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                </Grid>
                                             </StackPanel>
                                         </Border>
 
@@ -3483,14 +3625,20 @@
                                                     </StackPanel>
                                                     <CheckBox x:Name="ChkSrtBridge" Style="{StaticResource ToggleSwitchStyle}" Checked="ChkSrtBridge_Changed" Unchecked="ChkSrtBridge_Changed" HorizontalAlignment="Right"/>
                                                 </Grid>
-                                                <Grid Margin="0,0,0,6">
+                                                <Grid Margin="0,0,0,4">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="2*"/>
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
                                                     <TextBox x:Name="TxtBridgeHost" Text="192.168.1.150" Grid.Column="0" Margin="0,0,4,0"/>
-                                                    <TextBox x:Name="TxtBridgePort" Text="9100" Grid.Column="1"/>
+                                                    <TextBox x:Name="TxtBridgePort" Text="9100" Grid.Column="1" TextChanged="TxtBridgePort_TextChanged"/>
                                                 </Grid>
+                                                <TextBlock Text="SRT Mode" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <ComboBox x:Name="CmbBridgeMode" Margin="0,0,0,6" SelectionChanged="CmbBridgeMode_SelectionChanged">
+                                                    <ComboBoxItem Content="Caller (Chủ động gửi tới IP/Port đích)" IsSelected="True"/>
+                                                    <ComboBoxItem Content="Listener (Mở Port tại máy này chờ kết nối)"/>
+                                                </ComboBox>
+                                                <TextBlock x:Name="TxtBridgeHint" Text="Đẩy luồng tới địa chỉ đích. Phía nhận phải bật Listener." FontSize="9.5" Foreground="#00FFCC" TextWrapping="Wrap" Margin="0,0,0,6"/>
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>

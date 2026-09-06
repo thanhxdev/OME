@@ -43,6 +43,7 @@ namespace SRT_DECODE
         public event Action<int, string>? ChannelError;
         public event Action<int, byte[], int, int>? FrameReady;
         public event Action<int, byte[], int>? AudioPcmReady;
+        public event Action<int, byte[], int>? RawTsDataReady;
 
         public ReceiverChannelState[] Channels => _channels;
 
@@ -184,6 +185,7 @@ namespace SRT_DECODE
                                 {
                                     decoder.FeedData(buffer, bytesRead);
                                     audioDecoder.FeedData(buffer, bytesRead);
+                                    RawTsDataReady?.Invoke(index, buffer, bytesRead);
                                 }
                                 else
                                 {

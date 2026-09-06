@@ -36,7 +36,17 @@ namespace SRT_DECODE
         private int _currentPreviewIndex = 1; // 0..9
         private bool _isTransitioning = false;
         private bool _isInitialized = false;
+        private volatile bool _isShuttingDown = false;
         private readonly StringBuilder _logBuffer = new();
+
+        // ─── Engine Event Delegates for Safe Unhooking ──────────────
+        private Action<string, string>? _logDelegate;
+        private Action<int, ReceiverChannelState>? _channelUpdatedDelegate;
+        private Action<int, byte[], int, int>? _frameReadyDelegate;
+        private Action<int, byte[], int>? _audioPcmReadyDelegate;
+        private Action<ChannelAudioLevels[]>? _camLevelsUpdatedDelegate;
+        private Action<ChannelAudioLevels>? _programLevelsUpdatedDelegate;
+        private Action<byte[], int, int>? _programMixedPcmDelegate;
 
         // ─── Dynamic Metadata State ─────────────────────────────────
         private readonly string[] _channelNames = new string[MaxChannels];
@@ -116,6 +126,29 @@ namespace SRT_DECODE
         private CheckBox[] _chkAutoLatencies = Array.Empty<CheckBox>();
         private Button[] _btnToggles = Array.Empty<Button>();
 
+        // ─── Hardware & Display Discovery ───────────────────────────
+        private List<DisplayMonitorInfo> _monitors = new();
+        private List<SdiDeviceInfo> _sdiDevices = new();
+        private FullscreenPlayoutWindow? _playoutWindow;
+
+        // ─── ISO Channel Outputs (CAM 1..10) ────────────────────────
+        private CheckBox[] _chkIsoSdi = Array.Empty<CheckBox>();
+        private ComboBox[] _cmbIsoSdiPort = Array.Empty<ComboBox>();
+        private CheckBox[] _chkIsoNdi = Array.Empty<CheckBox>();
+        private TextBox[] _txtIsoNdiName = Array.Empty<TextBox>();
+        private CheckBox[] _chkIsoSrt = Array.Empty<CheckBox>();
+        private TextBox[] _txtIsoSrtHost = Array.Empty<TextBox>();
+        private TextBox[] _txtIsoSrtPort = Array.Empty<TextBox>();
+        private ComboBox[] _cmbIsoSrtMode = Array.Empty<ComboBox>();
+        private ComboBox[] _cmbIsoSrtCodec = Array.Empty<ComboBox>();
+        private TextBox[] _txtIsoSrtBitrate = Array.Empty<TextBox>();
+        private CheckBox[] _chkIsoRec = Array.Empty<CheckBox>();
+        private ComboBox[] _cmbIsoRecFormat = Array.Empty<ComboBox>();
+        private ComboBox[] _cmbIsoRes = Array.Empty<ComboBox>();
+        private ComboBox[] _cmbIsoCodec = Array.Empty<ComboBox>();
+        private ComboBox[] _cmbIsoBitrate = Array.Empty<ComboBox>();
+        private ComboBox[] _cmbIsoFps = Array.Empty<ComboBox>();
+
         // ─── Video Presentation Bitmaps ─────────────────────────────
         private readonly WriteableBitmap?[] _camBitmaps = new WriteableBitmap?[MaxChannels];
 
@@ -123,18 +156,39 @@ namespace SRT_DECODE
         {
             _receiverEngine = new MultiStreamReceiverEngine(_syncEngine);
 
+            // Create strongly-referenced delegates for unhooking
+            _logDelegate = LogEvent;
+            _channelUpdatedDelegate = OnReceiverChannelUpdated;
+            _frameReadyDelegate = OnFrameReady;
+            _audioPcmReadyDelegate = (chIdx, pcm, len) =>
+            {
+                if (_isShuttingDown) return;
+                _audioManager.ProcessDecodedPcm(chIdx, pcm, len);
+                _outputManager.FeedIsoAudio(chIdx, pcm, len);
+            };
+            _camLevelsUpdatedDelegate = OnAudioLevelsUpdated;
+            _programLevelsUpdatedDelegate = OnProgramLevelsUpdated;
+            _programMixedPcmDelegate = (pcm, offset, count) =>
+            {
+                if (_isShuttingDown) return;
+                byte[] pcmCopy = new byte[count];
+                Buffer.BlockCopy(pcm, offset, pcmCopy, 0, count);
+                _outputManager.FeedMasterAudio(pcmCopy, count);
+            };
+
             // Wire log events
-            _syncEngine.LogEmitted += LogEvent;
-            _receiverEngine.LogEmitted += LogEvent;
-            _audioManager.LogEmitted += LogEvent;
-            _outputManager.LogEmitted += LogEvent;
+            _syncEngine.LogEmitted += _logDelegate;
+            _receiverEngine.LogEmitted += _logDelegate;
+            _audioManager.LogEmitted += _logDelegate;
+            _outputManager.LogEmitted += _logDelegate;
 
             // Wire receiver updates
-            _receiverEngine.ChannelUpdated += OnReceiverChannelUpdated;
-            _receiverEngine.FrameReady += OnFrameReady;
-            _receiverEngine.AudioPcmReady += (chIdx, pcm, len) => _audioManager.ProcessDecodedPcm(chIdx, pcm, len);
-            _audioManager.CamLevelsUpdated += OnAudioLevelsUpdated;
-            _audioManager.ProgramLevelsUpdated += OnProgramLevelsUpdated;
+            _receiverEngine.ChannelUpdated += _channelUpdatedDelegate;
+            _receiverEngine.FrameReady += _frameReadyDelegate;
+            _receiverEngine.AudioPcmReady += _audioPcmReadyDelegate;
+            _audioManager.CamLevelsUpdated += _camLevelsUpdatedDelegate;
+            _audioManager.ProgramLevelsUpdated += _programLevelsUpdatedDelegate;
+            _audioManager.ProgramMixedPcmAvailable += _programMixedPcmDelegate;
 
             InitializeComponent();
             _isInitialized = true;
@@ -189,6 +243,44 @@ namespace SRT_DECODE
                 _outputCards = new[] { CardOutputCam1, CardOutputCam2, CardOutputCam3, CardOutputCam4, CardOutputCam5, CardOutputCam6, CardOutputCam7, CardOutputCam8, CardOutputCam9, CardOutputCam10 };
                 _badgeOutputTexts = new[] { TxtBadgeOutputCam1, TxtBadgeOutputCam2, TxtBadgeOutputCam3, TxtBadgeOutputCam4, TxtBadgeOutputCam5, TxtBadgeOutputCam6, TxtBadgeOutputCam7, TxtBadgeOutputCam8, TxtBadgeOutputCam9, TxtBadgeOutputCam10 };
                 _txtOutputNdiNames = new[] { TxtOutputNdiNameCam1, TxtOutputNdiNameCam2, TxtOutputNdiNameCam3, TxtOutputNdiNameCam4, TxtOutputNdiNameCam5, TxtOutputNdiNameCam6, TxtOutputNdiNameCam7, TxtOutputNdiNameCam8, TxtOutputNdiNameCam9, TxtOutputNdiNameCam10 };
+
+                // ISO Camera Output Controls
+                _chkIsoSdi = new[] { ChkOutputSdiCam1, ChkOutputSdiCam2, ChkOutputSdiCam3, ChkOutputSdiCam4, ChkOutputSdiCam5, ChkOutputSdiCam6, ChkOutputSdiCam7, ChkOutputSdiCam8, ChkOutputSdiCam9, ChkOutputSdiCam10 };
+                _cmbIsoSdiPort = new[] { CmbOutputSdiPortCam1, CmbOutputSdiPortCam2, CmbOutputSdiPortCam3, CmbOutputSdiPortCam4, CmbOutputSdiPortCam5, CmbOutputSdiPortCam6, CmbOutputSdiPortCam7, CmbOutputSdiPortCam8, CmbOutputSdiPortCam9, CmbOutputSdiPortCam10 };
+                _chkIsoNdi = new[] { ChkOutputNdiCam1, ChkOutputNdiCam2, ChkOutputNdiCam3, ChkOutputNdiCam4, ChkOutputNdiCam5, ChkOutputNdiCam6, ChkOutputNdiCam7, ChkOutputNdiCam8, ChkOutputNdiCam9, ChkOutputNdiCam10 };
+                _txtIsoNdiName = new[] { TxtOutputNdiNameCam1, TxtOutputNdiNameCam2, TxtOutputNdiNameCam3, TxtOutputNdiNameCam4, TxtOutputNdiNameCam5, TxtOutputNdiNameCam6, TxtOutputNdiNameCam7, TxtOutputNdiNameCam8, TxtOutputNdiNameCam9, TxtOutputNdiNameCam10 };
+                _chkIsoSrt = new[] { ChkOutputSrtCam1, ChkOutputSrtCam2, ChkOutputSrtCam3, ChkOutputSrtCam4, ChkOutputSrtCam5, ChkOutputSrtCam6, ChkOutputSrtCam7, ChkOutputSrtCam8, ChkOutputSrtCam9, ChkOutputSrtCam10 };
+                _txtIsoSrtHost = new[] { TxtOutputSrtHostCam1, TxtOutputSrtHostCam2, TxtOutputSrtHostCam3, TxtOutputSrtHostCam4, TxtOutputSrtHostCam5, TxtOutputSrtHostCam6, TxtOutputSrtHostCam7, TxtOutputSrtHostCam8, TxtOutputSrtHostCam9, TxtOutputSrtHostCam10 };
+                _txtIsoSrtPort = new[] { TxtOutputSrtPortCam1, TxtOutputSrtPortCam2, TxtOutputSrtPortCam3, TxtOutputSrtPortCam4, TxtOutputSrtPortCam5, TxtOutputSrtPortCam6, TxtOutputSrtPortCam7, TxtOutputSrtPortCam8, TxtOutputSrtPortCam9, TxtOutputSrtPortCam10 };
+                _cmbIsoSrtMode = new[] { CmbOutputSrtModeCam1, CmbOutputSrtModeCam2, CmbOutputSrtModeCam3, CmbOutputSrtModeCam4, CmbOutputSrtModeCam5, CmbOutputSrtModeCam6, CmbOutputSrtModeCam7, CmbOutputSrtModeCam8, CmbOutputSrtModeCam9, CmbOutputSrtModeCam10 };
+                _cmbIsoSrtCodec = new[] { CmbOutputSrtCodecCam1, CmbOutputSrtCodecCam2, CmbOutputSrtCodecCam3, CmbOutputSrtCodecCam4, CmbOutputSrtCodecCam5, CmbOutputSrtCodecCam6, CmbOutputSrtCodecCam7, CmbOutputSrtCodecCam8, CmbOutputSrtCodecCam9, CmbOutputSrtCodecCam10 };
+                _txtIsoSrtBitrate = new[] { TxtOutputSrtBitrateCam1, TxtOutputSrtBitrateCam2, TxtOutputSrtBitrateCam3, TxtOutputSrtBitrateCam4, TxtOutputSrtBitrateCam5, TxtOutputSrtBitrateCam6, TxtOutputSrtBitrateCam7, TxtOutputSrtBitrateCam8, TxtOutputSrtBitrateCam9, TxtOutputSrtBitrateCam10 };
+                _chkIsoRec = new[] { ChkOutputRecCam1, ChkOutputRecCam2, ChkOutputRecCam3, ChkOutputRecCam4, ChkOutputRecCam5, ChkOutputRecCam6, ChkOutputRecCam7, ChkOutputRecCam8, ChkOutputRecCam9, ChkOutputRecCam10 };
+                _cmbIsoRecFormat = new[] { CmbOutputRecFormatCam1, CmbOutputRecFormatCam2, CmbOutputRecFormatCam3, CmbOutputRecFormatCam4, CmbOutputRecFormatCam5, CmbOutputRecFormatCam6, CmbOutputRecFormatCam7, CmbOutputRecFormatCam8, CmbOutputRecFormatCam9, CmbOutputRecFormatCam10 };
+                _cmbIsoRes = new[] { CmbOutputResCam1, CmbOutputResCam2, CmbOutputResCam3, CmbOutputResCam4, CmbOutputResCam5, CmbOutputResCam6, CmbOutputResCam7, CmbOutputResCam8, CmbOutputResCam9, CmbOutputResCam10 };
+                _cmbIsoCodec = new[] { CmbOutputCodecCam1, CmbOutputCodecCam2, CmbOutputCodecCam3, CmbOutputCodecCam4, CmbOutputCodecCam5, CmbOutputCodecCam6, CmbOutputCodecCam7, CmbOutputCodecCam8, CmbOutputCodecCam9, CmbOutputCodecCam10 };
+                _cmbIsoBitrate = new[] { CmbOutputBitrateCam1, CmbOutputBitrateCam2, CmbOutputBitrateCam3, CmbOutputBitrateCam4, CmbOutputBitrateCam5, CmbOutputBitrateCam6, CmbOutputBitrateCam7, CmbOutputBitrateCam8, CmbOutputBitrateCam9, CmbOutputBitrateCam10 };
+                _cmbIsoFps = new[] { CmbOutputFpsCam1, CmbOutputFpsCam2, CmbOutputFpsCam3, CmbOutputFpsCam4, CmbOutputFpsCam5, CmbOutputFpsCam6, CmbOutputFpsCam7, CmbOutputFpsCam8, CmbOutputFpsCam9, CmbOutputFpsCam10 };
+
+                for (int i = 0; i < MaxChannels; i++)
+                {
+                    int camIdx = i;
+                    _chkIsoSdi[i].Tag = camIdx;
+                    _chkIsoSdi[i].Checked += ChkIsoSdi_Changed;
+                    _chkIsoSdi[i].Unchecked += ChkIsoSdi_Changed;
+
+                    _chkIsoNdi[i].Tag = camIdx;
+                    _chkIsoNdi[i].Checked += ChkIsoNdi_Changed;
+                    _chkIsoNdi[i].Unchecked += ChkIsoNdi_Changed;
+
+                    _chkIsoSrt[i].Tag = camIdx;
+                    _chkIsoSrt[i].Checked += ChkIsoSrt_Changed;
+                    _chkIsoSrt[i].Unchecked += ChkIsoSrt_Changed;
+
+                    _chkIsoRec[i].Tag = camIdx;
+                    _chkIsoRec[i].Checked += ChkIsoRec_Changed;
+                    _chkIsoRec[i].Unchecked += ChkIsoRec_Changed;
+                }
                 _chkMuteCams = new[] { ChkMuteCam1, ChkMuteCam2, ChkMuteCam3, ChkMuteCam4, ChkMuteCam5, ChkMuteCam6, ChkMuteCam7, ChkMuteCam8, ChkMuteCam9, ChkMuteCam10 };
                 _chkVuCams = new[] { ChkVuCam1, ChkVuCam2, ChkVuCam3, ChkVuCam4, ChkVuCam5, ChkVuCam6, ChkVuCam7, ChkVuCam8, ChkVuCam9, ChkVuCam10 };
                 _btnSoloCams = new[] { BtnSoloCam1, BtnSoloCam2, BtnSoloCam3, BtnSoloCam4, BtnSoloCam5, BtnSoloCam6, BtnSoloCam7, BtnSoloCam8, BtnSoloCam9, BtnSoloCam10 };
@@ -302,6 +394,11 @@ namespace SRT_DECODE
                 // Initial Active Streams UI & Layout
                 UpdateActiveStreamsUI();
                 UpdateTallyIndicators();
+                UpdateNdiUiBadges();
+
+                // Auto-scan display monitors and SDI broadcast ports on startup
+                await RefreshDevicesAsync();
+
                 LogEvent("[INFO]", "Hệ thống Master Control Room đã sẵn sàng (Tab 1. SRT Ingest, 2. Tab Outputs, tối đa 10 luồng).");
             }
             catch (Exception ex)
@@ -310,20 +407,88 @@ namespace SRT_DECODE
             }
         }
 
-        private async void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+        private void UnhookAllEngineEvents()
+        {
+            _isShuttingDown = true;
+
+            try
+            {
+                if (_logDelegate != null)
+                {
+                    _syncEngine.LogEmitted -= _logDelegate;
+                    _receiverEngine.LogEmitted -= _logDelegate;
+                    _audioManager.LogEmitted -= _logDelegate;
+                    _outputManager.LogEmitted -= _logDelegate;
+                }
+
+                if (_channelUpdatedDelegate != null)
+                    _receiverEngine.ChannelUpdated -= _channelUpdatedDelegate;
+                if (_frameReadyDelegate != null)
+                    _receiverEngine.FrameReady -= _frameReadyDelegate;
+                if (_audioPcmReadyDelegate != null)
+                    _receiverEngine.AudioPcmReady -= _audioPcmReadyDelegate;
+                if (_camLevelsUpdatedDelegate != null)
+                    _audioManager.CamLevelsUpdated -= _camLevelsUpdatedDelegate;
+                if (_programLevelsUpdatedDelegate != null)
+                    _audioManager.ProgramLevelsUpdated -= _programLevelsUpdatedDelegate;
+                if (_programMixedPcmDelegate != null)
+                    _audioManager.ProgramMixedPcmAvailable -= _programMixedPcmDelegate;
+            }
+            catch { }
+        }
+
+        private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
             try
             {
+                // 1. Đánh dấu shutdown và dừng ngay toàn bộ Timer UI
+                _isShuttingDown = true;
                 _masterClockTimer?.Stop();
                 _telemetryTimer?.Stop();
                 _vuMeterTimer?.Stop();
 
-                await _receiverEngine.DisposeAsync();
-                _syncEngine.Dispose();
-                _outputManager.Dispose();
-                OpenMediaRuntime.Shutdown();
+                // 2. Đóng cửa sổ Fullscreen Playout nếu đang mở
+                if (_playoutWindow != null)
+                {
+                    try { _playoutWindow.Close(); } catch { }
+                    _playoutWindow = null;
+                }
+
+                // 3. Unhook toàn bộ event log & data
+                UnhookAllEngineEvents();
+
+                // 4. Cho phép chạy cleanup nhanh trong background với timeout 1.5s
+                Task.Run(async () =>
+                {
+                    try
+                    {
+                        var stopTask = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await _receiverEngine.StopAllAsync();
+                                _receiverEngine.Dispose();
+                                _outputManager.Dispose();
+                                _syncEngine.Dispose();
+                                OpenMediaRuntime.Shutdown();
+                            }
+                            catch { }
+                        });
+
+                        await Task.WhenAny(stopTask, Task.Delay(1500));
+                    }
+                    catch { }
+                    finally
+                    {
+                        // Đảm bảo tiến trình kết thúc hoàn toàn, không còn process ma trong background
+                        Environment.Exit(0);
+                    }
+                });
             }
-            catch { }
+            catch
+            {
+                Environment.Exit(0);
+            }
         }
 
         #endregion
@@ -481,6 +646,11 @@ namespace SRT_DECODE
 
             // Re-apply Multiviewer layout (View vs PGM+View)
             ApplyMultiviewerLayout();
+
+            if (_playoutWindow != null && _playoutWindow.IsMultiviewer)
+            {
+                _playoutWindow.UpdateLayoutConfig(_activeChannelCount, _channelNames, _currentProgramIndex, _currentPreviewIndex);
+            }
         }
 
         #endregion
@@ -725,6 +895,28 @@ namespace SRT_DECODE
         {
             if (channelIndex < 0 || channelIndex >= MaxChannels) return;
 
+            // Feed frame into ISO Output Worker
+            _outputManager.FeedIsoVideo(channelIndex, frameBytes, width, height);
+
+            // If this channel is the active Program, feed Master Output Worker
+            if (channelIndex == _currentProgramIndex)
+            {
+                _outputManager.FeedMasterVideo(frameBytes, width, height);
+            }
+
+            // Feed Fullscreen Playout Window if open
+            if (_playoutWindow != null)
+            {
+                if (_playoutWindow.IsMultiviewer)
+                {
+                    _playoutWindow.UpdateChannelFrame(channelIndex, frameBytes, width, height);
+                }
+                else if (channelIndex == _currentProgramIndex)
+                {
+                    _playoutWindow.UpdateFrame(frameBytes, width, height);
+                }
+            }
+
             Dispatcher.InvokeAsync(() =>
             {
                 try
@@ -925,6 +1117,9 @@ namespace SRT_DECODE
                     }
                 }
             }
+
+            _playoutWindow?.SetProgramChannel(_currentProgramIndex, _currentPreviewIndex);
+            _outputManager?.Compositor?.UpdateConfig(_activeChannelCount, _channelNames, _currentProgramIndex, _currentPreviewIndex);
         }
 
         private async void BtnCutTransition_Click(object sender, RoutedEventArgs e)
@@ -1480,10 +1675,31 @@ namespace SRT_DECODE
             }
         }
 
+        private void UpdateMasterVideoCodecFromUI()
+        {
+            if (CmbMasterRes?.SelectedItem != null)
+                _outputManager.MasterVideoCodec.Resolution = GetComboBoxText(CmbMasterRes);
+            if (CmbMasterCodec?.SelectedItem != null)
+                _outputManager.MasterVideoCodec.Codec = GetComboBoxText(CmbMasterCodec);
+            if (CmbMasterBitrate?.SelectedItem != null)
+                _outputManager.MasterVideoCodec.Bitrate = GetComboBoxText(CmbMasterBitrate);
+            if (CmbMasterFps?.SelectedItem != null)
+                _outputManager.MasterVideoCodec.Fps = GetComboBoxText(CmbMasterFps);
+
+            if (CmbSdiDevice?.SelectedItem != null)
+            {
+                string raw = CmbSdiDevice.SelectedItem.ToString() ?? "";
+                if (raw.StartsWith("📡 [SDI HW] ")) raw = raw.Substring("📡 [SDI HW] ".Length);
+                else if (raw.StartsWith("📡 [PORT] ")) raw = raw.Substring("📡 [PORT] ".Length);
+                _outputManager.SdiDevice = raw;
+            }
+        }
+
         private async void ChkSdiOutput_Changed(object sender, RoutedEventArgs e)
         {
             if (!_isInitialized) return;
             bool enable = ChkSdiOutput.IsChecked == true;
+            UpdateMasterVideoCodecFromUI();
             await _outputManager.ToggleSdiAsync(enable);
             BadgeOutputSdi.Background = enable ? new SolidColorBrush(Color.FromRgb(0x00, 0x7A, 0xCC)) : new SolidColorBrush(Color.FromRgb(0x26, 0x26, 0x2B));
             ((TextBlock)BadgeOutputSdi.Child).Foreground = enable ? Brushes.White : new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
@@ -1496,56 +1712,490 @@ namespace SRT_DECODE
             _outputManager.NdiStreamName = TxtNdiName.Text.Trim();
             _outputManager.NdiMultiviewerMode = ChkNdiMultiviewer.IsChecked == true;
             await _outputManager.ToggleNdiAsync(enable);
+            UpdateNdiUiBadges();
             BadgeOutputNdi.Background = enable ? new SolidColorBrush(Color.FromRgb(0x00, 0x7A, 0xCC)) : new SolidColorBrush(Color.FromRgb(0x26, 0x26, 0x2B));
             ((TextBlock)BadgeOutputNdi.Child).Foreground = enable ? Brushes.White : new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
+        }
+
+        private void ChkNdiMultiviewer_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized || _outputManager == null) return;
+            bool isMv = ChkNdiMultiviewer.IsChecked == true;
+            _outputManager.SetNdiMultiviewerMode(isMv);
+            UpdateNdiUiBadges();
+            LogEvent("[NDI]", isMv 
+                ? "NDI Routing: Chuyển sang phát MULTIVIEWER GRID (Tự động 2x2 / 3x3 kèm Tally OSD)." 
+                : "NDI Routing: Chuyển sang phát MASTER PROGRAM (PGM sạch độc lập).");
+        }
+
+        private void TxtNdiName_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (!_isInitialized || _outputManager == null || TxtNdiName == null) return;
+            _outputManager.NdiStreamName = TxtNdiName.Text.Trim();
+        }
+
+        private void UpdateNdiUiBadges()
+        {
+            if (BadgeNdiStatusPill != null && TxtNdiStatusPill != null)
+            {
+                bool isTx = ChkNDIOutput?.IsChecked == true;
+                BadgeNdiStatusPill.Background = isTx 
+                    ? new SolidColorBrush(Color.FromRgb(0x06, 0x5F, 0x46)) 
+                    : new SolidColorBrush(Color.FromRgb(0x26, 0x26, 0x2B));
+                TxtNdiStatusPill.Text = isTx ? "ON-AIR (TX)" : "OFFLINE";
+                TxtNdiStatusPill.Foreground = isTx 
+                    ? new SolidColorBrush(Color.FromRgb(0x34, 0xD3, 0x99)) 
+                    : new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+            }
+
+            if (BadgeNdiSourceType != null && TxtNdiSourceType != null)
+            {
+                bool isMultiviewer = ChkNdiMultiviewer?.IsChecked == true;
+                if (isMultiviewer)
+                {
+                    BadgeNdiSourceType.Background = new SolidColorBrush(Color.FromRgb(0x0E, 0x3A, 0x47));
+                    BadgeNdiSourceType.BorderBrush = new SolidColorBrush(Color.FromRgb(0x06, 0xB6, 0xD4));
+                    TxtNdiSourceType.Text = "MULTIVIEWER GRID";
+                    TxtNdiSourceType.Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0xD3, 0xEE));
+                }
+                else
+                {
+                    BadgeNdiSourceType.Background = new SolidColorBrush(Color.FromRgb(0x2A, 0x1B, 0x1B));
+                    BadgeNdiSourceType.BorderBrush = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26));
+                    TxtNdiSourceType.Text = "MASTER PGM";
+                    TxtNdiSourceType.Foreground = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26));
+                }
+            }
+
+            if (TxtNdiGridHint != null)
+            {
+                bool isMultiviewer = ChkNdiMultiviewer?.IsChecked == true;
+                TxtNdiGridHint.Foreground = isMultiviewer 
+                    ? new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8)) 
+                    : new SolidColorBrush(Color.FromRgb(0x64, 0x74, 0x8B));
+            }
         }
 
         private async void ChkSrtBridge_Changed(object sender, RoutedEventArgs e)
         {
             if (!_isInitialized) return;
             bool enable = ChkSrtBridge.IsChecked == true;
+            UpdateMasterVideoCodecFromUI();
             _outputManager.SrtBridgeHost = TxtBridgeHost.Text.Trim();
             if (int.TryParse(TxtBridgePort.Text, out int bp)) _outputManager.SrtBridgePort = bp;
+            _outputManager.SrtBridgeMode = CmbBridgeMode.SelectedIndex == 1 ? SRTMode.Listener : SRTMode.Caller;
             await _outputManager.ToggleSrtBridgeAsync(enable);
             BadgeOutputBridge.Background = enable ? new SolidColorBrush(Color.FromRgb(0x00, 0x7A, 0xCC)) : new SolidColorBrush(Color.FromRgb(0x26, 0x26, 0x2B));
             ((TextBlock)BadgeOutputBridge.Child).Foreground = enable ? Brushes.White : new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
+        }
+
+        private void CmbBridgeMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized || TxtBridgeHost == null || TxtBridgePort == null || TxtBridgeHint == null) return;
+
+            bool isListener = CmbBridgeMode.SelectedIndex == 1;
+            if (isListener)
+            {
+                TxtBridgeHost.IsEnabled = false;
+                TxtBridgeHost.Opacity = 0.5;
+                string portStr = string.IsNullOrWhiteSpace(TxtBridgePort.Text) ? "9100" : TxtBridgePort.Text.Trim();
+                string localIp = GetLocalIpAddress();
+                TxtBridgeHint.Text = $"💡 Listener Mode: Mở port tại máy này. Phía thu mở xem qua URL: srt://{localIp}:{portStr}?mode=caller";
+                TxtBridgeHint.Foreground = new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8));
+            }
+            else
+            {
+                TxtBridgeHost.IsEnabled = true;
+                TxtBridgeHost.Opacity = 1.0;
+                TxtBridgeHint.Text = "Đẩy luồng tới địa chỉ đích. Phía nhận phải bật Listener.";
+                TxtBridgeHint.Foreground = new SolidColorBrush(Color.FromRgb(0x00, 0xFF, 0xCC));
+            }
+        }
+
+        private void TxtBridgePort_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (!_isInitialized || CmbBridgeMode == null || TxtBridgeHint == null) return;
+            if (CmbBridgeMode.SelectedIndex == 1)
+            {
+                string portStr = string.IsNullOrWhiteSpace(TxtBridgePort.Text) ? "9100" : TxtBridgePort.Text.Trim();
+                string localIp = GetLocalIpAddress();
+                TxtBridgeHint.Text = $"💡 Listener Mode: Mở port tại máy này. Phía thu mở xem qua URL: srt://{localIp}:{portStr}?mode=caller";
+            }
+        }
+
+        private static string GetLocalIpAddress()
+        {
+            try
+            {
+                using var socket = new System.Net.Sockets.Socket(System.Net.Sockets.AddressFamily.InterNetwork, System.Net.Sockets.SocketType.Dgram, 0);
+                socket.Connect("8.8.8.8", 65530);
+                if (socket.LocalEndPoint is System.Net.IPEndPoint endPoint)
+                {
+                    return endPoint.Address.ToString();
+                }
+            }
+            catch { }
+            return "127.0.0.1";
         }
 
         private async void ChkRecording_Changed(object sender, RoutedEventArgs e)
         {
             if (!_isInitialized) return;
             bool enable = ChkRecording.IsChecked == true;
+            UpdateMasterVideoCodecFromUI();
             await _outputManager.ToggleRecordingAsync(enable);
             BadgeOutputRec.Background = enable ? new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26)) : new SolidColorBrush(Color.FromRgb(0x26, 0x26, 0x2B));
             ((TextBlock)BadgeOutputRec.Child).Foreground = enable ? Brushes.White : new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
         }
 
+        #region ISO Output Controls (CAM 1..10)
+
+        private async void ChkIsoSdi_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized || sender is not CheckBox cb) return;
+            int camIdx = cb.Tag is int idx ? idx : (cb.Tag is string s && int.TryParse(s, out int parsed) ? parsed : -1);
+            if (camIdx < 0 || camIdx >= MaxChannels) return;
+
+            bool enable = cb.IsChecked == true;
+            if (enable && camIdx < _cmbIsoSdiPort.Length && _cmbIsoSdiPort[camIdx]?.SelectedItem != null)
+            {
+                _outputManager.ReceiverOutputs[camIdx].SdiPort = _cmbIsoSdiPort[camIdx].SelectedItem.ToString() ?? "";
+            }
+            await _outputManager.ToggleIsoSdiAsync(camIdx, enable);
+        }
+
+        private async void ChkIsoNdi_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized || sender is not CheckBox cb) return;
+            int camIdx = cb.Tag is int idx ? idx : (cb.Tag is string s && int.TryParse(s, out int parsed) ? parsed : -1);
+            if (camIdx < 0 || camIdx >= MaxChannels) return;
+
+            bool enable = cb.IsChecked == true;
+            if (enable && camIdx < _txtIsoNdiName.Length && !string.IsNullOrWhiteSpace(_txtIsoNdiName[camIdx]?.Text))
+            {
+                _outputManager.ReceiverOutputs[camIdx].NdiName = _txtIsoNdiName[camIdx].Text.Trim();
+            }
+            await _outputManager.ToggleIsoNdiAsync(camIdx, enable);
+        }
+
+        private async void ChkIsoSrt_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized || sender is not CheckBox cb) return;
+            int camIdx = cb.Tag is int idx ? idx : (cb.Tag is string s && int.TryParse(s, out int parsed) ? parsed : -1);
+            if (camIdx < 0 || camIdx >= MaxChannels) return;
+
+            bool enable = cb.IsChecked == true;
+            if (enable)
+            {
+                var cfg = _outputManager.ReceiverOutputs[camIdx];
+                if (camIdx < _txtIsoSrtHost.Length && !string.IsNullOrWhiteSpace(_txtIsoSrtHost[camIdx]?.Text))
+                    cfg.SrtBridgeHost = _txtIsoSrtHost[camIdx].Text.Trim();
+                if (camIdx < _txtIsoSrtPort.Length && int.TryParse(_txtIsoSrtPort[camIdx]?.Text, out int port))
+                    cfg.SrtBridgePort = port;
+                if (camIdx < _cmbIsoSrtMode.Length && _cmbIsoSrtMode[camIdx] != null)
+                    cfg.SrtBridgeMode = _cmbIsoSrtMode[camIdx].SelectedIndex == 1 ? SRTMode.Listener : SRTMode.Caller;
+                if (camIdx < _cmbIsoSrtCodec.Length && _cmbIsoSrtCodec[camIdx]?.SelectedItem != null)
+                    cfg.SrtBridgeCodec = GetComboBoxText(_cmbIsoSrtCodec[camIdx]);
+                if (camIdx < _txtIsoSrtBitrate.Length && !string.IsNullOrWhiteSpace(_txtIsoSrtBitrate[camIdx]?.Text))
+                    cfg.SrtBridgeBitrate = _txtIsoSrtBitrate[camIdx].Text.Trim();
+            }
+            await _outputManager.ToggleIsoSrtBridgeAsync(camIdx, enable);
+        }
+
+        private async void ChkIsoRec_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized || sender is not CheckBox cb) return;
+            int camIdx = cb.Tag is int idx ? idx : (cb.Tag is string s && int.TryParse(s, out int parsed) ? parsed : -1);
+            if (camIdx < 0 || camIdx >= MaxChannels) return;
+
+            bool enable = cb.IsChecked == true;
+            if (enable)
+            {
+                var cfg = _outputManager.ReceiverOutputs[camIdx];
+                if (camIdx < _cmbIsoRecFormat.Length && _cmbIsoRecFormat[camIdx]?.SelectedItem != null)
+                    cfg.RecFormat = GetComboBoxText(_cmbIsoRecFormat[camIdx]);
+                if (camIdx < _cmbIsoRes.Length && _cmbIsoRes[camIdx]?.SelectedItem != null)
+                    cfg.Resolution = GetComboBoxText(_cmbIsoRes[camIdx]);
+                if (camIdx < _cmbIsoCodec.Length && _cmbIsoCodec[camIdx]?.SelectedItem != null)
+                    cfg.Codec = GetComboBoxText(_cmbIsoCodec[camIdx]);
+                if (camIdx < _cmbIsoBitrate.Length && _cmbIsoBitrate[camIdx]?.SelectedItem != null)
+                    cfg.Bitrate = GetComboBoxText(_cmbIsoBitrate[camIdx]);
+                if (camIdx < _cmbIsoFps.Length && _cmbIsoFps[camIdx]?.SelectedItem != null)
+                    cfg.Fps = GetComboBoxText(_cmbIsoFps[camIdx]);
+            }
+            await _outputManager.ToggleIsoRecordingAsync(camIdx, enable);
+        }
+
+        private static string GetComboBoxText(ComboBox cmb)
+        {
+            if (cmb.SelectedItem is ComboBoxItem item)
+                return item.Content?.ToString() ?? string.Empty;
+            return cmb.SelectedItem?.ToString() ?? cmb.Text ?? string.Empty;
+        }
+
         #endregion
 
-        #region Logging & Console Utilities
+        #region Hardware Discovery & Fullscreen Playout
+
+        private async Task RefreshDevicesAsync()
+        {
+            try
+            {
+                LogEvent("[INFO]", "Đang quét màn hình hiển thị và card SDI phần cứng...");
+
+                // 1. Display Monitors
+                _monitors = await DisplayMonitorScanner.ScanMonitorsAsync();
+                CmbDisplayMonitors.Items.Clear();
+                foreach (var m in _monitors)
+                {
+                    CmbDisplayMonitors.Items.Add(m.DisplayLabel);
+                }
+                if (CmbDisplayMonitors.Items.Count > 1)
+                {
+                    // Prefer secondary monitor for playout if available
+                    CmbDisplayMonitors.SelectedIndex = 1;
+                }
+                else if (CmbDisplayMonitors.Items.Count > 0)
+                {
+                    CmbDisplayMonitors.SelectedIndex = 0;
+                }
+
+                // 2. SDI Hardware Devices
+                _sdiDevices = await SdiHardwareScanner.ScanDevicesAsync();
+                CmbSdiDevice.Items.Clear();
+                foreach (var dev in _sdiDevices)
+                {
+                    CmbSdiDevice.Items.Add(dev.DisplayLabel);
+                }
+                if (CmbSdiDevice.Items.Count > 0)
+                {
+                    CmbSdiDevice.SelectedIndex = 0;
+                    _outputManager.SdiDevice = _sdiDevices[0].Name;
+                }
+
+                // 3. Populate each ISO Cam SDI Port dropdown
+                for (int i = 0; i < MaxChannels; i++)
+                {
+                    if (i < _cmbIsoSdiPort.Length && _cmbIsoSdiPort[i] != null)
+                    {
+                        var cmb = _cmbIsoSdiPort[i];
+                        cmb.Items.Clear();
+                        foreach (var dev in _sdiDevices)
+                        {
+                            cmb.Items.Add(dev.Name);
+                        }
+                        if (cmb.Items.Count > i)
+                        {
+                            cmb.SelectedIndex = i;
+                        }
+                        else if (cmb.Items.Count > 0)
+                        {
+                            cmb.SelectedIndex = 0;
+                        }
+                    }
+                }
+
+                LogEvent("[SUCCESS]", $"Đã phát hiện {_monitors.Count} màn hình hiển thị và {_sdiDevices.Count} thiết bị SDI / Broadcast.");
+            }
+            catch (Exception ex)
+            {
+                LogEvent("[ERROR]", $"Lỗi quét thiết bị: {ex.Message}");
+            }
+        }
+
+        private async void BtnRefreshDevices_Click(object sender, RoutedEventArgs e)
+        {
+            await RefreshDevicesAsync();
+        }
+
+        private async void BtnScanSdi_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                LogEvent("[INFO]", "Đang quét các thiết bị và cổng SDI phần cứng (DeckLink / AJA / WDM)...");
+                _sdiDevices = await SdiHardwareScanner.ScanDevicesAsync();
+
+                if (CmbSdiDevice != null)
+                {
+                    CmbSdiDevice.Items.Clear();
+                    foreach (var dev in _sdiDevices)
+                    {
+                        CmbSdiDevice.Items.Add(dev.DisplayLabel);
+                    }
+                    if (CmbSdiDevice.Items.Count > 0)
+                    {
+                        CmbSdiDevice.SelectedIndex = 0;
+                        _outputManager.SdiDevice = _sdiDevices[0].Name;
+                    }
+                }
+
+                for (int i = 0; i < MaxChannels; i++)
+                {
+                    if (i < _cmbIsoSdiPort.Length && _cmbIsoSdiPort[i] != null)
+                    {
+                        var cmb = _cmbIsoSdiPort[i];
+                        cmb.Items.Clear();
+                        foreach (var dev in _sdiDevices)
+                        {
+                            cmb.Items.Add(dev.Name);
+                        }
+                        if (cmb.Items.Count > i)
+                        {
+                            cmb.SelectedIndex = i;
+                        }
+                        else if (cmb.Items.Count > 0)
+                        {
+                            cmb.SelectedIndex = 0;
+                        }
+                    }
+                }
+
+                LogEvent("[SUCCESS]", $"✅ Đã tìm thấy {_sdiDevices.Count} cổng xuất SDI khả dụng trên hệ thống.");
+            }
+            catch (Exception ex)
+            {
+                LogEvent("[ERROR]", $"Lỗi quét cổng SDI: {ex.Message}");
+            }
+        }
+
+        private void BtnLaunchFullscreenPlayout_Click(object sender, RoutedEventArgs e)
+        {
+            if (_playoutWindow != null)
+            {
+                try
+                {
+                    _playoutWindow.Close();
+                }
+                catch { }
+                _playoutWindow = null;
+                BtnLaunchFullscreenPlayout.Content = "🖥️ Khởi chạy Fullscreen Playout (Màn hình ngoài)";
+                BtnLaunchFullscreenPlayout.Background = new SolidColorBrush(Color.FromRgb(0x00, 0x7A, 0xCC));
+                LogEvent("[INFO]", "Đã dừng Fullscreen Playout trên màn hình ngoài.");
+                return;
+            }
+
+            if (_monitors.Count == 0)
+            {
+                LogEvent("[WARN]", "Không tìm thấy màn hình hiển thị để khởi chạy Playout.");
+                return;
+            }
+
+            int selectedMonitorIdx = CmbDisplayMonitors.SelectedIndex;
+            if (selectedMonitorIdx < 0 || selectedMonitorIdx >= _monitors.Count)
+            {
+                selectedMonitorIdx = 0;
+            }
+
+            var monitor = _monitors[selectedMonitorIdx];
+            bool isMultiviewer = CmbPlayoutSource.SelectedIndex == 1;
+            string sourceTitle = isMultiviewer ? "MULTIVIEWER GRID" : "MASTER PROGRAM (PGM)";
+
+            try
+            {
+                _playoutWindow = new FullscreenPlayoutWindow(
+                    monitor,
+                    sourceTitle,
+                    isMultiviewer,
+                    _activeChannelCount,
+                    _channelNames,
+                    _currentProgramIndex,
+                    _currentPreviewIndex);
+
+                _playoutWindow.WindowClosed += () =>
+                {
+                    Dispatcher.InvokeAsync(() =>
+                    {
+                        _playoutWindow = null;
+                        BtnLaunchFullscreenPlayout.Content = "🖥️ Khởi chạy Fullscreen Playout (Màn hình ngoài)";
+                        BtnLaunchFullscreenPlayout.Background = new SolidColorBrush(Color.FromRgb(0x00, 0x7A, 0xCC));
+                        LogEvent("[INFO]", "Cửa sổ Fullscreen Playout đã đóng.");
+                    });
+                };
+
+                _playoutWindow.Show();
+
+                // Seed existing bitmaps if already available
+                if (isMultiviewer)
+                {
+                    for (int i = 0; i < _activeChannelCount; i++)
+                    {
+                        var bmp = _camBitmaps[i];
+                        if (bmp != null && _fallbacks[i].Visibility == Visibility.Collapsed)
+                        {
+                            int w = bmp.PixelWidth;
+                            int h = bmp.PixelHeight;
+                            int stride = w * 4;
+                            byte[] pixelBytes = new byte[stride * h];
+                            bmp.CopyPixels(pixelBytes, stride, 0);
+                            _playoutWindow.UpdateChannelFrame(i, pixelBytes, w, h);
+                        }
+                    }
+                }
+                else
+                {
+                    var pgmBmp = _camBitmaps[_currentProgramIndex];
+                    if (pgmBmp != null && _fallbacks[_currentProgramIndex].Visibility == Visibility.Collapsed)
+                    {
+                        int w = pgmBmp.PixelWidth;
+                        int h = pgmBmp.PixelHeight;
+                        int stride = w * 4;
+                        byte[] pixelBytes = new byte[stride * h];
+                        pgmBmp.CopyPixels(pixelBytes, stride, 0);
+                        _playoutWindow.UpdateFrame(pixelBytes, w, h);
+                    }
+                }
+
+                BtnLaunchFullscreenPlayout.Content = "⏹️ Đóng Fullscreen Playout (ESC)";
+                BtnLaunchFullscreenPlayout.Background = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26));
+                LogEvent("[INFO]", $"Đã mở Fullscreen Playout ({sourceTitle}) trên {monitor.DisplayLabel}.");
+            }
+            catch (Exception ex)
+            {
+                LogEvent("[ERROR]", $"Lỗi mở Fullscreen Playout: {ex.Message}");
+            }
+        }
+
+        private void CmbPlayoutSource_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized || _playoutWindow == null) return;
+            bool isMultiviewer = CmbPlayoutSource.SelectedIndex == 1;
+            _playoutWindow.SetSourceMode(isMultiviewer, _activeChannelCount, _channelNames, _currentProgramIndex, _currentPreviewIndex);
+        }
+
+        #endregion
 
         private void LogEvent(string tag, string message)
         {
-            Dispatcher.InvokeAsync(() =>
+            if (_isShuttingDown) return;
+
+            try
             {
-                string timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
-                string line = $"[{timestamp}] {tag} {message}\n";
+                if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished) return;
 
-                _logBuffer.Insert(0, line);
-                if (_logBuffer.Length > 50000)
+                Dispatcher.InvokeAsync(() =>
                 {
-                    _logBuffer.Length = 40000;
-                }
+                    if (_isShuttingDown) return;
 
-                if (TxtLogConsole != null)
-                {
-                    TxtLogConsole.Text = _logBuffer.ToString();
-                    if (ChkAutoScroll.IsChecked == true)
+                    string timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
+                    string line = $"[{timestamp}] {tag} {message}\n";
+
+                    _logBuffer.Insert(0, line);
+                    if (_logBuffer.Length > 50000)
                     {
-                        ScrollerLogs?.ScrollToHome();
+                        _logBuffer.Length = 40000;
                     }
-                }
-            });
+
+                    if (TxtLogConsole != null)
+                    {
+                        TxtLogConsole.Text = _logBuffer.ToString();
+                        if (ChkAutoScroll.IsChecked == true)
+                        {
+                            ScrollerLogs?.ScrollToHome();
+                        }
+                    }
+                });
+            }
+            catch { }
         }
 
         private void BtnClearLogs_Click(object sender, RoutedEventArgs e)
