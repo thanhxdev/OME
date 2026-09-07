@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenMedia.Platform.Models;
@@ -12,7 +15,7 @@ namespace OpenMedia.Platform
     /// Provides unified transmission (egress), reception (ingest), real-time telemetry monitoring,
     /// and clean lifecycle management for broadcast workflows.
     /// </summary>
-    public class SRTStreamSession : IDisposable, IAsyncDisposable
+    public class SRTStreamSession : IDisposable, IAsyncDisposable, IMediaIngestSession
     {
         private readonly SRTStreamConfig _config;
         private readonly SRTStatistics _statistics = new();
@@ -31,6 +34,9 @@ namespace OpenMedia.Platform
 
         /// <summary>Real-time telemetry and statistics.</summary>
         public SRTStatistics Statistics => _statistics;
+
+        /// <summary>Unified broadcast telemetry implementing <see cref="IMediaIngestSession"/>.</summary>
+        public StreamStatistics CurrentStats => StreamStatistics.FromSrtStatistics(_statistics);
 
         /// <summary>Indicates whether the stream session is currently active.</summary>
         public bool IsRunning => _isRunning;
@@ -236,6 +242,74 @@ namespace OpenMedia.Platform
             StatusChanged?.Invoke(false, "SRT Stopped / Idle");
             Log("[SRT]", "Đã dừng luồng SRT.");
             await Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Starts the ingest session asynchronously conforming to <see cref="IMediaIngestSession"/>.
+        /// </summary>
+        public virtual async ValueTask<bool> StartAsync(CancellationToken ct = default)
+        {
+            return await ConnectReceiverAsync();
+        }
+
+        async ValueTask IMediaIngestSession.StopAsync()
+        {
+            await StopAsync();
+        }
+
+        /// <summary>
+        /// Reads incoming broadcast media frames as an asynchronous stream of zero-copy spans.
+        /// </summary>
+        public async IAsyncEnumerable<MediaFrameSpan> ReadFramesAsync([EnumeratorCancellation] CancellationToken ct = default)
+        {
+            ThrowIfDisposed();
+            if (!_isRunning)
+            {
+                bool connected = await ConnectReceiverAsync();
+                if (!connected)
+                {
+                    yield break;
+                }
+            }
+
+            const int bufferSize = 65536;
+            IntPtr nativeBuffer = Marshal.AllocHGlobal(bufferSize);
+            byte[] managedBuffer = new byte[bufferSize];
+
+            try
+            {
+                while (_isRunning && !ct.IsCancellationRequested && _nativeSource != null)
+                {
+                    int bytesRead = _nativeSource.Receive(managedBuffer);
+                    if (bytesRead > 0)
+                    {
+                        Marshal.Copy(managedBuffer, 0, nativeBuffer, bytesRead);
+                        yield return new MediaFrameSpan(
+                            dataPointer: nativeBuffer,
+                            length: bytesRead,
+                            stride: bytesRead,
+                            width: _config.Width,
+                            height: _config.Height,
+                            format: PixelFormat.NV12,
+                            timestampUs: (long)(DateTime.UtcNow - _connectTime).TotalMicroseconds);
+                    }
+                    else
+                    {
+                        try
+                        {
+                            await Task.Delay(5, ct).ConfigureAwait(false);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            break;
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(nativeBuffer);
+            }
         }
 
         /// <summary>

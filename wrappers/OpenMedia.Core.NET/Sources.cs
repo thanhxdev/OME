@@ -1,37 +1,38 @@
 using System;
+using OpenMedia.SDK.SafeHandles;
 
 namespace OpenMedia.SDK
 {
     public class FileSource : IDisposable
     {
-        private IntPtr _handle;
+        private readonly SafeMediaSourceHandle _handle;
         private bool _disposed = false;
 
-        public IntPtr Handle => _handle;
+        public SafeMediaSourceHandle SafeHandle => _handle;
+        public IntPtr Handle => _handle.DangerousGetHandle();
 
         public FileSource(string uri)
         {
             _handle = NativeBridge.ome_source_create_file(uri);
-            if (_handle == IntPtr.Zero)
+            if (_handle.IsInvalid)
                 throw new InvalidOperationException("Failed to create FileSource.");
+        }
+
+        public FileSource(SafeMediaSourceHandle handle)
+        {
+            _handle = handle ?? throw new ArgumentNullException(nameof(handle));
         }
 
         protected virtual void Dispose(bool disposing)
         {
             if (!_disposed)
             {
-                if (_handle != IntPtr.Zero)
+                if (disposing)
                 {
-                    NativeBridge.ome_source_destroy(_handle);
-                    _handle = IntPtr.Zero;
+                    _handle.Dispose();
                 }
                 _disposed = true;
             }
-        }
-
-        ~FileSource()
-        {
-            Dispose(false);
         }
 
         public void Dispose()
@@ -43,15 +44,16 @@ namespace OpenMedia.SDK
 
     public class Playlist : IDisposable
     {
-        private IntPtr _handle;
+        private readonly SafePlaylistHandle _handle;
         private bool _disposed = false;
 
-        public IntPtr Handle => _handle;
+        public SafePlaylistHandle SafeHandle => _handle;
+        public IntPtr Handle => _handle.DangerousGetHandle();
 
         public Playlist()
         {
             _handle = NativeBridge.ome_playlist_create();
-            if (_handle == IntPtr.Zero)
+            if (_handle.IsInvalid)
                 throw new InvalidOperationException("Failed to create Playlist.");
         }
 
@@ -64,18 +66,12 @@ namespace OpenMedia.SDK
         {
             if (!_disposed)
             {
-                if (_handle != IntPtr.Zero)
+                if (disposing)
                 {
-                    NativeBridge.ome_playlist_destroy(_handle);
-                    _handle = IntPtr.Zero;
+                    _handle.Dispose();
                 }
                 _disposed = true;
             }
-        }
-
-        ~Playlist()
-        {
-            Dispose(false);
         }
 
         public void Dispose()
@@ -87,18 +83,19 @@ namespace OpenMedia.SDK
 
     public class SRTSource : IDisposable
     {
-        private IntPtr _handle;
+        private readonly SafeSrtSourceHandle _handle;
         private bool _disposed = false;
         private string _connectedUri = string.Empty;
 
-        public IntPtr Handle => _handle;
+        public SafeSrtSourceHandle SafeHandle => _handle;
+        public IntPtr Handle => _handle.DangerousGetHandle();
         public string ConnectedUri => _connectedUri;
         public bool IsConnected { get; private set; }
 
         public SRTSource()
         {
             _handle = NativeBridge.ome_srt_source_create();
-            if (_handle == IntPtr.Zero)
+            if (_handle.IsInvalid)
                 throw new InvalidOperationException("Failed to create SRTSource.");
         }
 
@@ -112,7 +109,7 @@ namespace OpenMedia.SDK
 
         public bool Connect(string uri)
         {
-            if (_handle == IntPtr.Zero || string.IsNullOrEmpty(uri)) return false;
+            if (_handle.IsInvalid || string.IsNullOrEmpty(uri)) return false;
             bool success = NativeBridge.ome_srt_source_connect(_handle, uri);
             if (success)
             {
@@ -124,7 +121,7 @@ namespace OpenMedia.SDK
 
         public void Disconnect()
         {
-            if (_handle != IntPtr.Zero && IsConnected)
+            if (!_handle.IsInvalid && IsConnected)
             {
                 NativeBridge.ome_srt_source_disconnect(_handle);
                 IsConnected = false;
@@ -135,21 +132,21 @@ namespace OpenMedia.SDK
         {
             get
             {
-                if (_handle == IntPtr.Zero || !IsConnected) return false;
+                if (_handle.IsInvalid || !IsConnected) return false;
                 return NativeBridge.ome_srt_source_is_connected(_handle);
             }
         }
 
         public int Receive(byte[] buffer)
         {
-            if (_handle == IntPtr.Zero || !IsConnected || buffer == null || buffer.Length == 0) return -1;
+            if (_handle.IsInvalid || !IsConnected || buffer == null || buffer.Length == 0) return -1;
             return NativeBridge.ome_srt_source_receive(_handle, buffer, buffer.Length);
         }
 
         public bool GetStatistics(out NativeBridge.SRTNativeStats stats)
         {
             stats = default;
-            if (_handle == IntPtr.Zero || !IsConnected) return false;
+            if (_handle.IsInvalid || !IsConnected) return false;
             return NativeBridge.ome_srt_source_get_stats(_handle, out stats);
         }
 
@@ -157,19 +154,13 @@ namespace OpenMedia.SDK
         {
             if (!_disposed)
             {
-                if (_handle != IntPtr.Zero)
+                if (disposing)
                 {
                     Disconnect();
-                    NativeBridge.ome_srt_source_destroy(_handle);
-                    _handle = IntPtr.Zero;
+                    _handle.Dispose();
                 }
                 _disposed = true;
             }
-        }
-
-        ~SRTSource()
-        {
-            Dispose(false);
         }
 
         public void Dispose()
@@ -179,4 +170,3 @@ namespace OpenMedia.SDK
         }
     }
 }
-

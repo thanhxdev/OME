@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  coturn:
+    image: coturn/coturn:latest
+    container_name: broadcast-turn-server
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+      - ./certs:/etc/coturn/certs:ro
+      - ./logs:/var/log/coturn:rw
+    environment:
+      - DETECT_EXTERNAL_IP=yes
+    # Ports (handled by host network mode on Linux, or expose below when bridge mode is needed)
+    ports:
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+      - "5349:5349/tcp"
+      - "5349:5349/udp"
+      - "49152-65535:49152-65535/udp"
+    command: ["-c", "/etc/coturn/turnserver.conf"]
+
+  turn-exporter:
+    image: podstream/coturn-prometheus-exporter:latest
+    container_name: broadcast-turn-exporter
+    restart: unless-stopped
+    ports:
+      - "9641:9641"
+    environment:
+      - COTURN_HOST=127.0.0.1
+      - COTURN_PORT=3478
+      - COTURN_USERNAME=broadcast_user
+      - COTURN_PASSWORD=broadcast_password
+    depends_on:
+      - coturn

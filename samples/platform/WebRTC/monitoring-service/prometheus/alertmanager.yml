@@ -1,0 +1,15 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname', 'camera_id']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'broadcast-webhook'
+
+receivers:
+  - name: 'broadcast-webhook'
+    webhook_configs:
+      - url: 'http://monitoring-service:9100/api/alerts'
+        send_resolved: true

@@ -1,18 +1,20 @@
 using System;
+using OpenMedia.SDK.SafeHandles;
 
 namespace OpenMedia.SDK
 {
     public class ClockOverlay : IDisposable
     {
-        private IntPtr _handle;
+        private readonly SafeOverlayHandle _handle;
         private bool _disposed = false;
 
-        public IntPtr Handle => _handle;
+        public SafeOverlayHandle SafeHandle => _handle;
+        public IntPtr Handle => _handle.DangerousGetHandle();
 
         public ClockOverlay()
         {
             _handle = NativeBridge.ome_clock_overlay_create();
-            if (_handle == IntPtr.Zero)
+            if (_handle.IsInvalid)
                 throw new InvalidOperationException("Failed to create ClockOverlay.");
         }
 
@@ -25,18 +27,12 @@ namespace OpenMedia.SDK
         {
             if (!_disposed)
             {
-                if (_handle != IntPtr.Zero)
+                if (disposing)
                 {
-                    NativeBridge.ome_overlay_destroy(_handle);
-                    _handle = IntPtr.Zero;
+                    _handle.Dispose();
                 }
                 _disposed = true;
             }
-        }
-
-        ~ClockOverlay()
-        {
-            Dispose(false);
         }
 
         public void Dispose()

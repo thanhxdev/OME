@@ -1,0 +1,17 @@
+{
+  "name": "@webrtc-broadcast/shared",
+  "version": "1.0.0",
+  "description": "Shared protocols, types, configs, and utilities for 10-camera broadcast WebRTC platform",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w"
+  },
+  "keywords": ["webrtc", "broadcast", "sdi", "hdmi", "sfu"],
+  "author": "OpenMedia",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

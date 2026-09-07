@@ -3,6 +3,7 @@
 
 #include <openmedia/worker_pool/WorkerPool.h>
 #include <openmedia/core/Logger.h>
+#include <openmedia/core/SehGuard.h>
 
 #include <algorithm>
 #include <atomic>
@@ -66,18 +67,13 @@ struct WorkerPool::Impl {
 
             activeCount.fetch_add(1);
 
-            try {
-                task.function();
+            auto sehResult = core::ExecuteWithSehGuard(task.function, threadName.c_str());
+            if (sehResult.succeeded) {
                 totalCompleted.fetch_add(1);
-            } catch (const std::exception& e) {
+            } else {
                 totalFailed.fetch_add(1);
                 core::Logger::SError("WorkerPool",
-                    "Task {} failed in {}: {}", task.id, threadName, e.what());
-            } catch (...) {
-                totalFailed.fetch_add(1);
-                core::Logger::SError("WorkerPool",
-                    "Task {} failed in {} with unknown exception",
-                    task.id, threadName);
+                    "Task {} failed/isolated in {}: {}", task.id, threadName, sehResult.errorMessage);
             }
 
             activeCount.fetch_sub(1);

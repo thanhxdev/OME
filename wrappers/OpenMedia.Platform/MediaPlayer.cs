@@ -19,6 +19,7 @@ namespace OpenMedia.Platform
     /// </summary>
     public sealed class MediaPlayer : IDisposable
     {
+        private readonly Guid _playerId = Guid.NewGuid();
         private uint _pipelineId;
         private uint _sourceId = 1;
         private string? _sourceUri;
@@ -308,6 +309,29 @@ namespace OpenMedia.Platform
                 await UpdateServerAudioPropertiesAsync();
                 ApplyEffectiveVideoOffset();
                 Trace.WriteLine($"[MediaPlayer] Opened: {sourceUri} ({_information?.Duration})");
+
+                // Register state in StateReplayEngine for resilient self-healing
+                StateReplayEngine.Instance.RegisterPlayer(new PlayerSnapshot
+                {
+                    Id = _playerId,
+                    Uri = _sourceUri,
+                    State = _state,
+                    Volume = _volume,
+                    IsMuted = _isMuted,
+                    ReplayAction = async () =>
+                    {
+                        if (!string.IsNullOrEmpty(_sourceUri))
+                        {
+                            _pipelineCreated = false;
+                            _sourceOpened = false;
+                            await OpenAsync(_sourceUri);
+                            if (State == PlaybackState.Ready && _state == PlaybackState.Playing)
+                            {
+                                await PlayAsync();
+                            }
+                        }
+                    }
+                });
             }
             catch (Exception ex)
             {
@@ -655,6 +679,7 @@ namespace OpenMedia.Platform
 
             StopPositionTracking();
             DetachPreview();
+            StateReplayEngine.Instance.UnregisterPlayer(_playerId);
 
             // Destroy pipeline on server
             if (_pipelineCreated)

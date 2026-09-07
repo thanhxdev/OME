@@ -1,5 +1,8 @@
+using System;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using OpenMedia.SDK;
 using OpenMedia.Platform.Internal;
 
@@ -7,7 +10,7 @@ namespace OpenMedia.Platform
 {
     /// <summary>
     /// Manages the lifecycle of the OpenMedia engine — server discovery,
-    /// process launch, IPC connection, and heartbeat monitoring.
+    /// process launch, IPC connection, Watchdog heartbeat monitoring, and automated State Replay self-healing.
     /// <para>
     /// This is the entry point for all OpenMedia.Platform operations.
     /// Call <see cref="InitializeAsync"/> before using any other Platform class.
@@ -26,6 +29,8 @@ namespace OpenMedia.Platform
         private static Process? _serverProcess;
         private static CancellationTokenSource? _heartbeatCts;
         private static Version? _engineVersion;
+        private static RuntimeOptions _currentOptions = new();
+        private static int _isRecovering = 0;
         private static readonly object _lock = new();
 
         /// <summary>
@@ -50,6 +55,21 @@ namespace OpenMedia.Platform
         public static event EventHandler? ServerDisconnected;
 
         /// <summary>
+        /// Raised when the runtime successfully reconnects to the server and reconstitutes the pipeline graph.
+        /// </summary>
+        public static event EventHandler? ServerReconnected;
+
+        /// <summary>
+        /// Fired when operational self-healing and watchdog messages are emitted.
+        /// </summary>
+        public static event Action<string>? ResilienceLogEmitted;
+
+        /// <summary>
+        /// Accesses the active State Replay Engine singleton for tracking and reconstituting media state.
+        /// </summary>
+        public static StateReplayEngine StateReplay => StateReplayEngine.Instance;
+
+        /// <summary>
         /// The underlying IPC client. Exposed for internal use by Platform classes.
         /// </summary>
         internal static IPCClient? IPC => _ipcClient;
@@ -66,7 +86,7 @@ namespace OpenMedia.Platform
         /// </exception>
         public static async Task<bool> InitializeAsync(RuntimeOptions? options = null)
         {
-            options ??= new RuntimeOptions();
+            _currentOptions = options ?? new RuntimeOptions();
 
             lock (_lock)
             {
@@ -74,7 +94,7 @@ namespace OpenMedia.Platform
                     return true; // Already initialized
             }
 
-            string effectivePipeName = options.PipeName;
+            string effectivePipeName = _currentOptions.PipeName;
             if (effectivePipeName == "OpenMediaSDK")
             {
                 effectivePipeName = $"OpenMediaSDK_{Process.GetCurrentProcess().Id}";
@@ -85,10 +105,10 @@ namespace OpenMedia.Platform
             // Try connecting to already-running server first
             bool connected = await _ipcClient.ConnectAsync(effectivePipeName, 1000);
 
-            if (!connected && options.AutoLaunch)
+            if (!connected && _currentOptions.AutoLaunch)
             {
                 // Discover and launch server
-                var serverPath = ServerDiscovery.Discover(options.ServerPath);
+                var serverPath = ServerDiscovery.Discover(_currentOptions.ServerPath);
                 if (serverPath == null)
                 {
                     Trace.WriteLine("[OpenMedia.Platform] Server not found. InitializeAsync returning false.");
@@ -127,7 +147,7 @@ namespace OpenMedia.Platform
                 }
 
                 // Retry connection with longer timeout
-                connected = await _ipcClient.ConnectAsync(effectivePipeName, options.ConnectionTimeout);
+                connected = await _ipcClient.ConnectAsync(effectivePipeName, _currentOptions.ConnectionTimeout);
             }
 
             if (!connected)
@@ -153,13 +173,21 @@ namespace OpenMedia.Platform
                 return false;
             }
 
-            _engineVersion = new Version(1, 0, 0);
+            _engineVersion = new Version(2, 0, 0);
 
-            // Start heartbeat monitor
+            // Start watchdog heartbeat monitor
             StartHeartbeat();
 
-            Trace.WriteLine("[OpenMedia.Platform] Runtime initialized successfully.");
+            Trace.WriteLine("[OpenMedia.Platform] Runtime initialized successfully (V2.0-Final).");
             return true;
+        }
+
+        /// <summary>
+        /// Manually triggers State Replay to reconstitute all active pipelines and media graphs.
+        /// </summary>
+        public static async Task<ReplayReport> ReplayStateAsync()
+        {
+            return await StateReplayEngine.Instance.ReplayAsync(_ipcClient);
         }
 
         /// <summary>
@@ -239,20 +267,31 @@ namespace OpenMedia.Platform
 
         private static void StartHeartbeat()
         {
+            StopHeartbeat();
+
             _heartbeatCts = new CancellationTokenSource();
             var ct = _heartbeatCts.Token;
             var syncContext = SynchronizationContext.Current;
+            int timeoutMs = Math.Max(500, _currentOptions.WatchdogTimeoutMs);
 
             _ = Task.Run(async () =>
             {
                 while (!ct.IsCancellationRequested)
                 {
-                    await Task.Delay(3000, ct);
+                    try
+                    {
+                        await Task.Delay(timeoutMs, ct);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+
                     if (ct.IsCancellationRequested) break;
 
                     if (_ipcClient == null || !_ipcClient.IsConnected)
                     {
-                        RaiseServerDisconnected(syncContext);
+                        _ = HandleDisconnectAndRecoverAsync(syncContext);
                         break;
                     }
 
@@ -261,13 +300,13 @@ namespace OpenMedia.Platform
                         var response = await _ipcClient.SendAndReceiveAsync(CommandType.GetStatus);
                         if (response == null)
                         {
-                            RaiseServerDisconnected(syncContext);
+                            _ = HandleDisconnectAndRecoverAsync(syncContext);
                             break;
                         }
                     }
                     catch
                     {
-                        RaiseServerDisconnected(syncContext);
+                        _ = HandleDisconnectAndRecoverAsync(syncContext);
                         break;
                     }
                 }
@@ -284,7 +323,78 @@ namespace OpenMedia.Platform
         private static void OnServerProcessExited(object? sender, EventArgs e)
         {
             Trace.WriteLine("[OpenMedia.Platform] Server process exited.");
-            RaiseServerDisconnected(SynchronizationContext.Current);
+            _ = HandleDisconnectAndRecoverAsync(SynchronizationContext.Current);
+        }
+
+        private static async Task HandleDisconnectAndRecoverAsync(SynchronizationContext? syncContext)
+        {
+            if (Interlocked.CompareExchange(ref _isRecovering, 1, 0) != 0)
+                return; // Recovery already in progress
+
+            try
+            {
+                StopHeartbeat();
+                RaiseServerDisconnected(syncContext);
+
+                if (!_currentOptions.AutoReconnect)
+                {
+                    ResilienceLogEmitted?.Invoke("[Resilience] AutoReconnect disabled. Manual intervention required.");
+                    return;
+                }
+
+                ResilienceLogEmitted?.Invoke("[Watchdog] Server disconnect detected. Initiating automated self-healing & state reconstitution...");
+
+                bool reconnected = false;
+                for (int attempt = 1; attempt <= _currentOptions.MaxReconnectAttempts; attempt++)
+                {
+                    ResilienceLogEmitted?.Invoke($"[Watchdog] Reconnection attempt {attempt}/{_currentOptions.MaxReconnectAttempts}...");
+                    try
+                    {
+                        // Clean up existing IPC instance
+                        _ipcClient?.Dispose();
+                        _ipcClient = null;
+
+                        // Reinitialize runtime
+                        bool ok = await InitializeAsync(_currentOptions);
+                        if (ok && _ipcClient?.IsConnected == true)
+                        {
+                            reconnected = true;
+                            break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        ResilienceLogEmitted?.Invoke($"[Watchdog] Attempt {attempt} failed: {ex.Message}");
+                    }
+
+                    int delay = Math.Min(100 * (1 << Math.Min(attempt, 5)), 2000);
+                    await Task.Delay(delay);
+                }
+
+                if (reconnected)
+                {
+                    ResilienceLogEmitted?.Invoke("[StateReplay] Replaying active pipeline graph to reconstituted server...");
+                    var report = await StateReplayEngine.Instance.ReplayAsync(_ipcClient);
+                    if (report.Succeeded)
+                    {
+                        ResilienceLogEmitted?.Invoke($"[StateReplay] ✅ Pipeline graph restored in {report.ElapsedMs}ms (Players: {report.ReplayedPlayers}, Mixers: {report.ReplayedMixers}, Outputs: {report.ReplayedOutputs})");
+                    }
+                    else
+                    {
+                        ResilienceLogEmitted?.Invoke($"[StateReplay] ⚠️ Pipeline replay completed with note: {report.ErrorMessage}");
+                    }
+
+                    RaiseServerReconnected(syncContext);
+                }
+                else
+                {
+                    ResilienceLogEmitted?.Invoke("[Watchdog] ❌ All reconnection attempts exhausted.");
+                }
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _isRecovering, 0);
+            }
         }
 
         private static void RaiseServerDisconnected(SynchronizationContext? syncContext)
@@ -296,6 +406,18 @@ namespace OpenMedia.Platform
             else
             {
                 ServerDisconnected?.Invoke(null, EventArgs.Empty);
+            }
+        }
+
+        private static void RaiseServerReconnected(SynchronizationContext? syncContext)
+        {
+            if (syncContext != null)
+            {
+                syncContext.Post(_ => ServerReconnected?.Invoke(null, EventArgs.Empty), null);
+            }
+            else
+            {
+                ServerReconnected?.Invoke(null, EventArgs.Empty);
             }
         }
     }

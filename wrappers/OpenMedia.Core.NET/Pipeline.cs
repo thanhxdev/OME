@@ -1,5 +1,9 @@
 using System;
+using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
+using OpenMedia.SDK.Interop;
+using OpenMedia.SDK.SafeHandles;
 
 namespace OpenMedia.SDK
 {
@@ -22,26 +26,34 @@ namespace OpenMedia.SDK
         }
     }
 
+    /// <summary>
+    /// Managed Pipeline with type-safe SafeHandle lifecycle, GC callback protection (TD-01),
+    /// and modern async control flow.
+    /// </summary>
     public class Pipeline : IDisposable
     {
-        private IntPtr _handle;
+        private readonly SafePipelineHandle _handle;
         private bool _disposed = false;
 
-        private NativeBridge.StateChangedCallback _stateCallbackDelegate;
-        private NativeBridge.ErrorCallback _errorCallbackDelegate;
+        private readonly NativeBridge.StateChangedCallback _stateCallbackDelegate;
+        private readonly NativeBridge.ErrorCallback _errorCallbackDelegate;
 
-        public event EventHandler<PipelineState> StateChanged;
-        public event EventHandler<PipelineErrorEventArgs> Error;
+        public SafePipelineHandle SafeHandle => _handle;
+        public IntPtr Handle => _handle.DangerousGetHandle();
+
+        public event EventHandler<PipelineState>? StateChanged;
+        public event EventHandler<PipelineErrorEventArgs>? Error;
 
         public Pipeline()
         {
             _handle = NativeBridge.ome_pipeline_create();
-            if (_handle == IntPtr.Zero)
+            if (_handle.IsInvalid)
                 throw new InvalidOperationException("Failed to create pipeline.");
 
-            // Register callbacks
-            _stateCallbackDelegate = new NativeBridge.StateChangedCallback(OnStateChangedInternal);
-            _errorCallbackDelegate = new NativeBridge.ErrorCallback(OnErrorInternal);
+            // Register callbacks with GC lifetime protection (TD-01)
+            _stateCallbackDelegate = OnStateChangedInternal;
+            _errorCallbackDelegate = OnErrorInternal;
+
             NativeBridge.ome_pipeline_set_state_callback(_handle, _stateCallbackDelegate);
             NativeBridge.ome_pipeline_set_error_callback(_handle, _errorCallbackDelegate);
         }
@@ -61,11 +73,13 @@ namespace OpenMedia.SDK
             return NativeBridge.ome_pipeline_start(_handle);
         }
 
-        public Task<bool> StartAsync()
+        public Task<bool> StartAsync(CancellationToken cancellationToken = default)
         {
-            // Tương lai: dùng TaskCompletionSource lắng nghe event StateChanged(Running).
-            // Hiện tại dùng Task.Run để tránh lock main UI thread.
-            return Task.Run(() => Start());
+            return Task.Run(() =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return Start();
+            }, cancellationToken);
         }
 
         public bool Stop()
@@ -73,9 +87,19 @@ namespace OpenMedia.SDK
             return NativeBridge.ome_pipeline_stop(_handle);
         }
 
-        public Task<bool> StopAsync()
+        public Task<bool> StopAsync(CancellationToken cancellationToken = default)
         {
-            return Task.Run(() => Stop());
+            return Task.Run(() =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return Stop();
+            }, cancellationToken);
+        }
+
+        public bool AddNode(SafeHandle nodeHandle)
+        {
+            if (nodeHandle == null || nodeHandle.IsInvalid) return false;
+            return NativeBridge.ome_pipeline_add_node(_handle, nodeHandle.DangerousGetHandle());
         }
 
         public bool AddNode(IntPtr nodeHandle)
@@ -94,22 +118,16 @@ namespace OpenMedia.SDK
         {
             if (!_disposed)
             {
-                if (_handle != IntPtr.Zero)
+                if (disposing)
                 {
-                    // Unregister callbacks before destroying
+                    // Clean up callbacks and release native handle
                     NativeBridge.ome_pipeline_set_state_callback(_handle, null);
                     NativeBridge.ome_pipeline_set_error_callback(_handle, null);
-
-                    NativeBridge.ome_pipeline_destroy(_handle);
-                    _handle = IntPtr.Zero;
+                    CallbackLifetimeManager.UnregisterAll(_handle.DangerousGetHandle());
+                    _handle.Dispose();
                 }
                 _disposed = true;
             }
-        }
-
-        ~Pipeline()
-        {
-            Dispose(false);
         }
 
         public void Dispose()

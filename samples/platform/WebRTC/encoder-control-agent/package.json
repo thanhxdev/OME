@@ -1,0 +1,26 @@
+{
+  "name": "@webrtc-broadcast/encoder-control-agent",
+  "version": "1.0.0",
+  "description": "Field supervision daemon for stadium encoder process watchdog, hardware telemetry, GPIO tally, and intercom",
+  "main": "dist/index.js",
+  "bin": {
+    "encoder-control-agent": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/cli.js",
+    "dev": "ts-node src/cli.ts"
+  },
+  "dependencies": {
+    "@webrtc-broadcast/shared": "file:../shared",
+    "commander": "^12.0.0",
+    "dotenv": "^16.4.5",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/ws": "^8.5.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0"
+  }
+}

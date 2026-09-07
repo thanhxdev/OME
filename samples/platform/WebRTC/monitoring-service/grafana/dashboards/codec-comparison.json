@@ -1,0 +1,82 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Throughpass Bandwidth (Total)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(webrtc_camera_bitrate_kbps{codec=\"throughpass\"}) or vector(0)",
+          "legendFormat": "Throughpass (kbps)"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "kbps" } }
+    },
+    {
+      "id": 2,
+      "title": "H.264 Bandwidth (Total)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(webrtc_camera_bitrate_kbps{codec=\"h264\"}) or vector(0)",
+          "legendFormat": "H.264 (kbps)"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "kbps" } }
+    },
+    {
+      "id": 3,
+      "title": "H.265 / HEVC Bandwidth (Total)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(webrtc_camera_bitrate_kbps{codec=\"h265\"}) or vector(0)",
+          "legendFormat": "H.265 (kbps)"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "kbps" } }
+    },
+    {
+      "id": 4,
+      "title": "Bitrate Distribution by Codec",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "expr": "sum by (codec) (webrtc_camera_bitrate_kbps)",
+          "legendFormat": "{{codec}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Average Packet Loss by Codec",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        {
+          "expr": "avg by (codec) (webrtc_camera_packet_loss_ratio) * 100",
+          "legendFormat": "{{codec}} loss %"
+        }
+      ]
+    }
+  ],
+  "refresh": "2s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["webrtc", "codec-comparison"],
+  "time": { "from": "now-15m", "to": "now" },
+  "timezone": "browser",
+  "title": "WebRTC Broadcast - Codec Comparison & Efficiency",
+  "uid": "webrtc-codec-comparison"
+}

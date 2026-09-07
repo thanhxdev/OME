@@ -1,18 +1,20 @@
 using System;
+using OpenMedia.SDK.SafeHandles;
 
 namespace OpenMedia.SDK
 {
     public class SRTEngine : IDisposable
     {
-        private IntPtr _handle;
+        private readonly SafeSrtEngineHandle _handle;
         private bool _disposed = false;
 
-        public IntPtr Handle => _handle;
+        public SafeSrtEngineHandle SafeHandle => _handle;
+        public IntPtr Handle => _handle.DangerousGetHandle();
 
         public SRTEngine()
         {
             _handle = NativeBridge.ome_srt_engine_create();
-            if (_handle == IntPtr.Zero)
+            if (_handle.IsInvalid)
                 throw new InvalidOperationException("Failed to create SRTEngine.");
         }
 
@@ -25,18 +27,12 @@ namespace OpenMedia.SDK
         {
             if (!_disposed)
             {
-                if (_handle != IntPtr.Zero)
+                if (disposing)
                 {
-                    NativeBridge.ome_srt_engine_destroy(_handle);
-                    _handle = IntPtr.Zero;
+                    _handle.Dispose();
                 }
                 _disposed = true;
             }
-        }
-
-        ~SRTEngine()
-        {
-            Dispose(false);
         }
 
         public void Dispose()
@@ -48,15 +44,16 @@ namespace OpenMedia.SDK
 
     public class NDIEngine : IDisposable
     {
-        private IntPtr _handle;
+        private readonly SafeNdiEngineHandle _handle;
         private bool _disposed = false;
 
-        public IntPtr Handle => _handle;
+        public SafeNdiEngineHandle SafeHandle => _handle;
+        public IntPtr Handle => _handle.DangerousGetHandle();
 
         public NDIEngine()
         {
             _handle = NativeBridge.ome_ndi_engine_create();
-            if (_handle == IntPtr.Zero)
+            if (_handle.IsInvalid)
                 throw new InvalidOperationException("Failed to create NDIEngine.");
         }
 
@@ -69,18 +66,12 @@ namespace OpenMedia.SDK
         {
             if (!_disposed)
             {
-                if (_handle != IntPtr.Zero)
+                if (disposing)
                 {
-                    NativeBridge.ome_ndi_engine_destroy(_handle);
-                    _handle = IntPtr.Zero;
+                    _handle.Dispose();
                 }
                 _disposed = true;
             }
-        }
-
-        ~NDIEngine()
-        {
-            Dispose(false);
         }
 
         public void Dispose()
@@ -92,15 +83,16 @@ namespace OpenMedia.SDK
 
     public class WebRTCEngine : IDisposable
     {
-        private IntPtr _handle;
+        private readonly SafeWebRtcEngineHandle _handle;
         private bool _disposed = false;
 
-        public IntPtr Handle => _handle;
+        public SafeWebRtcEngineHandle SafeHandle => _handle;
+        public IntPtr Handle => _handle.DangerousGetHandle();
 
         public WebRTCEngine()
         {
             _handle = NativeBridge.ome_webrtc_engine_create();
-            if (_handle == IntPtr.Zero)
+            if (_handle.IsInvalid)
                 throw new InvalidOperationException("Failed to create WebRTCEngine.");
         }
 
@@ -113,18 +105,12 @@ namespace OpenMedia.SDK
         {
             if (!_disposed)
             {
-                if (_handle != IntPtr.Zero)
+                if (disposing)
                 {
-                    NativeBridge.ome_webrtc_engine_destroy(_handle);
-                    _handle = IntPtr.Zero;
+                    _handle.Dispose();
                 }
                 _disposed = true;
             }
-        }
-
-        ~WebRTCEngine()
-        {
-            Dispose(false);
         }
 
         public void Dispose()
@@ -136,15 +122,16 @@ namespace OpenMedia.SDK
 
     public class CGEngine : IDisposable
     {
-        private IntPtr _handle;
+        private readonly SafeCgEngineHandle _handle;
         private bool _disposed = false;
 
-        public IntPtr Handle => _handle;
+        public SafeCgEngineHandle SafeHandle => _handle;
+        public IntPtr Handle => _handle.DangerousGetHandle();
 
         public CGEngine()
         {
             _handle = NativeBridge.ome_cg_engine_create();
-            if (_handle == IntPtr.Zero)
+            if (_handle.IsInvalid)
                 throw new InvalidOperationException("Failed to create CGEngine.");
         }
 
@@ -157,18 +144,12 @@ namespace OpenMedia.SDK
         {
             if (!_disposed)
             {
-                if (_handle != IntPtr.Zero)
+                if (disposing)
                 {
-                    NativeBridge.ome_cg_engine_destroy(_handle);
-                    _handle = IntPtr.Zero;
+                    _handle.Dispose();
                 }
                 _disposed = true;
             }
-        }
-
-        ~CGEngine()
-        {
-            Dispose(false);
         }
 
         public void Dispose()

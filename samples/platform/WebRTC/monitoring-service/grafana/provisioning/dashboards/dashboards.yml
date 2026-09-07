@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: 'WebRTC Broadcast'
+    orgId: 1
+    folder: 'Broadcast Production'
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

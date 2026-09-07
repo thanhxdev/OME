@@ -1,0 +1,65 @@
+groups:
+  - name: webrtc_broadcast_alerts
+    rules:
+      - alert: CameraHighPacketLoss
+        expr: webrtc_camera_packet_loss_ratio > 0.05
+        for: 10s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Camera {{ $labels.camera_id }} experiencing high packet loss"
+          description: "Packet loss on camera {{ $labels.camera_id }} is {{ $value | humanizePercentage }} (threshold 5%)."
+
+      - alert: CameraCriticalPacketLoss
+        expr: webrtc_camera_packet_loss_ratio > 0.15
+        for: 5s
+        labels:
+          severity: critical
+        annotations:
+          summary: "CRITICAL packet loss on Camera {{ $labels.camera_id }}"
+          description: "Packet loss on camera {{ $labels.camera_id }} exceeded 15% (current: {{ $value | humanizePercentage }})."
+
+      - alert: CameraHighLatency
+        expr: webrtc_camera_rtt_seconds > 0.100
+        for: 15s
+        labels:
+          severity: warning
+        annotations:
+          summary: "High RTT latency on Camera {{ $labels.camera_id }}"
+          description: "Round-trip latency on camera {{ $labels.camera_id }} is {{ $value }}s (threshold 100ms)."
+
+      - alert: WanBandwidthNearLimit
+        expr: webrtc_wan_bandwidth_total_kbps{direction="tx"} > 95000
+        for: 10s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Total WAN upload bandwidth approaching safe threshold"
+          description: "Aggregate WAN TX bandwidth is {{ $value }} kbps (> 95 Mbps safe ceiling)."
+
+      - alert: WanBandwidthOverloaded
+        expr: webrtc_wan_bandwidth_total_kbps{direction="tx"} > 115000
+        for: 5s
+        labels:
+          severity: critical
+        annotations:
+          summary: "WAN Bandwidth saturation critical"
+          description: "Total broadcast upload bandwidth is {{ $value }} kbps (> 115 Mbps capacity)."
+
+      - alert: CameraOfflineWhileOnAir
+        expr: webrtc_camera_online_status == 0 and webrtc_camera_tally_state == 2
+        for: 2s
+        labels:
+          severity: critical
+        annotations:
+          summary: "ON-AIR Camera {{ $labels.camera_id }} is OFFLINE"
+          description: "Camera {{ $labels.camera_id }} has tally ON-AIR but stream is offline!"
+
+      - alert: SystemCpuHigh
+        expr: webrtc_system_cpu_usage_ratio > 0.85
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.machine_id }}"
+          description: "Host CPU utilization is {{ $value | humanizePercentage }}."

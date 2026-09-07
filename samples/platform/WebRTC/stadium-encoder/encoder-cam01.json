@@ -1,0 +1,16 @@
+{
+  "cameraId": "cam-01",
+  "cameraName": "Main Wide (SDI 1)",
+  "inputType": "testpattern",
+  "deviceIndex": 0,
+  "codec": "h264",
+  "bitrate": 10000,
+  "resolution": "1920x1080",
+  "fps": 60,
+  "signalingUrl": "ws://localhost:3000/ws",
+  "sessionId": "event-001",
+  "sfuHost": "127.0.0.1",
+  "sfuVideoPort": 10000,
+  "sfuAudioPort": 10002,
+  "hwAccel": "cpu"
+}

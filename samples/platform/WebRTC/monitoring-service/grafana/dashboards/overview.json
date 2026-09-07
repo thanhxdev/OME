@@ -1,0 +1,198 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Total Broadcast Uplink Bandwidth",
+      "type": "gauge",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "webrtc_wan_bandwidth_total_kbps{direction=\"tx\"} / 1000",
+          "legendFormat": "TX Bandwidth (Mbps)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Mbps",
+          "min": 0,
+          "max": 120,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 75 },
+              { "color": "orange", "value": 95 },
+              { "color": "red", "value": 115 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Online Cameras Count",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(webrtc_camera_online_status)",
+          "legendFormat": "Online"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 8 },
+              { "color": "green", "value": 10 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "On-Air Active Cameras",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "count(webrtc_camera_tally_state == 2)",
+          "legendFormat": "On-Air"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "red" }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Average System CPU Load",
+      "type": "gauge",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+      "targets": [
+        {
+          "expr": "avg(webrtc_system_cpu_usage_ratio) * 100",
+          "legendFormat": "CPU %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Camera Bitrates (kbps)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "webrtc_camera_bitrate_kbps",
+          "legendFormat": "{{camera_id}} ({{codec}})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kbps",
+          "custom": { "drawStyle": "line", "lineInterpolation": "smooth" }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Packet Loss Ratio per Camera",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "webrtc_camera_packet_loss_ratio * 100",
+          "legendFormat": "{{camera_id}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": { "drawStyle": "line" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 2 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Round Trip Time (RTT ms)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "expr": "webrtc_camera_rtt_seconds * 1000",
+          "legendFormat": "{{camera_id}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": { "drawStyle": "line" }
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Camera Frame Rate (FPS)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        {
+          "expr": "webrtc_camera_fps",
+          "legendFormat": "{{camera_id}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "fps",
+          "min": 0,
+          "max": 65
+        }
+      }
+    }
+  ],
+  "refresh": "2s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["webrtc", "broadcast", "10-camera"],
+  "time": { "from": "now-15m", "to": "now" },
+  "timepicker": { "refresh_intervals": ["1s", "2s", "5s", "10s"] },
+  "timezone": "browser",
+  "title": "WebRTC Broadcast - 10-Camera Master Overview",
+  "uid": "webrtc-overview"
+}

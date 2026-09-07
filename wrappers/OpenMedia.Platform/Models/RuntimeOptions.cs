@@ -29,5 +29,24 @@ namespace OpenMedia.Platform
         /// Default: <c>5000</c> (5 seconds).
         /// </summary>
         public int ConnectionTimeout { get; init; } = 5000;
+
+        /// <summary>
+        /// Enables automated self-healing and reconnection when the server terminates or disconnects.
+        /// Default: <c>true</c>.
+        /// </summary>
+        public bool AutoReconnect { get; init; } = true;
+
+        /// <summary>
+        /// Heartbeat watchdog sensitivity threshold in milliseconds.
+        /// If server fails to respond within this duration, recovery is triggered.
+        /// Default: <c>1000</c> (1 second).
+        /// </summary>
+        public int WatchdogTimeoutMs { get; init; } = 1000;
+
+        /// <summary>
+        /// Maximum number of automated reconnection attempts before giving up.
+        /// Default: <c>10</c>.
+        /// </summary>
+        public int MaxReconnectAttempts { get; init; } = 10;
     }
 }

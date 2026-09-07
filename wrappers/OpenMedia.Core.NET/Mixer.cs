@@ -1,25 +1,38 @@
 using System;
+using OpenMedia.SDK.SafeHandles;
 
 namespace OpenMedia.SDK
 {
     public class Mixer : IDisposable
     {
-        private IntPtr _handle;
+        private readonly SafeVideoMixerHandle _handle;
         private bool _disposed = false;
 
-        public IntPtr Handle => _handle;
+        public SafeVideoMixerHandle SafeHandle => _handle;
+        public IntPtr Handle => _handle.DangerousGetHandle();
 
         public Mixer()
         {
             _handle = NativeBridge.ome_mixer_create();
-            if (_handle == IntPtr.Zero)
+            if (_handle.IsInvalid)
                 throw new InvalidOperationException("Failed to create Mixer.");
         }
 
         public bool AddInput(FileSource source, int layerIndex)
         {
             if (source == null) throw new ArgumentNullException(nameof(source));
-            return NativeBridge.ome_mixer_add_input(_handle, source.Handle, layerIndex);
+            return AddInput(source.Handle, layerIndex);
+        }
+
+        public bool AddInput(SafeMediaSourceHandle source, int layerIndex)
+        {
+            if (source == null || source.IsInvalid) return false;
+            return NativeBridge.ome_mixer_add_input(_handle, source.DangerousGetHandle(), layerIndex);
+        }
+
+        public bool AddInput(IntPtr source, int layerIndex)
+        {
+            return NativeBridge.ome_mixer_add_input(_handle, source, layerIndex);
         }
 
         public bool SetLUT(string lutPath, float intensity)
@@ -31,18 +44,12 @@ namespace OpenMedia.SDK
         {
             if (!_disposed)
             {
-                if (_handle != IntPtr.Zero)
+                if (disposing)
                 {
-                    NativeBridge.ome_mixer_destroy(_handle);
-                    _handle = IntPtr.Zero;
+                    _handle.Dispose();
                 }
                 _disposed = true;
             }
-        }
-
-        ~Mixer()
-        {
-            Dispose(false);
         }
 
         public void Dispose()
@@ -54,15 +61,16 @@ namespace OpenMedia.SDK
 
     public class AudioMixer : IDisposable
     {
-        private IntPtr _handle;
+        private readonly SafeAudioMixerHandle _handle;
         private bool _disposed = false;
 
-        public IntPtr Handle => _handle;
+        public SafeAudioMixerHandle SafeHandle => _handle;
+        public IntPtr Handle => _handle.DangerousGetHandle();
 
         public AudioMixer()
         {
             _handle = NativeBridge.ome_audio_mixer_create();
-            if (_handle == IntPtr.Zero)
+            if (_handle.IsInvalid)
                 throw new InvalidOperationException("Failed to create AudioMixer.");
         }
 
@@ -75,18 +83,12 @@ namespace OpenMedia.SDK
         {
             if (!_disposed)
             {
-                if (_handle != IntPtr.Zero)
+                if (disposing)
                 {
-                    NativeBridge.ome_audio_mixer_destroy(_handle);
-                    _handle = IntPtr.Zero;
+                    _handle.Dispose();
                 }
                 _disposed = true;
             }
-        }
-
-        ~AudioMixer()
-        {
-            Dispose(false);
         }
 
         public void Dispose()

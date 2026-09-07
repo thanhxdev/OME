@@ -1,0 +1,448 @@
+:root {
+  --bg-base: #0a0b10;
+  --bg-surface: #12141e;
+  --bg-elevated: #1a1e2d;
+  --bg-glass: rgba(18, 20, 30, 0.85);
+
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-medium: rgba(255, 255, 255, 0.16);
+
+  --text-primary: #f3f4f8;
+  --text-secondary: #9aa1b5;
+  --text-muted: #5e657c;
+
+  --tally-on-air: #ff2a51;
+  --tally-on-air-glow: rgba(255, 42, 81, 0.55);
+  --tally-preview: #00e676;
+  --tally-preview-glow: rgba(0, 230, 118, 0.45);
+  --tally-off: rgba(255, 255, 255, 0.07);
+
+  --accent-cyan: #00e5ff;
+  --accent-yellow: #ffd600;
+  --accent-blue: #2979ff;
+
+  --vu-green: #00e676;
+  --vu-yellow: #ffd600;
+  --vu-red: #ff1744;
+
+  --font-ui: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body, html {
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  overflow: hidden;
+  user-select: none;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+/* Header Bar */
+.monitor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  background: var(--bg-glass);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-subtle);
+  height: 60px;
+  flex-shrink: 0;
+  z-index: 50;
+}
+
+.brand-section {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 42, 81, 0.15);
+  border: 1px solid var(--tally-on-air);
+  color: var(--tally-on-air);
+  padding: 3px 9px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.live-dot {
+  width: 7px;
+  height: 7px;
+  background: var(--tally-on-air);
+  border-radius: 50%;
+  animation: pulse-live 1.2s infinite ease-in-out;
+}
+
+@keyframes pulse-live {
+  0% { transform: scale(0.9); opacity: 0.7; box-shadow: 0 0 0 0 rgba(255, 42, 81, 0.7); }
+  50% { transform: scale(1.1); opacity: 1; box-shadow: 0 0 8px 3px rgba(255, 42, 81, 0.4); }
+  100% { transform: scale(0.9); opacity: 0.7; box-shadow: 0 0 0 0 rgba(255, 42, 81, 0); }
+}
+
+.header-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: var(--text-primary);
+}
+
+.header-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* Master Telemetry summary in header */
+.header-stats {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.stat-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+
+.stat-pill .label {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.stat-pill .value {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.stat-pill .value.warning {
+  color: var(--accent-yellow);
+}
+
+.stat-pill .value.critical {
+  color: var(--tally-on-air);
+}
+
+/* Layout Selector */
+.layout-selector {
+  display: flex;
+  align-items: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 3px;
+  gap: 3px;
+}
+
+.layout-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.layout-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.layout-btn.active {
+  background: var(--accent-blue);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(41, 121, 255, 0.4);
+}
+
+/* Main Grid Container */
+.grid-container {
+  flex: 1;
+  display: grid;
+  padding: 10px;
+  gap: 10px;
+  overflow: hidden;
+  height: calc(100vh - 60px);
+}
+
+/* Layout configurations */
+.grid-layout-1x1 {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+
+.grid-layout-2x2 {
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+
+.grid-layout-3x3 {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+}
+
+.grid-layout-2x5 {
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+
+/* Camera Cell */
+.camera-cell {
+  position: relative;
+  background: #000;
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  border: 2px solid var(--tally-off);
+}
+
+.camera-cell.tally-on-air {
+  border-color: var(--tally-on-air);
+  box-shadow: 0 0 16px var(--tally-on-air-glow), inset 0 0 10px rgba(255, 42, 81, 0.2);
+}
+
+.camera-cell.tally-preview {
+  border-color: var(--tally-preview);
+  box-shadow: 0 0 14px var(--tally-preview-glow), inset 0 0 8px rgba(0, 230, 118, 0.15);
+}
+
+/* Video Canvas Area */
+.canvas-wrapper {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  background: #06070a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.camera-canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Video Overlays */
+.overlay-top {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.camera-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(10, 12, 18, 0.85);
+  backdrop-filter: blur(8px);
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+}
+
+.camera-num {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--accent-cyan);
+}
+
+.camera-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tally-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+}
+
+.tally-badge.on-air {
+  background: var(--tally-on-air);
+  color: #fff;
+  box-shadow: 0 0 8px var(--tally-on-air-glow);
+}
+
+.tally-badge.preview {
+  background: var(--tally-preview);
+  color: #000;
+  box-shadow: 0 0 8px var(--tally-preview-glow);
+}
+
+/* Bottom Telemetry Overlay */
+.overlay-bottom {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.telemetry-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(10, 12, 18, 0.85);
+  backdrop-filter: blur(8px);
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.telemetry-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.telemetry-item .label {
+  color: var(--text-muted);
+}
+
+.telemetry-item .val {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.telemetry-item .val.warn {
+  color: var(--accent-yellow);
+}
+
+.telemetry-item .val.bad {
+  color: var(--tally-on-air);
+}
+
+/* Stereophonic VU Meter */
+.vu-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(10, 12, 18, 0.85);
+  backdrop-filter: blur(8px);
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+  width: 54px;
+}
+
+.vu-channel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 6px;
+}
+
+.vu-ch-label {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--text-muted);
+  width: 8px;
+}
+
+.vu-track {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.vu-bar {
+  height: 100%;
+  background: linear-gradient(to right, var(--vu-green) 65%, var(--vu-yellow) 85%, var(--vu-red) 100%);
+  border-radius: 2px;
+  transition: width 0.08s ease-out;
+}
+
+.vu-peak {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  background: #fff;
+  opacity: 0.9;
+}
+
+/* Off-Air / Disconnected Placeholder */
+.camera-offline-veil {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(10, 11, 16, 0.85);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  z-index: 5;
+}
+
+.offline-text {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+}

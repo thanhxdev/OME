@@ -1,4 +1,5 @@
 using System;
+using OpenMedia.SDK.SafeHandles;
 
 namespace OpenMedia.SDK
 {
@@ -10,10 +11,11 @@ namespace OpenMedia.SDK
 
     public class MediaEncoder : IDisposable
     {
-        private IntPtr _handle;
+        private readonly SafeEncoderHandle _handle;
         private bool _disposed = false;
 
-        public IntPtr Handle => _handle;
+        public SafeEncoderHandle SafeHandle => _handle;
+        public IntPtr Handle => _handle.DangerousGetHandle();
 
         public MediaEncoder(EncoderType type)
         {
@@ -21,8 +23,10 @@ namespace OpenMedia.SDK
                 _handle = NativeBridge.ome_h264_encoder_nv_create();
             else if (type == EncoderType.QuickSync)
                 _handle = NativeBridge.ome_h264_encoder_qsv_create();
+            else
+                throw new ArgumentOutOfRangeException(nameof(type));
             
-            if (_handle == IntPtr.Zero)
+            if (_handle.IsInvalid)
                 throw new InvalidOperationException("Failed to create MediaEncoder.");
         }
 
@@ -35,18 +39,12 @@ namespace OpenMedia.SDK
         {
             if (!_disposed)
             {
-                if (_handle != IntPtr.Zero)
+                if (disposing)
                 {
-                    NativeBridge.ome_encoder_destroy(_handle);
-                    _handle = IntPtr.Zero;
+                    _handle.Dispose();
                 }
                 _disposed = true;
             }
-        }
-
-        ~MediaEncoder()
-        {
-            Dispose(false);
         }
 
         public void Dispose()

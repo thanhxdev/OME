@@ -17,11 +17,13 @@ if(GTest_FOUND)
         unit/core/test_clock_sync.cpp
         unit/core/test_pipeline_graph.cpp
         unit/core/test_tee_node.cpp
+        unit/core/test_seh_guard.cpp
     )
 
     target_link_libraries(test_core
         PRIVATE
             OpenMedia.Core
+            OpenMedia.WorkerPool
             GTest::gtest
             GTest::gtest_main
     )

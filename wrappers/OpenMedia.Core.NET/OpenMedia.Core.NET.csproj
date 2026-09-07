@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Description>OpenMedia.Core.NET — Low-Level C# P/Invoke bindings and native interop for the OpenMedia SDK C++ engine.</Description>
   </PropertyGroup>
 

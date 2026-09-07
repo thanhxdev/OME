@@ -1,0 +1,126 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Camera Bitrate",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "webrtc_camera_bitrate_kbps{camera_id=\"$camera_id\"}",
+          "legendFormat": "Bitrate"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "kbps", "color": { "mode": "palette-classic" } }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Frame Rate",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        {
+          "expr": "webrtc_camera_fps{camera_id=\"$camera_id\"}",
+          "legendFormat": "FPS"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "fps", "color": { "mode": "palette-classic" } }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Packet Loss",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "webrtc_camera_packet_loss_ratio{camera_id=\"$camera_id\"} * 100",
+          "legendFormat": "Loss"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 2 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Latency (RTT)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "targets": [
+        {
+          "expr": "webrtc_camera_rtt_seconds{camera_id=\"$camera_id\"} * 1000",
+          "legendFormat": "RTT"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ms" }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Bitrate vs Loss History",
+      "type": "timeseries",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "expr": "webrtc_camera_bitrate_kbps{camera_id=\"$camera_id\"}",
+          "legendFormat": "Bitrate (kbps)"
+        },
+        {
+          "expr": "webrtc_camera_packet_loss_ratio{camera_id=\"$camera_id\"} * 1000",
+          "legendFormat": "Loss (*10 %)"
+        }
+      ]
+    }
+  ],
+  "refresh": "2s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["webrtc", "per-camera"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": true, "text": "cam-01", "value": "cam-01" },
+        "name": "camera_id",
+        "options": [
+          { "selected": true, "text": "cam-01", "value": "cam-01" },
+          { "selected": false, "text": "cam-02", "value": "cam-02" },
+          { "selected": false, "text": "cam-03", "value": "cam-03" },
+          { "selected": false, "text": "cam-04", "value": "cam-04" },
+          { "selected": false, "text": "cam-05", "value": "cam-05" },
+          { "selected": false, "text": "cam-06", "value": "cam-06" },
+          { "selected": false, "text": "cam-07", "value": "cam-07" },
+          { "selected": false, "text": "cam-08", "value": "cam-08" },
+          { "selected": false, "text": "cam-09", "value": "cam-09" },
+          { "selected": false, "text": "cam-10", "value": "cam-10" }
+        ],
+        "type": "custom"
+      }
+    ]
+  },
+  "time": { "from": "now-15m", "to": "now" },
+  "timezone": "browser",
+  "title": "WebRTC Broadcast - Single Camera Drilldown",
+  "uid": "webrtc-per-camera"
+}

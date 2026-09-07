@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  monitoring-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: webrtc-monitoring-service
+    ports:
+      - "9100:9100"
+    environment:
+      - MONITORING_PORT=9100
+      - SIGNALING_WS_URL=ws://signaling-server:3000/ws
+      - SFU_HTTP_URL=http://media-server:3010
+      - SESSION_ID=broadcast-main
+      - SCRAPE_INTERVAL_MS=2000
+    restart: unless-stopped
+    networks:
+      - webrtc-net
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: webrtc-prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    networks:
+      - webrtc-net
+
+  grafana:
+    image: grafana/grafana:10.4.1
+    container_name: webrtc-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=broadcast
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3030:3000"
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    networks:
+      - webrtc-net
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: webrtc-alertmanager
+    volumes:
+      - ./prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+    restart: unless-stopped
+    networks:
+      - webrtc-net
+
+networks:
+  webrtc-net:
+    driver: bridge
+
+volumes:
+  prometheus_data:
+  grafana_data:

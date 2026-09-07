@@ -22,6 +22,7 @@ namespace OpenMedia.Platform
     /// </summary>
     public sealed class VideoMixer : IDisposable
     {
+        private readonly Guid _mixerId = Guid.NewGuid();
         private readonly int _width;
         private readonly int _height;
         private readonly double _frameRate;
@@ -171,6 +172,22 @@ namespace OpenMedia.Platform
             var startPayload = IPCCommandBuilder.PipelineControl(_pipelineId);
             await OpenMediaRuntime.SendCommandAsync(CommandType.StartPipeline, startPayload);
             Trace.WriteLine("[VideoMixer] Started.");
+
+            // Register in StateReplayEngine
+            var snapshot = new MixerSnapshot
+            {
+                Id = _mixerId,
+                ReplayAction = async () =>
+                {
+                    _pipelineCreated = false;
+                    await StartAsync();
+                }
+            };
+            for (int i = 0; i < _sources.Count; i++)
+            {
+                snapshot.Sources.Add(new MixerSourceSnapshot { LayerIndex = i, Uri = _sources[i] });
+            }
+            StateReplayEngine.Instance.RegisterMixer(snapshot);
         }
 
         /// <summary>
@@ -196,6 +213,8 @@ namespace OpenMedia.Platform
         {
             if (_disposed) return;
             _disposed = true;
+
+            StateReplayEngine.Instance.UnregisterMixer(_mixerId);
 
             if (_pipelineCreated)
             {
