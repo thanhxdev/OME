@@ -59,17 +59,17 @@ namespace SRT_DECODE
             }
         }
 
-        public AudioRingBuffer(int capacityBytes = 96000, int preRollMs = 50)
+        public AudioRingBuffer(int capacityBytes = 96000, int preRollMs = 20)
         {
             // Ensure capacity is aligned to 4 bytes
             _capacity = capacityBytes - (capacityBytes % FrameAlignment);
             if (_capacity <= 0) _capacity = 96000;
             _buffer = new byte[_capacity];
 
-            // 50ms default pre-roll threshold (48000 * 4 * 0.05 = 9600 bytes)
+            // 20ms default low-latency pre-roll threshold (48000 * 4 * 0.02 = 3840 bytes)
             int preRoll = (preRollMs * 48000 * FrameAlignment) / 1000;
             preRoll -= (preRoll % FrameAlignment);
-            _preRollBytes = Math.Clamp(preRoll, 1920, _capacity / 2); // 10ms to 50% capacity
+            _preRollBytes = Math.Clamp(preRoll, 960, _capacity / 2); // 5ms to 50% capacity
         }
 
         /// <summary>

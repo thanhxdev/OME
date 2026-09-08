@@ -33,6 +33,7 @@ namespace SRT_ENCODE
         // ─── Video Source Management & Colorbar Engine ──────────────
         private readonly ColorbarEngine _colorbarEngine = new();
         private readonly VideoSourceManager _sourceManager;
+        private readonly MasterClockProvider _masterClock = MasterClockProvider.Instance;
 
         // ─── Timers ─────────────────────────────────────────────────
         private DispatcherTimer? _utcClockTimer;
@@ -57,6 +58,7 @@ namespace SRT_ENCODE
         private CancellationTokenSource? _reconnectCts;
         private int _reconnectAttempt = 0;
         private SRTStreamConfig? _activeSrtConfig;
+        private volatile bool _isClosing = false;
 
         // ─── Logging Buffer & Init Guard ───────────────────────────
         private readonly List<string> _pendingLogs = new();
@@ -74,6 +76,7 @@ namespace SRT_ENCODE
         private bool _isAudioMuted = true;
         private double _lastNonZeroVolume = 0.4;
 
+
         public MainWindow()
         {
             InitializeComponent();
@@ -82,6 +85,10 @@ namespace SRT_ENCODE
             _sourceManager.TelemetryUpdated += UpdateSourceTelemetryUI;
             _sourceManager.AudioSamplesArrived += (samples, channels, sampleRate) =>
             {
+                if (channels > 0 && _sourceManager.ActiveAudioChannels != channels)
+                {
+                    _sourceManager.ActiveAudioChannels = channels;
+                }
                 _audioMeterService.TapPcmDirect(samples, channels, sampleRate);
             };
             _isInitialized = true;
@@ -119,6 +126,37 @@ namespace SRT_ENCODE
 
                 // Start High-precision Master UTC Clock
                 StartMasterUtcClock();
+                _masterClock.SyncStatusChanged += res =>
+                {
+                    Dispatcher.InvokeAsync(() =>
+                    {
+                        if (res.Success && TxtNtpOffset != null)
+                        {
+                            TxtNtpOffset.Text = res.GetFormattedOffset();
+                        }
+                    });
+                };
+
+                // Tự động đồng bộ Master NTP nếu được kích hoạt (mặc định khởi chạy là disabled)
+                if (ChkNtpSync?.IsChecked == true)
+                {
+                    string defaultNtp = TxtNtpServer?.Text?.Trim() ?? "time.google.com";
+                    if (string.IsNullOrEmpty(defaultNtp)) defaultNtp = "time.google.com";
+                    _masterClock.StartPeriodicSync(defaultNtp, 30);
+                }
+                else
+                {
+                    _masterClock.StopPeriodicSync();
+                    if (TxtNtpOffset != null)
+                    {
+                        TxtNtpOffset.Text = "Disabled (Free-Run)";
+                        TxtNtpOffset.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+                    }
+                }
+                if (BadgeNtpSync != null)
+                {
+                    BadgeNtpSync.Visibility = (ChkNtpSync?.IsChecked == true) ? Visibility.Visible : Visibility.Collapsed;
+                }
 
                 // Start Audio VU Meter & Telemetry timers
                 StartVuMeterTimer();
@@ -182,7 +220,7 @@ namespace SRT_ENCODE
         {
             try
             {
-                int initialIndex = CmbInputSource?.SelectedIndex ?? 3;
+                int initialIndex = CmbInputSource?.SelectedIndex ?? 2;
                 string? initialParam = initialIndex switch
                 {
                     0 => CmbSdiDevices?.SelectedItem?.ToString(),
@@ -201,26 +239,60 @@ namespace SRT_ENCODE
 
         private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
+            if (_isClosing) return;
+            _isClosing = true;
+
+            // 1. Ẩn cửa sổ và icon taskbar ngay tức thì để giải phóng thị giác người dùng
+            Hide();
+
+            // 2. Dừng ngay toàn bộ Timers UI & Audio
+            _utcClockTimer?.Stop();
+            _utcClockTimer = null;
+            _telemetryTimer?.Stop();
+            _telemetryTimer = null;
+            _vuMeterTimer?.Stop();
+            _vuMeterTimer = null;
+            _masterClock.Dispose();
+
+            // 3. Kill ngay lập tức tiến trình ffmpeg con để giải phóng tài nguyên hệ thống
             try
             {
-                StopTransmissionInternal();
-
-                _utcClockTimer?.Stop();
-                _telemetryTimer?.Stop();
-                _vuMeterTimer?.Stop();
-
-                _sourceManager.Dispose();
-                _audioMeterService.Dispose();
-
-                _mixer?.Dispose();
-                _mixer = null;
-
-                OpenMediaRuntime.Shutdown();
+                if (_streamProcess != null && !_streamProcess.HasExited)
+                {
+                    _streamProcess.Kill(true);
+                }
             }
-            catch (Exception ex)
+            catch { }
+
+            // 4. Detach Direct3D ReviewView để giải phóng DirectX surface
+            try { ReviewView?.Detach(); } catch { }
+
+            // 5. Ngắt kết nối và tắt ngay OpenMediaServer.exe, giải phóng SRT socket và tài nguyên
+            var srt = _srtStream;
+            _srtStream = null;
+            var srcMgr = _sourceManager;
+            var meterSvc = _audioMeterService;
+            var mixer = _mixer;
+            _mixer = null;
+
+            // Kích hoạt shutdown OME Runtime ngay lập tức trên luồng riêng biệt
+            var serverShutdownTask = Task.Run(() =>
             {
-                Debug.WriteLine($"[Closing Error]: {ex.Message}");
-            }
+                try { OpenMediaRuntime.Shutdown(); } catch { }
+            });
+
+            Task.Run(async () =>
+            {
+                try { _transmissionCts?.Cancel(); } catch { }
+                try { _reconnectCts?.Cancel(); } catch { }
+                try { srt?.Dispose(); } catch { }
+                try { srcMgr?.Dispose(); } catch { }
+                try { meterSvc?.Dispose(); } catch { }
+                try { mixer?.Dispose(); } catch { }
+                
+                await Task.WhenAny(serverShutdownTask, Task.Delay(500));
+                Environment.Exit(0);
+            });
         }
 
         #endregion
@@ -231,14 +303,19 @@ namespace SRT_ENCODE
         {
             _utcClockTimer = new DispatcherTimer(DispatcherPriority.Render)
             {
-                Interval = TimeSpan.FromMilliseconds(40) // ~25 fps update for milliseconds
+                Interval = TimeSpan.FromMilliseconds(40) // ~25 fps update for milliseconds & SMPTE frame sync
             };
             _utcClockTimer.Tick += (s, e) =>
             {
-                var nowUtc = DateTime.UtcNow;
+                var nowUtc = _masterClock.CurrentUtcTime;
                 string utcStr = nowUtc.ToString("HH:mm:ss.fff");
+                string smpteStr = _masterClock.GetFormattedSmpteTimecode(25);
                 TxtMasterUtcTime.Text = utcStr;
-                TxtHudPts.Text = utcStr;
+                if (TxtMasterSmpteTime != null)
+                {
+                    TxtMasterSmpteTime.Text = smpteStr;
+                }
+                TxtHudPts.Text = $"{utcStr} [{smpteStr}]";
                 if (TxtColorbarUtcTime != null)
                 {
                     TxtColorbarUtcTime.Text = utcStr;
@@ -251,7 +328,7 @@ namespace SRT_ENCODE
 
                 if (_isStreaming && _streamStartTime != DateTime.MinValue)
                 {
-                    var duration = DateTime.UtcNow - _streamStartTime;
+                    var duration = _masterClock.CurrentUtcTime - _streamStartTime;
                     TxtSessionDuration.Text = $"{(int)duration.TotalHours:D2}:{duration.Minutes:D2}:{duration.Seconds:D2}";
                 }
             };
@@ -283,6 +360,7 @@ namespace SRT_ENCODE
             };
             _vuMeterTimer.Start();
         }
+
 
         private void UpdateRealtimeTelemetry()
         {
@@ -422,22 +500,58 @@ namespace SRT_ENCODE
 
         private void UpdateAudioVuLevels()
         {
-            int activeSourceIndex = CmbInputSource?.SelectedIndex ?? 3;
+            int activeSourceIndex = CmbInputSource?.SelectedIndex ?? 2;
             bool isColorbar = (activeSourceIndex == 3);
 
-            bool isSourcePlaying = isColorbar
-                ? _colorbarEngine.IsAudioTonePlaying
-                : (_sourceManager.Player != null && _sourceManager.Player.State == OpenMedia.Platform.PlaybackState.Playing);
-
-            // Xác định số kênh âm thanh hoạt động: Tối thiểu 2 kênh Stereo (L/R), tối đa 16 kênh
-            int configuredChannels = Math.Max(2, _sourceManager.ActiveAudioChannels);
-            if (activeSourceIndex == 0)
+            bool isSourcePlaying = _sourceManager.CurrentSource switch
             {
-                string sdiCh = (CmbSdiAudioCh?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Stereo (2 Ch)";
-                if (sdiCh.Contains("16 Channels") || sdiCh.Contains("16 Ch")) configuredChannels = 16;
+                InputSourceType.Colorbar => _colorbarEngine.IsAudioTonePlaying,
+                InputSourceType.NDI => true,
+                InputSourceType.SDI => true,
+                _ => (_sourceManager.Player != null && _sourceManager.Player.State == OpenMedia.Platform.PlaybackState.Playing)
+            };
+
+            // Xác định số kênh âm thanh hoạt động theo nguồn gốc và chế độ chọn
+            string sdiCh = (CmbSdiAudioCh?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Auto (Theo nguồn gốc)";
+            bool isAutoMode = sdiCh.Contains("Auto");
+
+            int configuredChannels = Math.Max(2, _sourceManager.ActiveAudioChannels);
+            if (activeSourceIndex == 0) // SDI / Capture Card
+            {
+                if (isAutoMode)
+                {
+                    configuredChannels = Math.Clamp(_sourceManager.ActiveAudioChannels, 2, 16);
+                }
+                else if (sdiCh.Contains("16 Channels") || sdiCh.Contains("16 Ch")) configuredChannels = 16;
                 else if (sdiCh.Contains("8 Channels") || sdiCh.Contains("8 Ch")) configuredChannels = 8;
                 else if (sdiCh.Contains("4 Channels") || sdiCh.Contains("4 Ch")) configuredChannels = 4;
                 else configuredChannels = 2;
+            }
+            else if (activeSourceIndex == 2) // Media File
+            {
+                // Tự động nhận diện số kênh từ container file video gốc
+                if (_sourceManager.Player?.Information != null && _sourceManager.Player.Information.AudioChannels > 0)
+                {
+                    int fileCh = Math.Clamp(_sourceManager.Player.Information.AudioChannels, 1, 16);
+                    _sourceManager.ActiveAudioChannels = fileCh;
+                    configuredChannels = fileCh;
+                }
+                else if (_audioMeterService.ActiveChannelCount > 0)
+                {
+                    configuredChannels = Math.Clamp(_audioMeterService.ActiveChannelCount, 1, 16);
+                }
+                else
+                {
+                    configuredChannels = Math.Clamp(_sourceManager.ActiveAudioChannels, 1, 16);
+                }
+            }
+            else if (activeSourceIndex == 1) // NDI
+            {
+                configuredChannels = Math.Clamp(_sourceManager.ActiveAudioChannels, 1, 16);
+            }
+            else // Colorbar Test Tone
+            {
+                configuredChannels = Math.Clamp(_sourceManager.ActiveAudioChannels, 2, 16);
             }
 
             if (isSourcePlaying)
@@ -475,14 +589,16 @@ namespace SRT_ENCODE
             // Cập nhật nhãn tổng số kênh
             if (TxtVuChannelCountBadge != null)
             {
+                bool isSourceAuto = (activeSourceIndex == 0 && isAutoMode) || (activeSourceIndex == 1) || (activeSourceIndex == 2);
                 string tag = configuredChannels switch
                 {
-                    1 => "1-CH MONO",
-                    2 => "2-CH STEREO (L/R)",
-                    4 => "4-CH SDI EMBEDDED",
-                    8 => "8-CH SDI EMBEDDED",
-                    16 => "16-CH SDI EMBEDDED",
-                    _ => $"{configuredChannels}-CH MULTI"
+                    1 => isSourceAuto ? "AUTO: 1-CH MONO" : "1-CH MONO",
+                    2 => isSourceAuto ? "AUTO: 2-CH STEREO (L/R)" : "2-CH STEREO (L/R)",
+                    4 => isSourceAuto ? "AUTO: 4-CH MULTI" : "4-CH SDI EMBEDDED",
+                    6 => isSourceAuto ? "AUTO: 6-CH (5.1 SURROUND)" : "6-CH MULTI",
+                    8 => isSourceAuto ? "AUTO: 8-CH EMBEDDED" : "8-CH SDI EMBEDDED",
+                    16 => isSourceAuto ? "AUTO: 16-CH EMBEDDED" : "16-CH SDI EMBEDDED",
+                    _ => isSourceAuto ? $"AUTO: {configuredChannels}-CH" : $"{configuredChannels}-CH MULTI"
                 };
                 TxtVuChannelCountBadge.Text = tag;
             }
@@ -506,8 +622,8 @@ namespace SRT_ENCODE
                 UpdateChannelVu16(i, _channelLevels16[i], _channelRmsLevels16[i], _channelClipping16[i], isChannelConfigured, configuredChannels, isSourcePlaying);
             }
 
-            // Cập nhật tóm tắt thông số Peak
-            if (TxtAudioPeakSummary != null)
+            // Cập nhật tóm tắt thông số Peak (nếu hiển thị)
+            if (TxtAudioPeakSummary != null && TxtAudioPeakSummary.Visibility == Visibility.Visible)
             {
                 if (isSourcePlaying && anyChannelHasSignal)
                 {
@@ -777,6 +893,14 @@ namespace SRT_ENCODE
             {
                 await _sourceManager.HandleSdiSourceAsync(dev, mode, ch);
             }
+
+            var (_, _, summary) = GetStreamAudioConfig();
+            UpdateStreamAudioSummaryUI(summary);
+
+            if (_isStreaming)
+            {
+                await RestartMasterProgramStreamingWorkerAsync();
+            }
         }
 
         private async void CmbNdiSources_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -811,13 +935,15 @@ namespace SRT_ENCODE
                 if (TxtSourcePipelineDetails != null) TxtSourcePipelineDetails.Text = telem.PipelineDetails;
             }
 
+            if (_isClosing || Dispatcher.HasShutdownStarted) return;
+
             if (Dispatcher.CheckAccess())
             {
                 Apply();
             }
             else
             {
-                Dispatcher.Invoke(Apply);
+                try { Dispatcher.BeginInvoke(Apply); } catch { }
             }
         }
 
@@ -826,9 +952,11 @@ namespace SRT_ENCODE
 
         private void RefreshMasterProgramFrameBuffer()
         {
+            if (_isClosing || Dispatcher.HasShutdownStarted) return;
+
             if (!Dispatcher.CheckAccess())
             {
-                Dispatcher.Invoke(RefreshMasterProgramFrameBuffer);
+                try { Dispatcher.BeginInvoke(RefreshMasterProgramFrameBuffer); } catch { }
                 return;
             }
 
@@ -953,6 +1081,9 @@ namespace SRT_ENCODE
 
             string toneName = _colorbarEngine.GetToneDescription();
             LogEvent("[INFO]", $"🔊 Đã áp dụng cấu hình âm thanh Test Tone: {toneName}");
+
+            var (_, _, summary) = GetStreamAudioConfig();
+            UpdateStreamAudioSummaryUI(summary);
 
             // Nếu đang Live Stream ở chế độ Colorbar, tự động chuyển đổi luồng phát âm thanh mới
             if (_isStreaming && _sourceManager.CurrentSource == InputSourceType.Colorbar)
@@ -1519,10 +1650,19 @@ namespace SRT_ENCODE
 
             if (isNtp)
             {
-                LogEvent("[NTP]", "🕒 BẬT Multi-Camera NTP Synchronization: Kích hoạt cờ SyncToWallClock=true và nhúng SEI Timecode Metadata.");
+                LogEvent("[NTP]", "🕒 BẬT Multi-Camera NTP Synchronization: Kích hoạt đồng bộ Master Clock định kỳ và nhúng Timecode.");
+                string host = TxtNtpServer?.Text?.Trim() ?? "time.google.com";
+                if (string.IsNullOrEmpty(host)) host = "time.google.com";
+                _masterClock.StartPeriodicSync(host, 30);
             }
             else
             {
+                _masterClock.StopPeriodicSync();
+                if (TxtNtpOffset != null)
+                {
+                    TxtNtpOffset.Text = "Disabled (Free-Run)";
+                    TxtNtpOffset.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+                }
                 LogEvent("[NTP]", "TẮT Multi-Camera NTP Synchronization.");
             }
         }
@@ -1538,11 +1678,12 @@ namespace SRT_ENCODE
                 LogEvent("[NTP]", $"Đang gửi gói tin UDP SNTP truy vấn thời gian thực tới [{host}]...");
                 if (btn != null) btn.IsEnabled = false;
 
-                var ntpResult = await NtpClient.QueryTimeAsync(host, 3500);
+                var ntpResult = await _masterClock.SyncWithServerAsync(host, 3500);
                 if (ntpResult.Success)
                 {
                     TxtNtpOffset.Text = ntpResult.GetFormattedOffset();
                     LogEvent("[NTP]", $"✅ Đồng bộ NTP thành công! Offset: {ntpResult.OffsetMs:+0.00;-0.00} ms, RTT: {ntpResult.RoundTripDelayMs:F1} ms, Server UTC: {ntpResult.ServerUtcTime:HH:mm:ss.fff}.");
+                    _masterClock.StartPeriodicSync(host, 30);
                 }
                 else
                 {
@@ -1636,7 +1777,7 @@ namespace SRT_ENCODE
                 BFrames = isUll ? 0 : 2,
                 NtpSyncEnabled = isNtpSync,
                 NtpServer = TxtNtpServer?.Text?.Trim() ?? "time.google.com",
-                AudioChannels = 2,
+                AudioChannels = Math.Clamp(_sourceManager.ActiveAudioChannels, 1, 16),
                 AudioSampleRate = 48000,
                 AudioBitrateKbps = 192,
                 AudioCodec = "AAC"
@@ -1819,6 +1960,115 @@ namespace SRT_ENCODE
             }
         }
 
+        #region Stream Audio Channels Configuration
+
+        private (int channels, string audioArgs, string summary) GetStreamAudioConfig(bool isPassthrough = false)
+        {
+            int configuredChannels = _sourceManager.ActiveAudioChannels;
+            int selIdx = CmbStreamAudioChannels?.SelectedIndex ?? 0;
+            int targetChannels = selIdx switch
+            {
+                1 => 2,  // Stereo
+                2 => 1,  // Mono
+                3 => 4,  // 4 Ch
+                4 => 6,  // 5.1
+                5 => 8,  // 8 Ch
+                6 => 16, // 16 Ch
+                _ => Math.Clamp(configuredChannels > 0 ? configuredChannels : 2, 1, 16) // Auto
+            };
+
+            string audioArgs;
+            string summary;
+
+            if (targetChannels == 16)
+            {
+                // SMPTE 302M 16-Channel uncompressed 24-bit PCM for Broadcast MPEG-TS
+                audioArgs = "-c:a s302m -ar 48000 -ac 16";
+                summary = "SMPTE 302M 16 Ch @ 48.0 kHz 24-bit";
+            }
+            else
+            {
+                int bitrate = targetChannels switch
+                {
+                    1 => 96,
+                    2 => 192,
+                    4 => 256,
+                    6 => 384,
+                    8 => 448,
+                    _ => 192
+                };
+                audioArgs = $"-c:a aac -b:a {bitrate}k -ar 48000 -ac {targetChannels} -af \"aresample=async=1000:min_hard_comp=0.100000:first_pts=0\"";
+                string chName = targetChannels switch
+                {
+                    1 => "1 Ch (Mono)",
+                    2 => "2 Ch (Stereo)",
+                    4 => "4 Ch (Multi)",
+                    6 => "6 Ch (5.1 Surround)",
+                    8 => "8 Ch (7.1 Surround)",
+                    _ => $"{targetChannels} Ch"
+                };
+                summary = $"AAC {bitrate}k @ 48.0 kHz {chName}";
+            }
+
+            return (targetChannels, audioArgs, summary);
+        }
+
+        private void CmbStreamAudioChannels_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            var (streamChs, _, audioSummary) = GetStreamAudioConfig(RbPassthrough?.IsChecked == true);
+            UpdateStreamAudioSummaryUI(audioSummary);
+            LogEvent("[AUDIO]", $"🎛️ Đã cập nhật cấu hình kênh âm thanh phát luồng: {streamChs} Ch ({audioSummary})");
+
+            if (_isStreaming)
+            {
+                LogEvent("[SRT]", "🔄 Tự động áp dụng cấu hình kênh âm thanh mới vào luồng phát SRT...");
+                RestartStreamingWorkerWithNewAudio();
+            }
+        }
+
+        private void UpdateStreamAudioSummaryUI(string summary)
+        {
+            if (TxtStreamAudioSummary != null)
+            {
+                TxtStreamAudioSummary.Text = summary;
+            }
+        }
+
+        private void UpdatePreviewMonitorAudio()
+        {
+            if (!_isInitialized) return;
+            double baseVol = SldMonitorVolume?.Value ?? 0.4;
+            if (_isAudioMuted)
+            {
+                _sourceManager.SetVolume(0.0);
+                return;
+            }
+
+            _sourceManager.SetVolume(Math.Clamp(baseVol, 0.0, 1.0));
+        }
+
+        private void RestartStreamingWorkerWithNewAudio()
+        {
+            if (!_isStreaming || !_isTransmissionActive) return;
+
+            try
+            {
+                LogEvent("[AUDIO]", "🔄 Đang đồng bộ cấu hình âm thanh mới vào luồng phát SRT...");
+                if (_streamProcess != null && !_streamProcess.HasExited)
+                {
+                    _streamProcess.Kill(true);
+                    _streamProcess.Dispose();
+                    _streamProcess = null;
+                }
+            }
+            catch { }
+
+            EnsureStreamingWorkerRunning(_transmissionCts?.Token ?? default);
+        }
+
+        #endregion
+
         private void StartFileStreamingProcess(CancellationToken token, string currentFilePath)
         {
             bool isPassthrough = RbPassthrough?.IsChecked == true;
@@ -1841,11 +2091,14 @@ namespace SRT_ENCODE
             double currentSec = _sourceManager.CurrentPosition.TotalSeconds;
             string seekArg = currentSec > 0.05 ? $"-ss {currentSec:F3} " : "";
 
+            var (streamChs, audioArgs, audioSummary) = GetStreamAudioConfig(isPassthrough);
+            UpdateStreamAudioSummaryUI(audioSummary);
+
             string ffmpegArgs;
             if (isPassthrough)
             {
-                ffmpegArgs = $"-hide_banner -loglevel error {seekArg}-re -stream_loop -1 -i \"{currentFilePath}\" -c:v copy -c:a aac -b:a 192k -ar 48000 -ac 2 -f mpegts -mpegts_flags resend_headers -pcr_period 20 pipe:1";
-                LogEvent("[PIPELINE]", $"🎬 Nạp nguồn Video File (Direct Bitstream Passthrough @ {TimeSpan.FromSeconds(currentSec):hh\\:mm\\:ss\\.fff}) vào SRT Engine: {Path.GetFileName(currentFilePath)}");
+                ffmpegArgs = $"-hide_banner -loglevel error {seekArg}-re -stream_loop -1 -i \"{currentFilePath}\" -c:v copy {audioArgs} -f mpegts -mpegts_flags resend_headers -muxdelay 0 -muxpreload 0 -pcr_period 20 pipe:1";
+                LogEvent("[PIPELINE]", $"🎬 Nạp nguồn Video File (Direct Bitstream Passthrough @ {TimeSpan.FromSeconds(currentSec):hh\\:mm\\:ss\\.fff}) kèm Audio ({streamChs} Ch): {Path.GetFileName(currentFilePath)}");
             }
             else
             {
@@ -1871,8 +2124,8 @@ namespace SRT_ENCODE
                 }
 
                 string lowLatencyArg = isUll ? "-tune zerolatency -bf 0 -g 30" : "-g 60";
-                ffmpegArgs = $"-hide_banner -loglevel error {seekArg}-re -stream_loop -1 -i \"{currentFilePath}\" {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} -c:a aac -b:a 192k -ar 48000 -ac 2 -f mpegts -mpegts_flags resend_headers -pcr_period 20 pipe:1";
-                LogEvent("[PIPELINE]", $"🎬 Nạp nguồn Video File (Encoder Pipeline @ {TimeSpan.FromSeconds(currentSec):hh\\:mm\\:ss\\.fff}) vào SRT Engine: {Path.GetFileName(currentFilePath)} ({normalizedCodec} via {hwEncoder})");
+                ffmpegArgs = $"-hide_banner -loglevel error {seekArg}-re -stream_loop -1 -i \"{currentFilePath}\" {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} {audioArgs} -f mpegts -mpegts_flags resend_headers -muxdelay 0 -muxpreload 0 -pcr_period 20 pipe:1";
+                LogEvent("[PIPELINE]", $"🎬 Nạp nguồn Video File (Encoder Pipeline @ {TimeSpan.FromSeconds(currentSec):hh\\:mm\\:ss\\.fff}) kèm Audio ({streamChs} Ch): {Path.GetFileName(currentFilePath)} ({normalizedCodec} via {hwEncoder})");
             }
 
             LogEvent("[SRT]", $"Khởi động Streaming Worker với tệp: {Path.GetFileName(currentFilePath)} tại vị trí {TimeSpan.FromSeconds(currentSec):hh\\:mm\\:ss\\.fff}");
@@ -1998,23 +2251,37 @@ namespace SRT_ENCODE
             InputSourceType currentSource = _sourceManager.CurrentSource;
             string currentFilePath = !string.IsNullOrWhiteSpace(_sourceManager.CurrentSourcePath) ? _sourceManager.CurrentSourcePath : TxtFilePath?.Text?.Trim() ?? "";
 
+            var (streamChs, audioArgs, audioSummary) = GetStreamAudioConfig(false);
+            UpdateStreamAudioSummaryUI(audioSummary);
+
+            string layout = streamChs switch
+            {
+                1 => "mono",
+                2 => "stereo",
+                4 => "quad",
+                6 => "5.1",
+                8 => "7.1",
+                16 => "hexadecagonal",
+                _ => "stereo"
+            };
+
             if (currentSource == InputSourceType.File && !string.IsNullOrWhiteSpace(currentFilePath) && File.Exists(currentFilePath))
             {
                 // Master PGM Output với nguồn File: Video là luồng WYSIWYG từ Master Program Bus, Audio được đọc từ Media File
-                ffmpegArgs = $"-hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s 1920x1080 -r 30 -i pipe:0 -re -stream_loop -1 -i \"{currentFilePath}\" -map 0:v:0 -map 1:a? {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} -c:a aac -b:a 192k -ar 48000 -ac 2 -f mpegts -mpegts_flags resend_headers -pcr_period 20 pipe:1";
-                LogEvent("[PIPELINE]", $"🎬 Nạp nguồn Master PGM File (WYSIWYG 1920x1080 @ 30 FPS) vào Video Encoder ({normalizedCodec} via {hwEncoder})");
+                ffmpegArgs = $"-hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s 1920x1080 -r 30 -i pipe:0 -re -stream_loop -1 -i \"{currentFilePath}\" -map 0:v:0 -map 1:a? {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} {audioArgs} -f mpegts -mpegts_flags resend_headers -muxdelay 0 -muxpreload 0 -pcr_period 20 pipe:1";
+                LogEvent("[PIPELINE]", $"🎬 Nạp nguồn Master PGM File (WYSIWYG 1920x1080 @ 30 FPS) kèm Audio ({streamChs} Ch) vào Video Encoder ({normalizedCodec} via {hwEncoder})");
             }
             else if (currentSource == InputSourceType.NDI)
             {
                 // Master PGM Output với nguồn NDI Live: Video từ NDI Receiver BGRA frame buffer
-                ffmpegArgs = $"-hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s 1920x1080 -r 30 -i pipe:0 -f lavfi -i \"anullsrc=channel_layout=stereo:sample_rate=48000\" {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} -c:a aac -b:a 192k -ar 48000 -ac 2 -f mpegts -mpegts_flags resend_headers -pcr_period 20 pipe:1";
-                LogEvent("[PIPELINE]", $"🌐 Nạp nguồn Master PGM NDI Stream ({_sourceManager.CurrentSourcePath}) vào Video Encoder ({normalizedCodec} via {hwEncoder})");
+                ffmpegArgs = $"-hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s 1920x1080 -r 30 -i pipe:0 -f lavfi -i \"anullsrc=channel_layout={layout}:sample_rate=48000\" {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} {audioArgs} -f mpegts -mpegts_flags resend_headers -muxdelay 0 -muxpreload 0 -pcr_period 20 pipe:1";
+                LogEvent("[PIPELINE]", $"🌐 Nạp nguồn Master PGM NDI Stream ({_sourceManager.CurrentSourcePath}) kèm Audio ({streamChs} Ch) vào Video Encoder ({normalizedCodec} via {hwEncoder})");
             }
             else if (currentSource == InputSourceType.SDI)
             {
                 // Master PGM Output với nguồn SDI Live: Video từ SDI Device Capture BGRA frame buffer
-                ffmpegArgs = $"-hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s 1920x1080 -r 30 -i pipe:0 -f lavfi -i \"anullsrc=channel_layout=stereo:sample_rate=48000\" {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} -c:a aac -b:a 192k -ar 48000 -ac 2 -f mpegts -mpegts_flags resend_headers -pcr_period 20 pipe:1";
-                LogEvent("[PIPELINE]", $"📡 Nạp nguồn Master PGM SDI/Capture ({_sourceManager.CurrentSourcePath}) vào Video Encoder ({normalizedCodec} via {hwEncoder})");
+                ffmpegArgs = $"-hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s 1920x1080 -r 30 -i pipe:0 -f lavfi -i \"anullsrc=channel_layout={layout}:sample_rate=48000\" {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} {audioArgs} -f mpegts -mpegts_flags resend_headers -muxdelay 0 -muxpreload 0 -pcr_period 20 pipe:1";
+                LogEvent("[PIPELINE]", $"📡 Nạp nguồn Master PGM SDI/Capture ({_sourceManager.CurrentSourcePath}) kèm Audio ({streamChs} Ch) vào Video Encoder ({normalizedCodec} via {hwEncoder})");
             }
             else
             {
@@ -2024,8 +2291,8 @@ namespace SRT_ENCODE
                     AudioTestToneType.Glits400Hz => 400,
                     _ => 1000
                 };
-                ffmpegArgs = $"-hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s 1920x1080 -r 30 -i pipe:0 -f lavfi -i \"sine=frequency={toneFreq}:sample_rate=48000\" {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} -c:a aac -b:a 192k -ar 48000 -ac 2 -f mpegts -mpegts_flags resend_headers -pcr_period 20 pipe:1";
-                LogEvent("[PIPELINE]", $"🎨 Nạp nguồn Master PGM Colorbar (WYSIWYG 1920x1080 @ 30 FPS, Audio: {toneFreq} Hz) vào Video Encoder ({normalizedCodec} via {hwEncoder})");
+                ffmpegArgs = $"-hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s 1920x1080 -r 30 -i pipe:0 -f lavfi -i \"sine=frequency={toneFreq}:sample_rate=48000\" {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} {audioArgs} -f mpegts -mpegts_flags resend_headers -muxdelay 0 -muxpreload 0 -pcr_period 20 pipe:1";
+                LogEvent("[PIPELINE]", $"🎨 Nạp nguồn Master PGM Colorbar (WYSIWYG 1920x1080 @ 30 FPS, Tone: {toneFreq} Hz) kèm Audio ({streamChs} Ch) vào Video Encoder ({normalizedCodec} via {hwEncoder})");
             }
 
             LogEvent("[SRT]", $"Khởi động Streaming Worker chuẩn Broadcast Master PGM Output ({normalizedCodec} via {hwEncoder})");
@@ -2153,13 +2420,8 @@ namespace SRT_ENCODE
             _isStreaming = false;
             _currentMuxer = null;
 
-            _reconnectCts?.Cancel();
-            _reconnectCts?.Dispose();
-            _reconnectCts = null;
-
-            _transmissionCts?.Cancel();
-            _transmissionCts?.Dispose();
-            _transmissionCts = null;
+            try { _reconnectCts?.Cancel(); } catch { }
+            try { _transmissionCts?.Cancel(); } catch { }
 
             if (_streamProcess != null)
             {
@@ -2171,28 +2433,39 @@ namespace SRT_ENCODE
                     }
                 }
                 catch { }
-                _streamProcess.Dispose();
+                try { _streamProcess.Dispose(); } catch { }
                 _streamProcess = null;
             }
 
             if (_srtStream != null)
             {
+                var srt = _srtStream;
+                _srtStream = null;
                 try
                 {
-                    _srtStream.StopAsync().GetAwaiter().GetResult();
+                    var stopTask = srt.StopAsync();
+                    stopTask.Wait(300);
                 }
                 catch { }
-                _srtStream.Dispose();
-                _srtStream = null;
+                try { srt.Dispose(); } catch { }
             }
 
-            _reconnectAttempt = 0;
-            BtnStartStreaming.IsEnabled = true;
-            BtnStopStreaming.IsEnabled = false;
+            try { _reconnectCts?.Dispose(); } catch { }
+            _reconnectCts = null;
 
-            LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(158, 158, 158)); // Grey
-            TxtSrtStatus.Text = "SRT: Idle";
-            TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(204, 204, 204));
+            try { _transmissionCts?.Dispose(); } catch { }
+            _transmissionCts = null;
+
+            _reconnectAttempt = 0;
+            if (!_isClosing && Dispatcher.CheckAccess())
+            {
+                BtnStartStreaming.IsEnabled = true;
+                BtnStopStreaming.IsEnabled = false;
+
+                LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(158, 158, 158)); // Grey
+                TxtSrtStatus.Text = "SRT: Idle";
+                TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(204, 204, 204));
+            }
         }
 
 
@@ -2323,7 +2596,7 @@ namespace SRT_ENCODE
                 UpdateAudioMuteState(logChange: false);
             }
 
-            _sourceManager.SetVolume(e.NewValue);
+            UpdatePreviewMonitorAudio();
         }
 
         private int _aspectModeIndex = 0; // 0: Aspect Fit (Uniform), 1: Aspect Scale (UniformToFill)
@@ -2369,11 +2642,15 @@ namespace SRT_ENCODE
 
         public void LogEvent(string tag, string message)
         {
+            if (_isClosing || Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished)
+                return;
+
             string timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
             string logLine = $"[{timestamp}] {tag} {message}\n";
 
             void PrependLog()
             {
+                if (_isClosing) return;
                 if (TxtLogConsole != null)
                 {
                     // Newest on Top
@@ -2399,7 +2676,11 @@ namespace SRT_ENCODE
             }
             else
             {
-                Dispatcher.Invoke(PrependLog);
+                try
+                {
+                    Dispatcher.BeginInvoke(PrependLog, DispatcherPriority.Background);
+                }
+                catch { }
             }
         }
 
@@ -2459,5 +2740,6 @@ namespace SRT_ENCODE
         }
 
         #endregion
+
     }
 }

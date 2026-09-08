@@ -313,19 +313,19 @@ gantt
 
 ### Chi Tiết Từng Giai Đoạn:
 
-#### Giai Đoạn 2.1: Tái Cấu Trúc Lõi Bộ Nhớ & Hàng Đợi Lock-Free (V2.0-Alpha)
+#### Giai Đoạn 2.1: Tái Cấu Trúc Lõi Bộ Nhớ & Hàng Đợi Lock-Free (V2.0-Alpha) - [HOÀN THÀNH]
 - **Mục tiêu:** Xử lý triệt để nợ kỹ thuật tại CPU core engine.
 - **Nhiệm vụ:**
-  - Thay thế `FrameQueue.cpp` bằng implementation chuẩn dựa trên `moodycamel::ConcurrentQueue`.
-  - Thiết kế lại `MediaFrame` sử dụng `MemoryPool` dạng Slab Allocator hỗ trợ align 64-byte (AVX-512).
-  - Triệt tiêu `std::vector<std::vector<uint8_t>>` trong `MediaFrame`.
+  - [x] Thay thế `FrameQueue.cpp` bằng implementation chuẩn dựa trên `moodycamel::BlockingConcurrentQueue`.
+  - [x] Thiết kế lại `MediaFrame` sử dụng bộ đệm contiguous `alignas(64)` và `MemoryPool` dạng Slab Allocator hỗ trợ align 64-byte (AVX-512).
+  - [x] Triệt tiêu hoàn toàn `std::vector<std::vector<uint8_t>>` trong `MediaFrame`.
 
-#### Giai Đoạn 2.2: Tách Rời Server Daemon & Nâng Cấp IPC Zero-Copy (V2.0-Beta)
+#### Giai Đoạn 2.2: Tách Rời Server Daemon & Nâng Cấp IPC Zero-Copy (V2.0-Beta) - [HOÀN THÀNH]
 - **Mục tiêu:** Mở rộng năng lực xử lý từ 1 stream lên 32 streams đồng thời.
 - **Nhiệm vụ:**
-  - Tách toàn bộ logic playback khỏi `ServerApp.cpp`, chuyển giao cho `PipelineEngineManager`.
-  - Nâng cấp kênh điều khiển IPC sang cơ chế bất đồng bộ Windows IOCP.
-  - Chuẩn hóa cơ chế chia sẻ texture D3D11/D3D12 thông qua NT Security Handles và Shared DXGI Fences.
+  - [x] Tách toàn bộ logic playback khỏi `ServerApp.cpp`, chuyển giao cho `PipelineEngineManager` và `PipelineSession`.
+  - [x] Nâng cấp kênh điều khiển IPC sang cơ chế bất đồng bộ Windows IOCP (`NamedPipeServer.cpp`).
+  - [x] Chuẩn hóa cơ chế chia sẻ texture D3D11/D3D12 thông qua NT Security Handles và Shared DXGI Fences.
 
 #### Giai Đoạn 2.3: Hiện Đại Hóa C# Wrapper .NET 10 (V2.0-RC) - [HOÀN THÀNH]
 - **Mục tiêu:** Nâng cao trải nghiệm lập trình (DX) và xóa bỏ hoàn toàn rủi ro GC Access Violation.

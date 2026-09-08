@@ -189,18 +189,19 @@ namespace SRT_DECODE
                 try
                 {
                     _sdiCts?.Cancel();
-                    _sdiCts?.Dispose();
-                    _sdiCts = null;
-
-                    _sdiVideoStdin?.Close();
-                    _sdiVideoStdin = null;
 
                     if (_sdiProcess != null && !_sdiProcess.HasExited)
                     {
-                        try { _sdiProcess.Kill(); _sdiProcess.WaitForExit(100); } catch { }
-                        _sdiProcess.Dispose();
+                        try { _sdiProcess.Kill(entireProcessTree: true); _sdiProcess.WaitForExit(100); } catch { }
+                        try { _sdiProcess.Dispose(); } catch { }
                         _sdiProcess = null;
                     }
+
+                    try { _sdiVideoStdin?.Close(); } catch { }
+                    _sdiVideoStdin = null;
+
+                    try { _sdiCts?.Dispose(); } catch { }
+                    _sdiCts = null;
 
                     Log("[SDI]", $"Đã dừng cổng phát SDI cho {_channelName}.");
                 }
@@ -321,10 +322,15 @@ namespace SRT_DECODE
                 try
                 {
                     _srtCts?.Cancel();
-                    _srtCts?.Dispose();
-                    _srtCts = null;
 
-                    _srtVideoStdin?.Close();
+                    if (_srtProcess != null && !_srtProcess.HasExited)
+                    {
+                        try { _srtProcess.Kill(entireProcessTree: true); _srtProcess.WaitForExit(100); } catch { }
+                        try { _srtProcess.Dispose(); } catch { }
+                        _srtProcess = null;
+                    }
+
+                    try { _srtVideoStdin?.Close(); } catch { }
                     _srtVideoStdin = null;
 
                     if (_srtAudioPipe != null)
@@ -333,12 +339,8 @@ namespace SRT_DECODE
                         _srtAudioPipe = null;
                     }
 
-                    if (_srtProcess != null && !_srtProcess.HasExited)
-                    {
-                        try { _srtProcess.Kill(); _srtProcess.WaitForExit(100); } catch { }
-                        _srtProcess.Dispose();
-                        _srtProcess = null;
-                    }
+                    try { _srtCts?.Dispose(); } catch { }
+                    _srtCts = null;
 
                     Log("[BRIDGE]", $"Đã dừng SRT Re-transmitter cho {_channelName}.");
                 }
@@ -491,8 +493,6 @@ namespace SRT_DECODE
                 try
                 {
                     _recCts?.Cancel();
-                    _recCts?.Dispose();
-                    _recCts = null;
 
                     // Closing stdin cleanly allows FFmpeg to write container trailer (moov atom)
                     if (_recVideoStdin != null)
@@ -511,15 +511,18 @@ namespace SRT_DECODE
                     {
                         try
                         {
-                            if (!_recProcess.WaitForExit(2000))
+                            if (!_recProcess.WaitForExit(300))
                             {
-                                _recProcess.Kill();
+                                _recProcess.Kill(entireProcessTree: true);
                             }
                         }
                         catch { }
-                        _recProcess.Dispose();
+                        try { _recProcess.Dispose(); } catch { }
                         _recProcess = null;
                     }
+
+                    try { _recCts?.Dispose(); } catch { }
+                    _recCts = null;
 
                     var duration = RecordingDuration;
                     ulong size = RecordedBytes;
@@ -633,8 +636,12 @@ namespace SRT_DECODE
             Trace.WriteLine($"[BroadcastOutputWorker]{tag} {message}");
         }
 
+        private bool _disposed;
+
         public void Dispose()
         {
+            if (_disposed) return;
+            _disposed = true;
             StopNdi();
             StopSdi();
             StopSrtBridge();

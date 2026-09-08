@@ -138,6 +138,7 @@ namespace OpenMedia.Platform
                 try
                 {
                     _serverProcess.Start();
+                    RegisterProcessExitHook();
                     Trace.WriteLine($"[OpenMedia.Platform] Launched server: {serverPath} (PID: {_serverProcess.Id}) with pipe {effectivePipeName}");
                 }
                 catch (Exception ex)
@@ -190,6 +191,24 @@ namespace OpenMedia.Platform
             return await StateReplayEngine.Instance.ReplayAsync(_ipcClient);
         }
 
+        private static bool _exitHookRegistered = false;
+
+        private static void RegisterProcessExitHook()
+        {
+            if (_exitHookRegistered) return;
+            _exitHookRegistered = true;
+
+            AppDomain.CurrentDomain.ProcessExit += (s, e) =>
+            {
+                Shutdown();
+            };
+
+            AppDomain.CurrentDomain.UnhandledException += (s, e) =>
+            {
+                Shutdown();
+            };
+        }
+
         /// <summary>
         /// Shuts down the runtime, closing the IPC connection and releasing all resources.
         /// </summary>
@@ -202,7 +221,7 @@ namespace OpenMedia.Platform
                 try
                 {
                     var task = _ipcClient.ShutdownServerAsync();
-                    task.Wait(500);
+                    task.Wait(200);
                 }
                 catch { }
 
@@ -221,9 +240,9 @@ namespace OpenMedia.Platform
                     _serverProcess.Exited -= OnServerProcessExited;
                     if (!_serverProcess.HasExited)
                     {
-                        if (!_serverProcess.WaitForExit(300))
+                        if (!_serverProcess.WaitForExit(150))
                         {
-                            _serverProcess.Kill();
+                            _serverProcess.Kill(entireProcessTree: true);
                         }
                     }
                 }

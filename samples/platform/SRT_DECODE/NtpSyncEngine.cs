@@ -60,11 +60,32 @@ namespace SRT_DECODE
             get => _masterSyncEnabled;
             set
             {
+                if (_masterSyncEnabled == value) return;
                 _masterSyncEnabled = value;
+                if (_masterSyncEnabled)
+                {
+                    StartPeriodicQuery();
+                }
+                else
+                {
+                    StopPeriodicQuery();
+                }
                 Log("[SYNC]", _masterSyncEnabled 
                     ? $"KÍCH HOẠT Multi-Camera Master Synchronization (Target Window: {_targetSyncWindowMs}ms, NTP: {_ntpServer})" 
                     : "ĐÃ TẮT Multi-Camera Master Synchronization (Chuyển sang chế độ Free-Run)");
             }
+        }
+
+        public void StartPeriodicQuery(int intervalMs = 30000)
+        {
+            _ntpQueryTimer?.Dispose();
+            _ntpQueryTimer = new Timer(async _ => await QueryNtpMasterAsync(), null, 1000, intervalMs);
+        }
+
+        public void StopPeriodicQuery()
+        {
+            _ntpQueryTimer?.Dispose();
+            _ntpQueryTimer = null;
         }
 
         public string NtpServer
@@ -95,16 +116,13 @@ namespace SRT_DECODE
                     LockState = SyncLockState.FreeRun
                 };
             }
-
-            // Periodic NTP query every 30 seconds
-            _ntpQueryTimer = new Timer(async _ => await QueryNtpMasterAsync(), null, 1000, 30000);
         }
 
         public async Task<bool> QueryNtpMasterAsync()
         {
             try
             {
-                var res = await NtpClient.QueryTimeAsync(_ntpServer, 3000);
+                var res = await MasterClockProvider.Instance.SyncWithServerAsync(_ntpServer, 3000).ConfigureAwait(false);
                 lock (_lock)
                 {
                     _lastNtpResult = res;
@@ -150,12 +168,8 @@ namespace SRT_DECODE
                     return;
                 }
 
-                // Reference time is Master UTC adjusted by NTP offset if available
-                DateTime nowUtc = DateTime.UtcNow;
-                if (_lastNtpResult?.Success == true)
-                {
-                    nowUtc = nowUtc.AddMilliseconds(_lastNtpResult.OffsetMs);
-                }
+                // Reference time is High-precision Master UTC anchored to NTP via QPC
+                DateTime nowUtc = MasterClockProvider.Instance.CurrentUtcTime;
 
                 // Calculate stream latency and drift against the target sync window
                 double latency = (nowUtc - wallClockTime).TotalMilliseconds;
@@ -188,6 +202,59 @@ namespace SRT_DECODE
                         ch.RepeatedFrames++;
                         ch.BufferFillPercent = 120.0;
                     }
+                }
+            }
+
+            SyncMetricsUpdated?.Invoke(GetSnapshot());
+        }
+
+        public void RegisterDroppedFrame(int channelIndex)
+        {
+            if (channelIndex < 0 || channelIndex >= MaxChannels) return;
+            lock (_lock)
+            {
+                _channels[channelIndex].DroppedFrames++;
+            }
+        }
+
+        public void RegisterRepeatedFrame(int channelIndex)
+        {
+            if (channelIndex < 0 || channelIndex >= MaxChannels) return;
+            lock (_lock)
+            {
+                _channels[channelIndex].RepeatedFrames++;
+            }
+        }
+
+        public void UpdateChannelSyncMetrics(int channelIndex, DateTime originUtc, double actualLatency, double drift, double bufferFill)
+        {
+            if (channelIndex < 0 || channelIndex >= MaxChannels) return;
+
+            lock (_lock)
+            {
+                var ch = _channels[channelIndex];
+                ch.IsActive = true;
+                ch.LastNtpTimestamp = originUtc;
+                ch.DriftMs = drift;
+                ch.BufferFillPercent = Math.Clamp(bufferFill, 10.0, 100.0);
+
+                if (!_masterSyncEnabled)
+                {
+                    ch.LockState = SyncLockState.FreeRun;
+                    return;
+                }
+
+                if (Math.Abs(drift) <= 15.0)
+                {
+                    ch.LockState = SyncLockState.Locked;
+                }
+                else if (Math.Abs(drift) <= 60.0)
+                {
+                    ch.LockState = SyncLockState.Syncing;
+                }
+                else
+                {
+                    ch.LockState = SyncLockState.Syncing;
                 }
             }
 

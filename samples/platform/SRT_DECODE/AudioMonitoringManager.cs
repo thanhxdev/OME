@@ -261,7 +261,7 @@ namespace SRT_DECODE
             {
                 _camLevels[i] = new ChannelAudioLevels();
                 _camMeters[i] = new AudioMeterService();
-                _camRingBuffers[i] = new AudioRingBuffer(capacityBytes: 96000, preRollMs: 50); // 500ms buffer capacity with 50ms adaptive jitter pre-roll
+                _camRingBuffers[i] = new AudioRingBuffer(capacityBytes: 96000, preRollMs: 20); // 500ms buffer capacity with 20ms ultra-low latency jitter pre-roll
                 _channelMuted[i] = true; // Mặc định các preview màn hình ingest đều được Mute
                 _channelGainDb[i] = 0.0; // Mặc định 0 dB (Unity gain)
                 _channelPan[i] = 0.0;    // Mặc định Center

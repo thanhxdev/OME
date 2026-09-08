@@ -347,10 +347,13 @@ namespace SRT_DECODE
 
         #endregion
 
+        private bool _isDisposed;
+
         #region Feed Pipeline (Video BGRA & Audio PCM)
 
         public void FeedMasterVideo(byte[] bgraBytes, int width, int height, double fps = 59.94)
         {
+            if (_isDisposed) return;
             // If NDI is in Multiviewer mode, NDI gets its frames from the Compositor engine.
             // SDI, SRT Bridge, and File Recording still receive clean Master Program.
             bool sendToNdi = !NdiMultiviewerMode;
@@ -359,11 +362,13 @@ namespace SRT_DECODE
 
         public void FeedMasterAudio(byte[] pcmBytes, int count)
         {
+            if (_isDisposed) return;
             _masterWorker.FeedAudioPcm(pcmBytes, count, 48000, 2);
         }
 
         public void FeedIsoVideo(int camIndex, byte[] bgraBytes, int width, int height, double fps = 59.94)
         {
+            if (_isDisposed) return;
             if (camIndex >= 0 && camIndex < MaxChannels)
             {
                 _isoWorkers[camIndex].FeedVideoFrame(bgraBytes, width, height, fps);
@@ -373,6 +378,7 @@ namespace SRT_DECODE
 
         public void FeedIsoAudio(int camIndex, byte[] pcmBytes, int count)
         {
+            if (_isDisposed) return;
             if (camIndex >= 0 && camIndex < MaxChannels)
             {
                 _isoWorkers[camIndex].FeedAudioPcm(pcmBytes, count, 48000, 2);
@@ -389,6 +395,9 @@ namespace SRT_DECODE
 
         public void Dispose()
         {
+            if (_isDisposed) return;
+            _isDisposed = true;
+
             Compositor.Dispose();
             _masterWorker.Dispose();
             for (int i = 0; i < MaxChannels; i++)

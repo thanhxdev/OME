@@ -40,6 +40,7 @@
             <Setter Property="Padding" Value="12"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
         </Style>
+        <Style x:Key="CardBorderStyle" BasedOn="{StaticResource DarkCardBorderStyle}" TargetType="Border"/>
 
         <!-- Toggle Switch CheckBox Style -->
         <Style x:Key="ToggleSwitchStyle" TargetType="CheckBox">
@@ -325,6 +326,88 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- ─── Slim Broadcast Mixer Fader Style (Nhỏ, mảnh) ─── -->
+        <Style x:Key="SlimMixerFaderStyle" TargetType="Slider">
+            <Setter Property="Stylus.IsPressAndHoldEnabled" Value="False"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="Width" Value="18"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid HorizontalAlignment="Center">
+                            <!-- Track rãnh fader siêu mảnh 2px -->
+                            <Border Width="2" Background="#161618" BorderBrush="#35353C" BorderThickness="1" CornerRadius="1" HorizontalAlignment="Center"/>
+                            <Track x:Name="PART_Track" Width="18" HorizontalAlignment="Center">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static Slider.DecreaseLarge}" Opacity="0" Focusable="False"/>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static Slider.IncreaseLarge}" Opacity="0" Focusable="False"/>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Focusable="False">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <!-- Đầu trượt Fader Cap nhỏ mảnh, chuyên nghiệp -->
+                                                <Border Width="14" Height="8" Background="#33343A" BorderBrush="#686B75" BorderThickness="1" CornerRadius="2" Cursor="SizeNS">
+                                                    <Border.Effect>
+                                                        <DropShadowEffect BlurRadius="2" ShadowDepth="1" Opacity="0.4"/>
+                                                    </Border.Effect>
+                                                    <Rectangle Width="8" Height="1" Fill="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ─── Slim Master Program Bus Fader Style (Nhỏ, mảnh với vạch xanh) ─── -->
+        <Style x:Key="SlimMixerMasterFaderStyle" TargetType="Slider">
+            <Setter Property="Stylus.IsPressAndHoldEnabled" Value="False"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="Width" Value="18"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid HorizontalAlignment="Center">
+                            <!-- Track rãnh fader siêu mảnh 2px -->
+                            <Border Width="2" Background="#161618" BorderBrush="#35353C" BorderThickness="1" CornerRadius="1" HorizontalAlignment="Center"/>
+                            <Track x:Name="PART_Track" Width="18" HorizontalAlignment="Center">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static Slider.DecreaseLarge}" Opacity="0" Focusable="False"/>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static Slider.IncreaseLarge}" Opacity="0" Focusable="False"/>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Focusable="False">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border Width="15" Height="9" Background="#263238" BorderBrush="#00E676" BorderThickness="1" CornerRadius="2" Cursor="SizeNS">
+                                                    <Border.Effect>
+                                                        <DropShadowEffect BlurRadius="2" ShadowDepth="1" Opacity="0.5"/>
+                                                    </Border.Effect>
+                                                    <Rectangle Width="9" Height="1" Fill="#00E676" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
     </Window.Resources>
 
     <Grid>
@@ -396,9 +479,12 @@
 
                 <!-- Right: Master UTC Clock -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="UTC TIMECODE:" FontSize="11" Foreground="#9E9E9E" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <Border Background="#0A0A0A" BorderBrush="#333333" BorderThickness="1" CornerRadius="4" Padding="8,3">
+                    <TextBlock Text="MASTER UTC:" FontSize="11" Foreground="#9E9E9E" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <Border Background="#0A0A0A" BorderBrush="#333333" BorderThickness="1" CornerRadius="4" Padding="8,3" Margin="0,0,6,0">
                         <TextBlock x:Name="TxtMasterUtcTime" Text="00:00:00.000" FontFamily="Consolas, Monospace" FontSize="14" FontWeight="Bold" Foreground="#00E676"/>
+                    </Border>
+                    <Border Background="#141E18" BorderBrush="#00E676" BorderThickness="1" CornerRadius="4" Padding="6,3" ToolTip="SMPTE ST 12-1 Broadcast Timecode (25 fps Frame-Locked)">
+                        <TextBlock x:Name="TxtMasterSmpteTime" Text="00:00:00:00" FontFamily="Consolas, Monospace" FontSize="13" FontWeight="Bold" Foreground="#00FFCC"/>
                     </Border>
                 </StackPanel>
             </Grid>
@@ -473,7 +559,7 @@
                         <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12,12,0,0" Background="#90000000" CornerRadius="4" Padding="8,4">
                             <StackPanel Orientation="Horizontal">
                                 <Ellipse x:Name="LedLiveInput" Width="8" Height="8" Fill="#00E676" Margin="0,0,6,0"/>
-                                <TextBlock x:Name="TxtActiveSourceBadge" Text="INPUT: SDI 1 (1080p59.94)" FontSize="11" FontWeight="Bold" Foreground="#FFFFFF"/>
+                                <TextBlock x:Name="TxtActiveSourceBadge" Text="INPUT: FILE (No File Selected)" FontSize="11" FontWeight="Bold" Foreground="#FFFFFF"/>
                             </StackPanel>
                         </Border>
 
@@ -528,12 +614,12 @@
                                 <!-- Header & Channel Info Summary -->
                                 <Grid Margin="0,0,0,5">
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock Text="🔊 AUDIO VU METER" FontSize="10.5" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,5,0"/>
+                                        <TextBlock Text="🔊 AUDIO VU METER" FontSize="10.5" FontWeight="Bold" Foreground="#007ACC" Margin="0,0,5,0" Visibility="Collapsed"/>
                                         <Border Background="#1E3A5F" CornerRadius="3" Padding="4,1">
                                             <TextBlock x:Name="TxtVuChannelCountBadge" Text="16-CH EMBEDDED" FontSize="8.5" FontWeight="Bold" Foreground="#64B5F6"/>
                                         </Border>
                                     </StackPanel>
-                                    <TextBlock x:Name="TxtAudioPeakSummary" Text="Peak: SILENT" HorizontalAlignment="Right" FontSize="9.5" FontWeight="SemiBold" Foreground="#4EC9B0"/>
+                                    <TextBlock x:Name="TxtAudioPeakSummary" Text="Peak: SILENT" HorizontalAlignment="Right" FontSize="9.5" FontWeight="SemiBold" Foreground="#4EC9B0" Visibility="Collapsed"/>
                                 </Grid>
 
                                 <!-- VU Channels with dB Scale Ruler -->
@@ -784,13 +870,13 @@
                                                         <ColumnDefinition Width="*"/>
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
-                                                    <RadioButton x:Name="RbEncoderPipe" Grid.Column="0" Content="🎛️ Encoder Pipe" GroupName="VideoPipelineMode" Style="{StaticResource SegmentedRadioButtonStyle}" IsChecked="True" Checked="VideoPipelineMode_Changed" Unchecked="VideoPipelineMode_Changed"/>
-                                                    <RadioButton x:Name="RbPassthrough" Grid.Column="1" Content="⚡ Passthrough" GroupName="VideoPipelineMode" Style="{StaticResource SegmentedRadioButtonStyle}" IsChecked="False" Checked="VideoPipelineMode_Changed" Unchecked="VideoPipelineMode_Changed"/>
+                                                    <RadioButton x:Name="RbEncoderPipe" Grid.Column="0" Content="🎛️ Encoder Pipe" GroupName="VideoPipelineMode" Style="{StaticResource SegmentedRadioButtonStyle}" IsChecked="False" Checked="VideoPipelineMode_Changed" Unchecked="VideoPipelineMode_Changed"/>
+                                                    <RadioButton x:Name="RbPassthrough" Grid.Column="1" Content="⚡ Passthrough" GroupName="VideoPipelineMode" Style="{StaticResource SegmentedRadioButtonStyle}" IsChecked="True" Checked="VideoPipelineMode_Changed" Unchecked="VideoPipelineMode_Changed"/>
                                                 </Grid>
                                             </Border>
 
                                             <!-- Video Compression Codec (Visible when Encoder Pipe is selected) -->
-                                            <StackPanel x:Name="PnlVideoCodecContainer" Visibility="Visible">
+                                            <StackPanel x:Name="PnlVideoCodecContainer" Visibility="Collapsed">
                                                 <TextBlock Text="Video Compression Codec:" Style="{StaticResource HeaderLabelStyle}"/>
                                                 <ComboBox x:Name="CmbVideoCodec" SelectionChanged="CmbVideoCodec_SelectionChanged">
                                                     <ComboBoxItem x:Name="CmbItemH264" Content="H.264 / AVC (Broadcast Reference)" IsSelected="True"/>
@@ -800,7 +886,7 @@
                                             </StackPanel>
 
                                             <!-- Passthrough Information Notice (Visible when Passthrough is selected) -->
-                                            <Border x:Name="PnlPassthroughNotice" Visibility="Collapsed" Background="#14261C" BorderBrush="#2E7D32" BorderThickness="1" CornerRadius="4" Padding="8,6">
+                                            <Border x:Name="PnlPassthroughNotice" Visibility="Visible" Background="#14261C" BorderBrush="#2E7D32" BorderThickness="1" CornerRadius="4" Padding="8,6">
                                                 <StackPanel>
                                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
                                                         <TextBlock Text="⚡" Margin="0,0,4,0"/>
@@ -808,6 +894,34 @@
                                                     </StackPanel>
                                                     <TextBlock Text="Luồng video gốc từ File/Input được truyền trực tiếp qua SRT mà không cần chọn Codec hay nén lại." FontSize="10" Foreground="#A5D6A7" TextWrapping="Wrap"/>
                                                 </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Stream Audio Output Configuration -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                            <TextBlock Text="Stream Audio Channels:" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <ComboBox x:Name="CmbStreamAudioChannels" SelectionChanged="CmbStreamAudioChannels_SelectionChanged">
+                                                <ComboBoxItem Content="Auto (Theo nguồn phát)" IsSelected="True"/>
+                                                <ComboBoxItem Content="Stereo (2 Channels - L/R)"/>
+                                                <ComboBoxItem Content="Mono (1 Channel)"/>
+                                                <ComboBoxItem Content="4 Channels (Multi-Channel)"/>
+                                                <ComboBoxItem Content="5.1 Surround (6 Channels)"/>
+                                                <ComboBoxItem Content="8 Channels (7.1 Surround / SDI)"/>
+                                                <ComboBoxItem Content="16 Channels (SDI Embedded)"/>
+                                            </ComboBox>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                            <TextBlock Text="Audio Output Summary:" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <Border Background="#252526" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Height="30" Padding="8,4">
+                                                <TextBlock x:Name="TxtStreamAudioSummary" Text="AAC 192 kbps @ 48.0 kHz" FontSize="11" FontWeight="SemiBold" Foreground="#00FFCC" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                                             </Border>
                                         </StackPanel>
                                     </Grid>
@@ -958,21 +1072,21 @@
                                         <Grid Margin="0,0,0,8">
                                             <TextBlock Text="Select Broadcast Video Source:" FontWeight="Bold" FontSize="13" Foreground="#4EC9B0" VerticalAlignment="Center"/>
                                             <Border Background="#252526" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="3" Padding="6,2" HorizontalAlignment="Right">
-                                                <TextBlock x:Name="TxtActiveSourceTypeBadge" Text="📡 SDI INPUT ACTIVE" FontSize="10" FontWeight="Bold" Foreground="#00E676"/>
+                                                <TextBlock x:Name="TxtActiveSourceTypeBadge" Text="📁 FILE INPUT ACTIVE" FontSize="10" FontWeight="Bold" Foreground="#00E676"/>
                                             </Border>
                                         </Grid>
 
                                         <ComboBox x:Name="CmbInputSource" SelectionChanged="CmbInputSource_SelectionChanged" Height="34" FontSize="13" FontWeight="SemiBold">
-                                            <ComboBoxItem Content="📡 SDI Input (Blackmagic DeckLink / AJA Capture Card)" IsSelected="True"/>
+                                            <ComboBoxItem Content="📡 SDI Input (Blackmagic DeckLink / AJA Capture Card)"/>
                                             <ComboBoxItem Content="🌐 NDI Input (Network Live Stream Source)"/>
-                                            <ComboBoxItem Content="📁 File Input (.mp4, .mov, .mkv, .ts Media File)"/>
+                                            <ComboBoxItem Content="📁 File Input (.mp4, .mov, .mkv, .ts Media File)" IsSelected="True"/>
                                             <ComboBoxItem Content="🎨 Colorbar (SMPTE RP 219 / EBU Pattern &amp; 1kHz Tone)"/>
                                         </ComboBox>
                                     </StackPanel>
                                 </Border>
 
-                                <!-- Source Option 1 Frame: SDI Input (Default: Visible) -->
-                                <Border x:Name="CardSdiConfig" Style="{StaticResource DarkCardBorderStyle}" Visibility="Visible">
+                                <!-- Source Option 1 Frame: SDI Input (Default: Collapsed) -->
+                                <Border x:Name="CardSdiConfig" Style="{StaticResource DarkCardBorderStyle}" Visibility="Collapsed">
                                     <StackPanel>
                                         <Grid Margin="0,0,0,10">
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -1012,7 +1126,8 @@
                                                 <StackPanel Grid.Column="1" Margin="6,0,0,0">
                                                     <TextBlock Text="Audio Channels:" Style="{StaticResource HeaderLabelStyle}"/>
                                                     <ComboBox x:Name="CmbSdiAudioCh" SelectionChanged="CmbSdiAudioCh_SelectionChanged">
-                                                        <ComboBoxItem Content="Stereo (2 Ch)" IsSelected="True"/>
+                                                        <ComboBoxItem Content="Auto (Theo nguồn gốc)" IsSelected="True"/>
+                                                        <ComboBoxItem Content="Stereo (2 Ch)"/>
                                                         <ComboBoxItem Content="4 Channels"/>
                                                         <ComboBoxItem Content="8 Channels (SDI Embedded)"/>
                                                         <ComboBoxItem Content="16 Channels"/>
@@ -1051,8 +1166,8 @@
                                     </StackPanel>
                                 </Border>
 
-                                <!-- Source Option 3 Frame: File Input (Default: Collapsed) -->
-                                <Border x:Name="CardFileConfig" Style="{StaticResource DarkCardBorderStyle}" Visibility="Collapsed">
+                                <!-- Source Option 3 Frame: File Input (Default: Visible) -->
+                                <Border x:Name="CardFileConfig" Style="{StaticResource DarkCardBorderStyle}" Visibility="Visible">
                                     <StackPanel>
                                         <Grid Margin="0,0,0,10">
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -1195,11 +1310,14 @@
                     <!-- ════════════════════════════════════════════════════
                          TAB 3: ULTRA LOW-LATENCY ENGINE PRESET (DEFAULT: OFF)
                          ════════════════════════════════════════════════════ -->
-                    <TabItem Header="⚡ 3. Low-Latency">
+                    <!-- ════════════════════════════════════════════════════
+                         TAB 3: ULTRA LOW-LATENCY & NTP WALL-CLOCK SYNC
+                         ════════════════════════════════════════════════════ -->
+                    <TabItem Header="⚡ 3. Low-Latency &amp; NTP">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
                             <StackPanel>
-                                <TextBlock Text="ULTRA LOW-LATENCY ENGINE PRESET" FontWeight="Bold" FontSize="14" Foreground="#FFFFFF" Margin="0,0,0,4"/>
-                                <TextBlock Text="Optimizes encoding pipeline for sub-second broadcast contribution." FontSize="11" Foreground="#888888" Margin="0,0,0,12"/>
+                                <TextBlock Text="ULTRA LOW-LATENCY &amp; NTP WALL-CLOCK SYNCHRONIZATION" FontWeight="Bold" FontSize="14" Foreground="#FFFFFF" Margin="0,0,0,4"/>
+                                <TextBlock Text="Tối ưu độ trễ dưới 1 giây và đồng bộ khung hình chính xác tuyệt đối qua NTP Wall-Clock SEI timecode." FontSize="11" Foreground="#888888" Margin="0,0,0,12"/>
 
                                 <!-- Master ULL Toggle -->
                                 <Border Background="#1A271E" BorderBrush="#2E7D32" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,12">
@@ -1258,21 +1376,9 @@
                                         </Grid>
                                     </StackPanel>
                                 </Border>
-                            </StackPanel>
-                        </ScrollViewer>
-                    </TabItem>
-
-                    <!-- ════════════════════════════════════════════════════
-                         TAB 4: NTP & MULTI-CAMERA WALL-CLOCK SYNC
-                         ════════════════════════════════════════════════════ -->
-                    <TabItem Header="⏱️ 4. NTP Sync">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
-                            <StackPanel>
-                                <TextBlock Text="MULTI-CAMERA NTP &amp; WALL-CLOCK SYNCHRONIZATION" FontWeight="Bold" FontSize="14" Foreground="#FFFFFF" Margin="0,0,0,4"/>
-                                <TextBlock Text="Embed real-time NTP Wall-Clock timestamps into SEI metadata &amp; SRT PTS for 100% multi-camera frame-accurate sync." FontSize="11" Foreground="#888888" Margin="0,0,0,12"/>
 
                                 <!-- Master NTP Sync Toggle -->
-                                <Border Background="#261E14" BorderBrush="#F57C00" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,12">
+                                <Border Background="#261E14" BorderBrush="#F57C00" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,6,0,12">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -1303,7 +1409,7 @@
 
                                         <Grid Margin="0,4">
                                             <TextBlock Text="NTP Wall-Clock Offset:" Style="{StaticResource HeaderLabelStyle}"/>
-                                            <TextBlock x:Name="TxtNtpOffset" Text="+0.14 ms (Stratum 1 Locked)" HorizontalAlignment="Right" FontWeight="Bold" Foreground="#00E676"/>
+                                            <TextBlock x:Name="TxtNtpOffset" Text="Disabled (Free-Run)" HorizontalAlignment="Right" FontWeight="Bold" Foreground="#888888"/>
                                         </Grid>
 
                                         <Grid Margin="0,4">
@@ -1315,6 +1421,7 @@
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
+
                 </TabControl>
             </Grid>
         </Grid>
@@ -1344,7 +1451,7 @@
                     <Border Background="#222222" CornerRadius="4" Padding="8,4">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="CODEC: " FontWeight="Bold" FontSize="11" Foreground="#888888"/>
-                            <TextBlock x:Name="TxtCodecSummary" Text="H.264 @ 6000 kbps (ULL B=0)" FontSize="11" FontWeight="Bold" Foreground="#4EC9B0"/>
+                            <TextBlock x:Name="TxtCodecSummary" Text="⚡ PASSTHROUGH (Direct Stream)" FontSize="11" FontWeight="Bold" Foreground="#4EC9B0"/>
                         </StackPanel>
                     </Border>
                 </StackPanel>

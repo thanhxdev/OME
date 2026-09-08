@@ -66,7 +66,7 @@ namespace SRT_ENCODE
         private TextBlock? _txtActiveSourceTypeBadge;
 
         // State
-        private InputSourceType _currentSource = InputSourceType.Colorbar;
+        private InputSourceType _currentSource = InputSourceType.File;
         private string _currentSourcePath = string.Empty;
         private bool _isPreviewEnabled = true;
         private bool _isAudioMonitorEnabled = false;
@@ -145,7 +145,7 @@ namespace SRT_ENCODE
             _txtActiveSourceTypeBadge = txtActiveSourceTypeBadge;
 
             await RecreatePlayerAsync();
-            UpdateTelemetryForColorbar();
+            UpdateTelemetryForFileNotFound(string.Empty);
         }
 
         private async Task RecreatePlayerAsync()
@@ -310,7 +310,7 @@ namespace SRT_ENCODE
 
             if (info != null && info.Width > 0 && info.Height > 0)
             {
-                _activeAudioChannels = (info.AudioChannels > 1) ? Math.Clamp(info.AudioChannels, 2, 16) : 2;
+                _activeAudioChannels = (info.AudioChannels > 0) ? Math.Clamp(info.AudioChannels, 1, 16) : 2;
                 string resTag = (info.Width >= 3840) ? "4K UHD" : (info.Width >= 1920) ? "1080p FHD" : $"{info.Height}p HD";
                 _currentTelemetry.Resolution = $"{info.Width} x {info.Height} ({resTag})";
                 _currentTelemetry.FrameRate = info.FrameRate > 0 ? $"{info.FrameRate:F2} FPS" : "59.94 FPS";
@@ -496,9 +496,25 @@ namespace SRT_ENCODE
         private void UpdateTelemetryForSdi(string deviceName, string? videoMode, string? audioCh)
         {
             string mode = videoMode ?? "1080p 59.94 fps";
-            string audio = audioCh ?? "Stereo (2 Ch)";
+            string audio = audioCh ?? "Auto (Theo nguồn gốc)";
 
-            if (audio.Contains("16 Ch") || audio.Contains("16 Channels")) _activeAudioChannels = 16;
+            bool isAuto = audio.Contains("Auto");
+            if (isAuto)
+            {
+                if (deviceName.Contains("8K") || deviceName.Contains("12G") || deviceName.Contains("Quad"))
+                {
+                    _activeAudioChannels = 16;
+                }
+                else if (deviceName.Contains("DeckLink") || deviceName.Contains("SDI") || deviceName.Contains("AJA") || deviceName.Contains("KONA") || deviceName.Contains("Magewell"))
+                {
+                    _activeAudioChannels = 8;
+                }
+                else
+                {
+                    _activeAudioChannels = 2;
+                }
+            }
+            else if (audio.Contains("16 Ch") || audio.Contains("16 Channels")) _activeAudioChannels = 16;
             else if (audio.Contains("8 Ch") || audio.Contains("8 Channels")) _activeAudioChannels = 8;
             else if (audio.Contains("4 Ch") || audio.Contains("4 Channels")) _activeAudioChannels = 4;
             else _activeAudioChannels = 2;
@@ -534,7 +550,9 @@ namespace SRT_ENCODE
             }
 
             _currentTelemetry.VideoCodec = "Uncompressed 10-bit YUV (v210 / UYVY)";
-            _currentTelemetry.AudioFormat = $"{audio} @ 48.0 kHz 24-bit PCM (SDI Embedded)";
+            _currentTelemetry.AudioFormat = isAuto
+                ? $"Auto ({_activeAudioChannels} Ch) @ 48.0 kHz 24-bit PCM (SDI Embedded)"
+                : $"{audio} @ 48.0 kHz 24-bit PCM (SDI Embedded)";
             _currentTelemetry.ColorSpace = "ITU-R BT.709 (4:2:2 10-bit Broadcast Studio)";
             _currentTelemetry.PipelineDetails = "Blackmagic DeckLink / DirectShow Zero-Copy Capture Pipeline";
 
@@ -651,6 +669,12 @@ namespace SRT_ENCODE
 
         private void OnNdiAudioSamplesReceived(float[] samples, int channels, int sampleRate)
         {
+            if (channels > 0 && _activeAudioChannels != channels)
+            {
+                _activeAudioChannels = Math.Clamp(channels, 1, 16);
+                _currentTelemetry.AudioFormat = $"{_activeAudioChannels} Ch @ {(sampleRate > 0 ? sampleRate / 1000.0 : 48.0):F1} kHz (NDI Audio)";
+                TelemetryUpdated?.Invoke(_currentTelemetry);
+            }
             AudioSamplesArrived?.Invoke(samples, channels, sampleRate);
         }
 
@@ -943,12 +967,13 @@ namespace SRT_ENCODE
 
         public void Dispose()
         {
-            StopLiveCaptures();
-            _colorbarEngine.Dispose();
-            _srtStreamSource?.Dispose();
+            try { StopLiveCaptures(); } catch { }
+            try { _colorbarEngine?.Dispose(); } catch { }
+            try { _srtStreamSource?.Dispose(); } catch { }
             _srtStreamSource = null;
-            _player?.Dispose();
+            try { _player?.Dispose(); } catch { }
             _player = null;
+            _reviewView = null;
         }
     }
 }

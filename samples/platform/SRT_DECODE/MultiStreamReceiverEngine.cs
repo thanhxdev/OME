@@ -35,6 +35,7 @@ namespace SRT_DECODE
         private readonly ChannelVideoDecoder?[] _decoders = new ChannelVideoDecoder?[MaxChannels];
         private readonly ChannelAudioDecoder?[] _audioDecoders = new ChannelAudioDecoder?[MaxChannels];
         private readonly CancellationTokenSource?[] _receiverCts = new CancellationTokenSource?[MaxChannels];
+        private readonly Task?[] _receiverTasks = new Task?[MaxChannels];
         private readonly NtpSyncEngine _syncEngine;
         private bool _isDisposed;
 
@@ -173,7 +174,7 @@ namespace SRT_DECODE
                     var token = cts.Token;
                     var session = ch.Session;
 
-                    _ = Task.Run(async () =>
+                    _receiverTasks[index] = Task.Run(async () =>
                     {
                         byte[] buffer = new byte[65536]; // 64KB buffer to receive any SRT live MTU payload
                         try
@@ -181,6 +182,8 @@ namespace SRT_DECODE
                             while (!token.IsCancellationRequested && ch.IsRunning && session != null && session.IsRunning)
                             {
                                 int bytesRead = session.ReceiveData(buffer);
+                                if (token.IsCancellationRequested || !ch.IsRunning) break;
+
                                 if (bytesRead > 0)
                                 {
                                     decoder.FeedData(buffer, bytesRead);
@@ -196,7 +199,7 @@ namespace SRT_DECODE
                         catch (OperationCanceledException) { }
                         catch (Exception ex)
                         {
-                            Log("[WARN]", $"[{ch.Name}] Luồng nhận gói tin: {ex.Message}");
+                            Log("[WARN]", $"[{ch.Name}] Luồng nhận gói tin kết thúc: {ex.Message}");
                         }
                     }, token);
                 }
@@ -226,10 +229,24 @@ namespace SRT_DECODE
             {
                 Log("[SRT]", $"Dừng thu luồng {ch.Name}...");
 
-                _receiverCts[index]?.Cancel();
-                _receiverCts[index]?.Dispose();
-                _receiverCts[index] = null;
+                ch.IsRunning = false;
+                ch.IsConnected = false;
+                _syncEngine.SetChannelActive(index, false);
 
+                // 1. Cancel background loop and await task completion (prevent native use-after-free)
+                _receiverCts[index]?.Cancel();
+                var rxTask = _receiverTasks[index];
+                _receiverTasks[index] = null;
+                if (rxTask != null)
+                {
+                    try
+                    {
+                        await Task.WhenAny(rxTask, Task.Delay(200)).ConfigureAwait(false);
+                    }
+                    catch { }
+                }
+
+                // 2. Stop and dispose decoders
                 _decoders[index]?.Stop();
                 _decoders[index]?.Dispose();
                 _decoders[index] = null;
@@ -238,21 +255,23 @@ namespace SRT_DECODE
                 _audioDecoders[index]?.Dispose();
                 _audioDecoders[index] = null;
 
+                // 3. Stop and dispose SRT session
                 if (ch.Session != null)
                 {
-                    await ch.Session.StopAsync();
-                    ch.Session.Dispose();
+                    try { await ch.Session.StopAsync().ConfigureAwait(false); } catch { }
+                    try { ch.Session.Dispose(); } catch { }
                     ch.Session = null;
                 }
 
-                ch.IsRunning = false;
-                ch.IsConnected = false;
+                // 4. Dispose CTS now that receiver task has completely stopped
+                try { _receiverCts[index]?.Dispose(); } catch { }
+                _receiverCts[index] = null;
+
                 ch.CurrentRttMs = 0;
                 ch.CurrentPacketLoss = 0;
                 ch.CurrentBitrateKbps = 0;
                 ch.CurrentFps = 0;
                 ch.StatusMessage = "Standby / Stopped";
-                _syncEngine.SetChannelActive(index, false);
 
                 ChannelUpdated?.Invoke(index, ch);
                 Log("[SRT]", $"Đã dừng {ch.Name}.");
@@ -276,11 +295,13 @@ namespace SRT_DECODE
         public async Task StopAllAsync(int activeCount = MaxChannels)
         {
             int count = Math.Clamp(activeCount, 1, MaxChannels);
-            Log("[SRT]", $"Dừng tất cả {count} kênh SRT Ingest...");
+            Log("[SRT]", $"Dừng đồng thời {count} kênh SRT Ingest...");
+            var tasks = new System.Collections.Generic.List<Task>();
             for (int i = 0; i < count; i++)
             {
-                await StopChannelAsync(i);
+                tasks.Add(StopChannelAsync(i));
             }
+            await Task.WhenAll(tasks).ConfigureAwait(false);
         }
 
         private void Log(string tag, string message)
@@ -296,18 +317,27 @@ namespace SRT_DECODE
 
             for (int i = 0; i < MaxChannels; i++)
             {
+                _channels[i].IsRunning = false;
+                _channels[i].IsConnected = false;
                 _receiverCts[i]?.Cancel();
-                _receiverCts[i]?.Dispose();
-                _receiverCts[i] = null;
+            }
 
+            for (int i = 0; i < MaxChannels; i++)
+            {
+                _decoders[i]?.Stop();
                 _decoders[i]?.Dispose();
                 _decoders[i] = null;
 
+                _audioDecoders[i]?.Stop();
                 _audioDecoders[i]?.Dispose();
                 _audioDecoders[i] = null;
 
                 _channels[i].Session?.Dispose();
                 _channels[i].Session = null;
+
+                try { _receiverCts[i]?.Dispose(); } catch { }
+                _receiverCts[i] = null;
+                _receiverTasks[i] = null;
             }
         }
 
@@ -316,26 +346,7 @@ namespace SRT_DECODE
             if (_isDisposed) return;
             _isDisposed = true;
 
-            for (int i = 0; i < MaxChannels; i++)
-            {
-                _receiverCts[i]?.Cancel();
-                _receiverCts[i]?.Dispose();
-                _receiverCts[i] = null;
-
-                _decoders[i]?.Dispose();
-                _decoders[i] = null;
-
-                _audioDecoders[i]?.Dispose();
-                _audioDecoders[i] = null;
-
-                var session = _channels[i].Session;
-                if (session != null)
-                {
-                    await session.StopAsync();
-                    session.Dispose();
-                    _channels[i].Session = null;
-                }
-            }
+            await StopAllAsync(MaxChannels).ConfigureAwait(false);
         }
     }
 }

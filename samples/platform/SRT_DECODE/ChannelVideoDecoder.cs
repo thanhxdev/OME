@@ -181,26 +181,28 @@ namespace SRT_DECODE
             try
             {
                 _cts?.Cancel();
-                _cts?.Dispose();
-                _cts = null;
 
-                _stdin?.Close();
-                _stdin = null;
-
-                _stdout?.Close();
-                _stdout = null;
-
+                // Kill process tree first so child threads and pipe readers exit immediately
                 if (_process != null && !_process.HasExited)
                 {
                     try
                     {
-                        _process.Kill();
-                        _process.WaitForExit(100);
+                        _process.Kill(entireProcessTree: true);
+                        _process.WaitForExit(150);
                     }
                     catch { }
-                    _process.Dispose();
+                    try { _process.Dispose(); } catch { }
                     _process = null;
                 }
+
+                try { _stdin?.Close(); } catch { }
+                _stdin = null;
+
+                try { _stdout?.Close(); } catch { }
+                _stdout = null;
+
+                try { _cts?.Dispose(); } catch { }
+                _cts = null;
 
                 Log("[DECODER]", $"Đã dừng FFmpeg Decoder cho Cam {_channelIndex + 1}");
             }

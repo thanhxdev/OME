@@ -21,6 +21,7 @@ namespace SRT_DECODE
 
         // ─── Subsystem Engines ──────────────────────────────────────
         private readonly NtpSyncEngine _syncEngine = new();
+        private readonly VideoPlayoutAlignmentEngine _playoutAlignmentEngine;
         private readonly MultiStreamReceiverEngine _receiverEngine;
         private readonly AudioMonitoringManager _audioManager = new();
         private readonly BroadcastOutputManager _outputManager = new();
@@ -37,6 +38,7 @@ namespace SRT_DECODE
         private bool _isTransitioning = false;
         private bool _isInitialized = false;
         private volatile bool _isShuttingDown = false;
+        private bool _isClosed = false;
         private readonly StringBuilder _logBuffer = new();
 
         // ─── Engine Event Delegates for Safe Unhooking ──────────────
@@ -154,6 +156,9 @@ namespace SRT_DECODE
 
         public MainWindow()
         {
+            _playoutAlignmentEngine = new VideoPlayoutAlignmentEngine(_syncEngine);
+            _playoutAlignmentEngine.FrameReadyForPlayout += OnPlayoutFrameReady;
+
             _receiverEngine = new MultiStreamReceiverEngine(_syncEngine);
 
             // Create strongly-referenced delegates for unhooking
@@ -192,6 +197,26 @@ namespace SRT_DECODE
 
             InitializeComponent();
             _isInitialized = true;
+
+            MasterClockProvider.Instance.SyncStatusChanged += res =>
+            {
+                Dispatcher.InvokeAsync(() =>
+                {
+                    if (TxtNtpOffsetResult != null)
+                    {
+                        if (res.Success)
+                        {
+                            TxtNtpOffsetResult.Text = res.GetFormattedOffset();
+                            TxtNtpOffsetResult.Foreground = Brushes.LightGreen;
+                        }
+                        else
+                        {
+                            TxtNtpOffsetResult.Text = "NTP Sync Failed";
+                            TxtNtpOffsetResult.Foreground = Brushes.Red;
+                        }
+                    }
+                });
+            };
 
             Loaded += MainWindow_Loaded;
             Closing += MainWindow_Closing;
@@ -371,6 +396,30 @@ namespace SRT_DECODE
                 LogEvent("[INFO]", "Ứng dụng OME Broadcast Multi-SRT Decoder & Studio Sync đang khởi chạy...");
                 TxtEngineStatus.Text = "Engine: Initializing Platform...";
 
+                // Start High-precision Master UTC Clock immediately on startup
+                StartMasterClockTimer();
+
+                // Tự động đồng bộ Master NTP nếu được kích hoạt (mặc định khởi chạy là disabled)
+                if (ChkMasterSync?.IsChecked == true)
+                {
+                    string defaultNtp = TxtNtpServer?.Text?.Trim() ?? "time.google.com";
+                    if (string.IsNullOrEmpty(defaultNtp)) defaultNtp = "time.google.com";
+                    MasterClockProvider.Instance.StartPeriodicSync(defaultNtp, 30);
+                    _syncEngine.MasterSyncEnabled = true;
+                    _playoutAlignmentEngine.IsEnabled = true;
+                }
+                else
+                {
+                    _syncEngine.MasterSyncEnabled = false;
+                    _playoutAlignmentEngine.IsEnabled = false;
+                    MasterClockProvider.Instance.StopPeriodicSync();
+                    if (TxtNtpOffsetResult != null)
+                    {
+                        TxtNtpOffsetResult.Text = "Disabled (Free-Run)";
+                        TxtNtpOffsetResult.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+                    }
+                }
+
                 // Initialize OpenMedia Runtime Engine
                 bool runtimeInit = await OpenMediaRuntime.InitializeAsync(new RuntimeOptions { AutoLaunch = true });
                 if (runtimeInit)
@@ -386,8 +435,7 @@ namespace SRT_DECODE
                     LogEvent("[WARN]", "OpenMedia Native Engine chưa phát hiện IPC server, chuyển sang chế độ Standalone Host.");
                 }
 
-                // Start Timers
-                StartMasterClockTimer();
+                // Start Telemetry & VU Timers
                 StartTelemetryTimer();
                 StartVuMeterTimer();
 
@@ -437,28 +485,36 @@ namespace SRT_DECODE
             catch { }
         }
 
-        private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+        private async void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
+            if (_isClosed) return;
+
             try
             {
-                // 1. Đánh dấu shutdown và dừng ngay toàn bộ Timer UI
+                // 1. Cancel the direct close event and hide window for immediate UX feedback
+                e.Cancel = true;
                 _isShuttingDown = true;
+                Hide();
+
+                // 2. Dừng ngay toàn bộ Timer UI
                 _masterClockTimer?.Stop();
                 _telemetryTimer?.Stop();
                 _vuMeterTimer?.Stop();
+                MasterClockProvider.Instance.Dispose();
+                _playoutAlignmentEngine.Dispose();
 
-                // 2. Đóng cửa sổ Fullscreen Playout nếu đang mở
+                // 3. Đóng cửa sổ Fullscreen Playout nếu đang mở
                 if (_playoutWindow != null)
                 {
                     try { _playoutWindow.Close(); } catch { }
                     _playoutWindow = null;
                 }
 
-                // 3. Unhook toàn bộ event log & data
+                // 4. Unhook toàn bộ event log & data
                 UnhookAllEngineEvents();
 
-                // 4. Cho phép chạy cleanup nhanh trong background với timeout 1.5s
-                Task.Run(async () =>
+                // 5. Cho phép chạy cleanup song song trong background với timeout an toàn
+                await Task.Run(async () =>
                 {
                     try
                     {
@@ -466,7 +522,7 @@ namespace SRT_DECODE
                         {
                             try
                             {
-                                await _receiverEngine.StopAllAsync();
+                                await _receiverEngine.StopAllAsync().ConfigureAwait(false);
                                 _receiverEngine.Dispose();
                                 _outputManager.Dispose();
                                 _syncEngine.Dispose();
@@ -475,18 +531,15 @@ namespace SRT_DECODE
                             catch { }
                         });
 
-                        await Task.WhenAny(stopTask, Task.Delay(1500));
+                        await Task.WhenAny(stopTask, Task.Delay(2500)).ConfigureAwait(false);
                     }
                     catch { }
-                    finally
-                    {
-                        // Đảm bảo tiến trình kết thúc hoàn toàn, không còn process ma trong background
-                        Environment.Exit(0);
-                    }
-                });
+                }).ConfigureAwait(false);
             }
-            catch
+            catch { }
+            finally
             {
+                _isClosed = true;
                 Environment.Exit(0);
             }
         }
@@ -746,16 +799,16 @@ namespace SRT_DECODE
         {
             _masterClockTimer = new DispatcherTimer(DispatcherPriority.Render)
             {
-                Interval = TimeSpan.FromMilliseconds(20) // 50 Hz UI clock
+                Interval = TimeSpan.FromMilliseconds(40) // ~25 fps update for milliseconds & SMPTE frame sync
             };
             _masterClockTimer.Tick += (s, e) =>
             {
-                var now = DateTime.UtcNow;
-                if (_syncEngine.LastNtpResult?.Success == true)
-                {
-                    now = now.AddMilliseconds(_syncEngine.LastNtpResult.OffsetMs);
-                }
+                var now = MasterClockProvider.Instance.CurrentUtcTime;
                 TxtMasterUtcClock.Text = now.ToString("HH:mm:ss.fff");
+                if (TxtMasterSmpteTime != null)
+                {
+                    TxtMasterSmpteTime.Text = MasterClockProvider.Instance.GetFormattedSmpteTimecode(25);
+                }
 
                 // Update Recording duration display
                 if (_outputManager.RecordingEnabled)
@@ -823,16 +876,25 @@ namespace SRT_DECODE
                 _hudLoss[i].Foreground = ch.CurrentPacketLoss > 3.0 ? Brushes.Red : Brushes.LightGreen;
                 _hudBitrate[i].Text = $"Bitrate: {ch.CurrentBitrateKbps:F0} kbps";
                 _hudDrift[i].Text = $"Drift: {sync.GetFormattedDrift()}";
+                _hudDrift[i].Foreground = sync.LockState == SyncLockState.Locked ? Brushes.LightGreen : (sync.LockState == SyncLockState.Syncing ? Brushes.Orange : Brushes.Gray);
 
-                // Update Diag Tab
+                // Update Diag Tab & Real-Time Camera Drift Matrix in Tab 4
+                if (i < _driftRows.Length && _driftRows[i] != null)
+                {
+                    _driftRows[i].Visibility = (i < _activeChannelCount) ? Visibility.Visible : Visibility.Collapsed;
+                }
+
                 _diagRtt[i].Text = $"⏱️ RTT: {ch.CurrentRttMs:F1} ms";
                 _diagLoss[i].Text = $"📉 Loss: {ch.CurrentPacketLoss:F2} %";
                 _diagLoss[i].Foreground = ch.CurrentPacketLoss > 3.0 ? Brushes.Red : Brushes.LightGreen;
                 _diagBitrate[i].Text = $"🚀 Ingest: {ch.CurrentBitrateKbps:F0} kbps";
                 _diagHealth[i].Text = $"⏳ Health: {ch.BufferHealthPercent:F0}% ({(ch.BufferHealthPercent > 80 ? "Stable" : "Jittering")})";
-                _pbBuffer[i].Value = ch.BufferHealthPercent;
-                _txtDriftVal[i].Text = $"Δt: {sync.GetFormattedDrift()} ({sync.LockState})";
-                _txtDriftVal[i].Foreground = sync.LockState == SyncLockState.Locked ? Brushes.LightGreen : Brushes.Orange;
+                _pbBuffer[i].Value = sync.BufferFillPercent;
+                _pbBuffer[i].Foreground = sync.LockState == SyncLockState.Locked ? Brushes.LightGreen : (sync.LockState == SyncLockState.Syncing ? Brushes.Orange : Brushes.Gray);
+                
+                string dropRptInfo = sync.DroppedFrames > 0 || sync.RepeatedFrames > 0 ? $" • Drop:{sync.DroppedFrames} Rpt:{sync.RepeatedFrames}" : "";
+                _txtDriftVal[i].Text = $"Δt: {sync.GetFormattedDrift()} ({sync.LockState}{dropRptInfo})";
+                _txtDriftVal[i].Foreground = sync.LockState == SyncLockState.Locked ? Brushes.LightGreen : (sync.LockState == SyncLockState.Syncing ? Brushes.Orange : Brushes.Gray);
             }
 
             // Bottom status updates
@@ -860,39 +922,55 @@ namespace SRT_DECODE
 
         private void OnReceiverChannelUpdated(int index, ReceiverChannelState state)
         {
-            Dispatcher.Invoke(() =>
+            if (_isShuttingDown || Dispatcher.HasShutdownStarted) return;
+
+            try
             {
-                if (index < 0 || index >= MaxChannels) return;
-
-                // Update Status text and LED
-                _statusTexts[index].Text = state.StatusMessage;
-                _ledIndicators[index].Fill = state.IsConnected 
-                    ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) 
-                    : new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
-
-                // Show fallback placeholder if disconnected
-                if (!state.IsConnected)
+                Dispatcher.InvokeAsync(() =>
                 {
-                    _fallbacks[index].Visibility = Visibility.Visible;
-                    if (index == _currentProgramIndex)
+                    if (_isShuttingDown || index < 0 || index >= MaxChannels) return;
+
+                    // Update Status text and LED
+                    _statusTexts[index].Text = state.StatusMessage;
+                    _ledIndicators[index].Fill = state.IsConnected 
+                        ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) 
+                        : new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+
+                    // Show fallback placeholder if disconnected
+                    if (!state.IsConnected)
                     {
-                        FallbackPgm.Visibility = Visibility.Visible;
+                        _fallbacks[index].Visibility = Visibility.Visible;
+                        if (index == _currentProgramIndex)
+                        {
+                            FallbackPgm.Visibility = Visibility.Visible;
+                        }
                     }
-                }
 
-                // Update toggle button text in config tab
-                if (index < _btnToggles.Length && _btnToggles[index] != null)
-                {
-                    _btnToggles[index].Content = state.IsRunning ? $"Stop {_channelNames[index]}" : $"Start {_channelNames[index]}";
-                    _btnToggles[index].Background = state.IsRunning 
-                        ? new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26)) 
-                        : new SolidColorBrush(Color.FromRgb(0x00, 0x7A, 0xCC));
-                }
-            });
+                    // Update toggle button text in config tab
+                    if (index < _btnToggles.Length && _btnToggles[index] != null)
+                    {
+                        _btnToggles[index].Content = state.IsRunning ? $"Stop {_channelNames[index]}" : $"Start {_channelNames[index]}";
+                        _btnToggles[index].Background = state.IsRunning 
+                            ? new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26)) 
+                            : new SolidColorBrush(Color.FromRgb(0x00, 0x7A, 0xCC));
+                    }
+                });
+            }
+            catch { }
         }
 
         private void OnFrameReady(int channelIndex, byte[] frameBytes, int width, int height)
         {
+            if (_isShuttingDown || Dispatcher.HasShutdownStarted) return;
+            if (channelIndex < 0 || channelIndex >= MaxChannels) return;
+
+            double rttMs = _receiverEngine.Channels[channelIndex].CurrentRttMs;
+            _playoutAlignmentEngine.EnqueueFrame(channelIndex, frameBytes, width, height, rttMs);
+        }
+
+        private void OnPlayoutFrameReady(int channelIndex, byte[] frameBytes, int width, int height)
+        {
+            if (_isShuttingDown || Dispatcher.HasShutdownStarted) return;
             if (channelIndex < 0 || channelIndex >= MaxChannels) return;
 
             // Feed frame into ISO Output Worker
@@ -1168,6 +1246,8 @@ namespace SRT_DECODE
 
         private void OnAudioLevelsUpdated(ChannelAudioLevels[] levels)
         {
+            if (_isShuttingDown || Dispatcher.HasShutdownStarted) return;
+
             Dispatcher.InvokeAsync(() =>
             {
                 for (int i = 0; i < MaxChannels; i++)
@@ -1634,7 +1714,27 @@ namespace SRT_DECODE
         private void ChkMasterSync_Changed(object sender, RoutedEventArgs e)
         {
             if (!_isInitialized) return;
-            _syncEngine.MasterSyncEnabled = ChkMasterSync.IsChecked == true;
+            bool enable = ChkMasterSync.IsChecked == true;
+            _syncEngine.MasterSyncEnabled = enable;
+            _playoutAlignmentEngine.IsEnabled = enable;
+
+            if (enable)
+            {
+                string host = TxtNtpServer?.Text?.Trim() ?? "time.google.com";
+                if (string.IsNullOrEmpty(host)) host = "time.google.com";
+                MasterClockProvider.Instance.StartPeriodicSync(host, 30);
+                LogEvent("[SYNC]", $"🕒 KÍCH HOẠT Broadcast Frame Synchronization: Các camera được đồng bộ theo cửa sổ trễ {_syncEngine.TargetSyncWindowMs} ms.");
+            }
+            else
+            {
+                MasterClockProvider.Instance.StopPeriodicSync();
+                if (TxtNtpOffsetResult != null)
+                {
+                    TxtNtpOffsetResult.Text = "Disabled (Free-Run)";
+                    TxtNtpOffsetResult.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+                }
+                LogEvent("[SYNC]", "ĐÃ TẮT Broadcast Frame Synchronization (Chuyển sang chế độ Free-Run Passthrough).");
+            }
         }
 
         private async void BtnQueryNtp_Click(object sender, RoutedEventArgs e)
@@ -1662,6 +1762,7 @@ namespace SRT_DECODE
                 int val = (int)SliderSyncWindow.Value;
                 TxtTargetSyncWindowVal.Text = $"{val} ms";
                 _syncEngine.TargetSyncWindowMs = val;
+                _playoutAlignmentEngine.TargetSyncWindowMs = val;
             }
         }
 

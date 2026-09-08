@@ -41,12 +41,13 @@ namespace SRT_DECODE
 
             try
             {
-                // Robust FFmpeg audio decoder parameters:
-                // - probesize 1000000 & analyzeduration 1000000 (1MB / 1s) reliably detects audio stream across all video bitrates (File, SDI, NDI)
-                // - -map 0:a? maps the first available audio track without failing if audio PES is delayed
+                // Low-latency FFmpeg audio decoder parameters:
+                // - probesize 128k & analyzeduration 250k closely mirrors video decoder (64k/200k)
+                //   to eliminate any A/V startup delay skew (resolving the ~800ms desync)
+                // - -map 0:a? maps the first available audio track
                 // - nobuffer and low_delay flags eliminate internal latency
                 // - s16le 48000Hz 2ch directly matches Windows sound card / mixer output
-                string args = "-hide_banner -loglevel warning -err_detect ignore_err -probesize 1000000 -analyzeduration 1000000 -fflags nobuffer+flush_packets -flags low_delay -f mpegts -i pipe:0 -map 0:a? -vn -sn -dn -f s16le -ar 48000 -ac 2 pipe:1";
+                string args = "-hide_banner -loglevel warning -err_detect ignore_err -probesize 128k -analyzeduration 250k -fflags nobuffer+flush_packets -flags low_delay -f mpegts -i pipe:0 -map 0:a? -vn -sn -dn -f s16le -ar 48000 -ac 2 pipe:1";
 
                 var psi = new ProcessStartInfo
                 {
@@ -187,26 +188,28 @@ namespace SRT_DECODE
             try
             {
                 _cts?.Cancel();
-                _cts?.Dispose();
-                _cts = null;
 
-                _stdin?.Close();
-                _stdin = null;
-
-                _stdout?.Close();
-                _stdout = null;
-
+                // Kill process tree first so readers unblock immediately
                 if (_process != null && !_process.HasExited)
                 {
                     try
                     {
-                        _process.Kill();
-                        _process.WaitForExit(100);
+                        _process.Kill(entireProcessTree: true);
+                        _process.WaitForExit(150);
                     }
                     catch { }
-                    _process.Dispose();
+                    try { _process.Dispose(); } catch { }
                     _process = null;
                 }
+
+                try { _stdin?.Close(); } catch { }
+                _stdin = null;
+
+                try { _stdout?.Close(); } catch { }
+                _stdout = null;
+
+                try { _cts?.Dispose(); } catch { }
+                _cts = null;
             }
             catch { }
         }

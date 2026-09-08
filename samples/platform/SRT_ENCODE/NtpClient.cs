@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -18,6 +19,7 @@ namespace SRT_ENCODE
         public DateTime ServerUtcTime { get; set; }
         public int Stratum { get; set; }
         public string ErrorMessage { get; set; } = string.Empty;
+        public long ReceiveStopwatchTicks { get; set; }
 
         public string GetFormattedOffset()
         {
@@ -81,8 +83,9 @@ namespace SRT_ENCODE
                 await socket.SendToAsync(ntpData, SocketFlags.None, ipEndPoint).ConfigureAwait(false);
 
                 byte[] receiveBuffer = new byte[48];
-                var receiveResult = await socket.ReceiveFromAsync(receiveBuffer, SocketFlags.None, ipEndPoint).ConfigureAwait(false);
+                var receiveResult = await socket.ReceiveFromAsync(receiveBuffer, SocketFlags.None, ipEndPoint, cts.Token).ConfigureAwait(false);
 
+                long t4StopwatchTicks = Stopwatch.GetTimestamp();
                 DateTime t4 = DateTime.UtcNow; // Client receive time
 
                 if (receiveResult.ReceivedBytes < 48)
@@ -106,7 +109,8 @@ namespace SRT_ENCODE
                 result.Stratum = stratum;
                 result.OffsetMs = offsetMs;
                 result.RoundTripDelayMs = delayMs;
-                result.ServerUtcTime = t3 + TimeSpan.FromMilliseconds(offsetMs);
+                result.ServerUtcTime = t4.AddMilliseconds(offsetMs);
+                result.ReceiveStopwatchTicks = t4StopwatchTicks;
                 return result;
             }
             catch (Exception ex)

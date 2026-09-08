@@ -140,17 +140,19 @@ void SRTSource::AcceptLoop() {
 
 void SRTSource::Disconnect() {
     m_running = false;
-    if (m_acceptThread.joinable()) {
-        m_acceptThread.join();
-    }
 
     int client = m_clientSocket.exchange(-1);
     if (client != -1) {
         srt_close(client);
     }
     if (m_socket != -1) {
-        srt_close(m_socket);
+        int sock = m_socket;
         m_socket = -1;
+        srt_close(sock);
+    }
+
+    if (m_acceptThread.joinable()) {
+        m_acceptThread.join();
     }
 }
 
@@ -162,7 +164,7 @@ bool SRTSource::IsConnected() const {
 }
 
 int SRTSource::Receive(uint8_t* buffer, size_t size) {
-    if (!buffer || size == 0) return -1;
+    if (!m_running || !buffer || size == 0) return -1;
     int targetSocket = m_isListener ? m_clientSocket.load() : m_socket;
     if (targetSocket == -1 || targetSocket == SRT_INVALID_SOCK) {
         return -1;

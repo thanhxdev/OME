@@ -32,13 +32,11 @@ namespace SRT_ENCODE
         private readonly bool[] _isClipping = new bool[MAX_CHANNELS];
         private readonly double[] _ewmaEnergy = new double[MAX_CHANNELS];
         private int _activeChannelCount = 2;
-
         // Native C++ AudioMeter Handle (if OpenMedia.Core native DLL is available)
         private IntPtr _nativeMeterHandle = IntPtr.Zero;
         private bool _isNativeAvailable = false;
 
         public int ActiveChannelCount => _activeChannelCount;
-
         public AudioMeterService()
         {
             ResetAllChannels();
@@ -104,6 +102,8 @@ namespace SRT_ENCODE
                 var levels = await player.GetAudioLevelsAsync();
                 if (levels != null && levels.Length > 0)
                 {
+                    int effectiveChannels = Math.Max(activeChannels, levels.Length);
+                    _activeChannelCount = Math.Clamp(effectiveChannels, 1, MAX_CHANNELS);
                     UpdateFromNativeChannelData(levels, _activeChannelCount);
                 }
                 else
