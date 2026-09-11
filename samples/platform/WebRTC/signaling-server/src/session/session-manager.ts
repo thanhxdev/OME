@@ -37,6 +37,22 @@ export class SessionManager {
         { id: 'cam-10', name: 'Beauty Exterior (SDI 6)', inputType: 'sdi', deviceIndex: 5, codec: 'h264', resolution: '1920x1080', fps: 60, bitrate: 8000 },
       ],
     });
+
+    this.createSession({
+      id: 'broadcast-01',
+      name: 'Studio Master Broadcast Session',
+      status: 'active',
+      cameras: Array.from({ length: 10 }, (_, i) => ({
+        id: `cam-${(i + 1).toString().padStart(2, '0')}`,
+        name: `CAM ${i + 1}`,
+        inputType: (i % 2 === 0 ? 'sdi' : 'hdmi') as 'sdi' | 'hdmi',
+        deviceIndex: i,
+        codec: 'h264',
+        resolution: '1920x1080',
+        fps: 60,
+        bitrate: 10000,
+      })),
+    });
   }
 
   public createSession(data: { id: string; name: string; status?: SessionStatus; cameras?: CameraConfig[] }): Session {

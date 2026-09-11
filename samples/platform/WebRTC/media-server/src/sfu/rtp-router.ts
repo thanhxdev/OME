@@ -24,6 +24,7 @@ export interface CameraProducer {
   audioSocket: dgram.Socket;
   subscribers: Map<string, SubscriberEndpoint>;
   codec: string;
+  isSinglePort?: boolean;
 }
 
 export class RtpRouter extends EventEmitter {
@@ -92,6 +93,139 @@ export class RtpRouter extends EventEmitter {
     audioSocket.bind(audioPort, '0.0.0.0', () => {
       logger.info(`Camera ${cameraId} Audio RTP listening on UDP ${audioPort}`);
     });
+
+    this.producers.set(cameraId, producer);
+    return producer;
+  }
+
+  /**
+   * Finds an available UDP port, optionally trying preferredPort first, then searching range, then OS ephemeral (0).
+   */
+  public async allocateAvailableUdpPort(preferredPort?: number): Promise<number> {
+    const isPortInUseByProducer = (port: number) => {
+      for (const p of this.producers.values()) {
+        if (p.videoPort === port || p.audioPort === port) return true;
+      }
+      return false;
+    };
+
+    const tryBind = (port: number): Promise<number> => {
+      return new Promise((resolve, reject) => {
+        const socket = dgram.createSocket({ type: 'udp4', reuseAddr: false });
+        socket.once('error', (err) => {
+          try { socket.close(); } catch {}
+          reject(err);
+        });
+        socket.bind(port, '0.0.0.0', () => {
+          const boundPort = socket.address().port;
+          socket.close(() => {
+            resolve(boundPort);
+          });
+        });
+      });
+    };
+
+    // 1. Try preferred port if provided and not currently in use
+    if (preferredPort && !isPortInUseByProducer(preferredPort)) {
+      try {
+        return await tryBind(preferredPort);
+      } catch {}
+    }
+
+    // 2. Search within configured RTC range
+    const minPort = CONFIG.RTC_MIN_PORT;
+    const maxPort = CONFIG.RTC_MAX_PORT;
+    for (let port = minPort; port <= maxPort; port++) {
+      if (isPortInUseByProducer(port)) continue;
+      try {
+        return await tryBind(port);
+      } catch {}
+    }
+
+    // 3. Fallback to OS ephemeral port
+    return await tryBind(0);
+  }
+
+  /**
+   * Dynamically allocates available UDP ingress ports for a camera (supports 1-Port BUNDLE and 2-Port Split)
+   */
+  public async allocateCamera(
+    cameraId: string,
+    isSinglePort: boolean,
+    codec: string = 'h264'
+  ): Promise<CameraProducer> {
+    let existingSubscribers = new Map<string, SubscriberEndpoint>();
+    if (this.producers.has(cameraId)) {
+      const oldProducer = this.producers.get(cameraId)!;
+      existingSubscribers = oldProducer.subscribers;
+      try { oldProducer.videoSocket.close(); } catch {}
+      if (oldProducer.audioSocket !== oldProducer.videoSocket) {
+        try { oldProducer.audioSocket.close(); } catch {}
+      }
+      this.producers.delete(cameraId);
+    }
+
+    const videoPort = await this.allocateAvailableUdpPort();
+    let audioPort = videoPort;
+    if (!isSinglePort) {
+      audioPort = await this.allocateAvailableUdpPort(videoPort + 2);
+    }
+
+    const videoSocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+    let audioSocket: dgram.Socket;
+
+    if (isSinglePort) {
+      audioSocket = videoSocket;
+    } else {
+      audioSocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+    }
+
+    const producer: CameraProducer = {
+      cameraId,
+      videoPort,
+      audioPort,
+      videoSocket,
+      audioSocket,
+      subscribers: existingSubscribers,
+      codec,
+      isSinglePort,
+    };
+
+    this.statsTracker.registerStream(cameraId, videoPort, codec);
+
+    videoSocket.on('error', (err) => {
+      logger.error(`Video socket error on camera ${cameraId} (port ${videoPort})`, err);
+    });
+
+    videoSocket.on('message', (msg: Buffer) => {
+      this.handleVideoPacket(producer, msg);
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      videoSocket.bind(videoPort, '0.0.0.0', () => {
+        logger.info(`Camera ${cameraId} Video RTP (${isSinglePort ? 'BUNDLE' : 'SPLIT'}) listening on UDP ${videoPort}`);
+        resolve();
+      });
+      videoSocket.once('error', reject);
+    });
+
+    if (!isSinglePort) {
+      audioSocket.on('error', (err) => {
+        logger.error(`Audio socket error on camera ${cameraId} (port ${audioPort})`, err);
+      });
+
+      audioSocket.on('message', (msg: Buffer) => {
+        this.handleAudioPacket(producer, msg);
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        audioSocket.bind(audioPort, '0.0.0.0', () => {
+          logger.info(`Camera ${cameraId} Audio RTP (SPLIT) listening on UDP ${audioPort}`);
+          resolve();
+        });
+        audioSocket.once('error', reject);
+      });
+    }
 
     this.producers.set(cameraId, producer);
     return producer;
@@ -186,8 +320,10 @@ export class RtpRouter extends EventEmitter {
 
   public close(): void {
     for (const p of this.producers.values()) {
-      p.videoSocket.close();
-      p.audioSocket.close();
+      try { p.videoSocket.close(); } catch {}
+      if (p.audioSocket !== p.videoSocket) {
+        try { p.audioSocket.close(); } catch {}
+      }
     }
     this.producers.clear();
   }

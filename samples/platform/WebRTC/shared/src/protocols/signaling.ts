@@ -19,6 +19,9 @@ export type SignalingMessageType =
   | 'recording_status'
   | 'presence_update'
   | 'session_sync'
+  | 'port_allocate_request'
+  | 'port_allocate_response'
+  | 'stream_published'
   | 'error';
 
 export interface BaseSignalingMessage {
@@ -135,6 +138,30 @@ export interface SessionSyncMessage extends BaseSignalingMessage {
   cameras: CameraStatus[];
 }
 
+export interface PortAllocateRequestMessage extends BaseSignalingMessage {
+  type: 'port_allocate_request';
+  cameraId: string;
+  isSinglePort: boolean; // true = 1 Port BUNDLE, false = 2 Ports Split
+}
+
+export interface PortAllocateResponseMessage extends BaseSignalingMessage {
+  type: 'port_allocate_response';
+  cameraId: string;
+  isSinglePort: boolean;
+  videoPort: number;
+  audioPort: number;
+  sfuHost: string;
+}
+
+export interface StreamPublishedMessage extends BaseSignalingMessage {
+  type: 'stream_published';
+  cameraId: string;
+  isSinglePort: boolean;
+  videoPort: number;
+  audioPort: number;
+  codec: string;
+}
+
 export interface ErrorMessage extends BaseSignalingMessage {
   type: 'error';
   code: string;
@@ -158,4 +185,7 @@ export type SignalingMessage =
   | RecordingStatusMessage
   | PresenceUpdateMessage
   | SessionSyncMessage
+  | PortAllocateRequestMessage
+  | PortAllocateResponseMessage
+  | StreamPublishedMessage
   | ErrorMessage;

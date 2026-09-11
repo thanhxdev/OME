@@ -1,0 +1,1167 @@
+<Window x:Class="WEBRTC_ENCODE.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:om="clr-namespace:OpenMedia.Platform.Controls.Wpf;assembly=OpenMedia.Platform"
+        xmlns:local="clr-namespace:WEBRTC_ENCODE"
+        mc:Ignorable="d"
+        Title="ENCODER"
+        Height="760" Width="1220"
+        MinHeight="550" MinWidth="900"
+        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+        ScrollViewer.VerticalScrollBarVisibility="Disabled"
+        WindowState="Normal"
+        ResizeMode="CanResizeWithGrip"
+        WindowStartupLocation="CenterScreen"
+        Background="#121214"
+        Foreground="#E0E0E0"
+        PreviewKeyDown="MainWindow_PreviewKeyDown"
+        PreviewKeyUp="MainWindow_PreviewKeyUp">
+
+    <Window.Resources>
+        <!-- Custom Styles -->
+        <Style x:Key="HeaderLabelStyle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="#9E9E9E"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+
+        <Style x:Key="ValueLabelStyle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+        </Style>
+
+        <Style x:Key="DarkCardBorderStyle" TargetType="Border">
+            <Setter Property="Background" Value="#1A1A1E"/>
+            <Setter Property="BorderBrush" Value="#2A2A30"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="12"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+        <Style x:Key="CardBorderStyle" BasedOn="{StaticResource DarkCardBorderStyle}" TargetType="Border"/>
+
+        <!-- Toggle Switch CheckBox Style -->
+        <Style x:Key="ToggleSwitchStyle" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#E0E0E0"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Grid Width="44" Height="22" Margin="0,0,10,0">
+                                <Border x:Name="Track" Background="#3A3A3C" CornerRadius="11" />
+                                <Ellipse x:Name="Thumb" Width="16" Height="16" Fill="#E0E0E0" HorizontalAlignment="Left" Margin="3,0,0,0" />
+                            </Grid>
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="#007ACC"/>
+                                <Setter TargetName="Thumb" Property="Fill" Value="#FFFFFF"/>
+                                <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
+                                <Setter TargetName="Thumb" Property="Margin" Value="0,0,3,0"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Segmented Radio Button Style for Pipeline Mode Switch -->
+        <Style x:Key="SegmentedRadioButtonStyle" TargetType="RadioButton">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#AAAAAA"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="4,2">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#333338"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#007ACC"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                                <Setter Property="FontWeight" Value="Bold"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ComboBoxItem Dark Style -->
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Background" Value="#252526"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3E3E42"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#007ACC"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <ControlTemplate x:Key="ComboBoxToggleButtonTemplate" TargetType="ToggleButton">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition />
+                    <ColumnDefinition Width="24" />
+                </Grid.ColumnDefinitions>
+                <Border x:Name="Border"
+                        Grid.ColumnSpan="2"
+                        CornerRadius="4"
+                        Background="#252526"
+                        BorderBrush="#3F3F46"
+                        BorderThickness="1" />
+                <Path x:Name="Arrow"
+                      Grid.Column="1"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center"
+                      Data="M 0 0 L 4 4 L 8 0 Z"
+                      Fill="#CCCCCC" />
+            </Grid>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Border" Property="Background" Value="#2D2D30" />
+                    <Setter TargetName="Border" Property="BorderBrush" Value="#007ACC" />
+                    <Setter TargetName="Arrow" Property="Fill" Value="#FFFFFF" />
+                </Trigger>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter TargetName="Border" Property="Background" Value="#2D2D30" />
+                    <Setter TargetName="Border" Property="BorderBrush" Value="#007ACC" />
+                    <Setter TargetName="Arrow" Property="Fill" Value="#007ACC" />
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="ScrollViewer.CanContentScroll" Value="True"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="ToggleButton"
+                                          Template="{StaticResource ComboBoxToggleButtonTemplate}"
+                                          Focusable="false"
+                                          IsChecked="{Binding Path=IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                          ClickMode="Press"/>
+                            <ContentPresenter x:Name="ContentSite"
+                                              IsHitTestVisible="False"
+                                              Content="{TemplateBinding SelectionBoxItem}"
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                              Margin="8,3,28,3"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="Left">
+                                <ContentPresenter.Resources>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="#FFFFFF"/>
+                                    </Style>
+                                </ContentPresenter.Resources>
+                            </ContentPresenter>
+                            <Popup x:Name="Popup"
+                                   Placement="Bottom"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   PopupAnimation="Slide">
+                                <Grid x:Name="DropDown"
+                                      SnapsToDevicePixels="True"
+                                      MinWidth="{TemplateBinding ActualWidth}"
+                                      MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                    <Border x:Name="DropDownBorder"
+                                            Background="#1A1A1E"
+                                            BorderThickness="1"
+                                            BorderBrush="#007ACC"
+                                            CornerRadius="4"
+                                            Margin="0,2,0,4">
+                                        <ScrollViewer Margin="2" SnapsToDevicePixels="True">
+                                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained" />
+                                        </ScrollViewer>
+                                    </Border>
+                                </Grid>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#252526"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4">
+                            <ScrollViewer x:Name="PART_ContentHost" Focusable="false" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="#007ACC"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ActionButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#2D2D30"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#3F3F46"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#3E3E42"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="#007ACC"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="IconOnlyButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="4"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#333338"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- 0. Header Status Bar -->
+            <RowDefinition Height="Auto"/>
+            <!-- 1. Main Content Split View -->
+            <RowDefinition Height="*"/>
+            <!-- 2. Bottom Action / Status Bar -->
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             TOP HEADER & MASTER STATUS BAR
+             ════════════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="0" Background="#18181C" BorderBrush="#2A2A30" BorderThickness="0,0,0,1" Padding="14,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <!-- Left: Brand / Title -->
+                    <ColumnDefinition Width="Auto"/>
+                    <!-- Center: Quick Status Badges -->
+                    <ColumnDefinition Width="*"/>
+                    <!-- Right: Clocks -->
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Left Branding -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="#007ACC" CornerRadius="4" Padding="6,2" Margin="0,0,8,0">
+                        <TextBlock Text="WEBRTC" FontWeight="Black" FontSize="11" Foreground="#FFFFFF"/>
+                    </Border>
+                    <TextBlock Text="ENCODER" FontWeight="Bold" FontSize="14" Foreground="#FFFFFF" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Center Status Badges -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <!-- Engine State Indicator -->
+                    <Border Background="#252526" CornerRadius="12" Padding="10,4" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse x:Name="LedEngineStatus" Width="9" Height="9" Fill="#F44336" Margin="0,0,6,0"/>
+                            <TextBlock x:Name="TxtEngineStatus" Text="Engine: Ready" FontSize="12" Foreground="#CCCCCC"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Signaling State Indicator -->
+                    <Border Background="#252526" CornerRadius="12" Padding="10,4" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse x:Name="LedSignalingStatus" Width="9" Height="9" Fill="#FFC107" Margin="0,0,6,0"/>
+                            <TextBlock x:Name="TxtSignalingStatus" Text="Signaling: Disconnected" FontSize="12" FontWeight="SemiBold" Foreground="#CCCCCC"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Tally Status Indicator -->
+                    <Border x:Name="BadgeTallyFeedback" Background="#222228" BorderBrush="#44444A" BorderThickness="1" CornerRadius="12" Padding="10,4" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse x:Name="LedTallyStatus" Width="9" Height="9" Fill="#555555" Margin="0,0,6,0"/>
+                            <TextBlock x:Name="TxtTallyStatus" Text="TALLY: OFF-AIR" FontSize="11" FontWeight="Bold" Foreground="#888888"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Intercom Indicator (Always visible, color indicates ON/OFF) -->
+                    <Border x:Name="BadgeIntercom" Background="#222228" BorderBrush="#44444A" BorderThickness="1" CornerRadius="12" Padding="8,4" Margin="0,0,8,0" Visibility="Visible">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse x:Name="LedIntercomStatus" Width="9" Height="9" Fill="#555555" Margin="0,0,6,0"/>
+                            <TextBlock x:Name="TxtIntercomInfo" Text="INTERCOM: DIRECTOR (OFF)" FontSize="11" FontWeight="Bold" Foreground="#888888"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- NTP Wall-Clock Sync Badge -->
+                    <Border x:Name="BadgeNtpSync" Background="#372D1E" BorderBrush="#F57C00" BorderThickness="1" CornerRadius="12" Padding="8,4" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="🕒" Margin="0,0,4,0"/>
+                            <TextBlock Text="NTP SYNC" FontSize="11" FontWeight="Bold" Foreground="#FFB74D"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Right: Master UTC Clock -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="MASTER UTC:" FontSize="11" Foreground="#9E9E9E" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <Border Background="#0A0A0A" BorderBrush="#333333" BorderThickness="1" CornerRadius="4" Padding="8,3" Margin="0,0,6,0">
+                        <TextBlock x:Name="TxtMasterUtcTime" Text="00:00:00.000" FontFamily="Consolas, Monospace" FontSize="14" FontWeight="Bold" Foreground="#00E676"/>
+                    </Border>
+                    <Border Background="#141E18" BorderBrush="#00E676" BorderThickness="1" CornerRadius="4" Padding="6,3">
+                        <TextBlock x:Name="TxtMasterSmpteTime" Text="00:00:00:00" FontFamily="Consolas, Monospace" FontSize="13" FontWeight="Bold" Foreground="#00FFCC"/>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             MAIN CONTENT AREA (2-COLUMN GRID)
+             ════════════════════════════════════════════════════════════════ -->
+        <Grid Grid.Row="1" Margin="8">
+            <Grid.ColumnDefinitions>
+                <!-- Left: Video Preview & VU Meters & Log (Approx 58%) -->
+                <ColumnDefinition Width="6.2*" MinWidth="400"/>
+                <ColumnDefinition Width="6"/>
+                <!-- Right: Configuration Tabs (Approx 42%) -->
+                <ColumnDefinition Width="4.8*" MinWidth="350"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- LEFT COLUMN: PREVIEW SCREEN, AUDIO VU METERS, LOG CONSOLE -->
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="3.8*" MinHeight="220"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="1.2*" MinHeight="100"/>
+                </Grid.RowDefinitions>
+
+                <!-- 1. Video Display Area with Tally Border Glow -->
+                <Border x:Name="BrdVideoContainer" Grid.Row="0" Background="#000000" BorderBrush="#2D2D30" BorderThickness="2" CornerRadius="6" Margin="0,0,0,6" ClipToBounds="True">
+                    <Grid x:Name="PnlMasterProgramBus" ClipToBounds="True">
+                        <!-- DirectX 11 Hardware Render View -->
+                        <om:OpenMediaVideoView x:Name="ReviewView" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+
+                        <!-- SMPTE RP 219 Colorbar Pattern View -->
+                        <Viewbox x:Name="ViewboxColorbar" Stretch="Uniform" Visibility="Collapsed" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ClipToBounds="True">
+                            <Grid x:Name="PnlColorbarPattern" Width="1920" Height="1080">
+                                <Grid x:Name="PnlColorbarVisualHost" Width="1920" Height="1080"/>
+
+                                <Border HorizontalAlignment="Center" VerticalAlignment="Center" Background="#D00A0A0E" BorderBrush="#007ACC" BorderThickness="2" CornerRadius="12" Padding="28,16">
+                                    <StackPanel HorizontalAlignment="Center">
+                                        <TextBlock x:Name="TxtColorbarIdentTitle" Text="SMPTE RP 219 COLORBAR PATTERN" FontWeight="Bold" FontSize="20" Foreground="#FFFFFF" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                                        <TextBlock x:Name="TxtColorbarIdentTone" Text="AUDIO: 1 kHz Sinewave @ -18 dBFS (EBU Standard)" FontWeight="SemiBold" FontSize="15" Foreground="#4EC9B0" HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                                        
+                                        <Border Background="#000000" BorderBrush="#333333" BorderThickness="1" CornerRadius="6" Padding="18,6" HorizontalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                <TextBlock Text="UTC TIME: " FontSize="16" Foreground="#888888" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="TxtColorbarUtcTime" Text="00:00:00.000" FontFamily="Consolas, Monospace" FontSize="24" FontWeight="Bold" Foreground="#00E676" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <TextBlock Text="1080p 30 fps • WebRTC Broadcast Ingress Ready" FontSize="13" Foreground="#888888" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Viewbox>
+
+                        <!-- Preview Disabled Placeholder Screen -->
+                        <Grid x:Name="PnlPreviewDisabled" Background="#111111" Visibility="Collapsed">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock Text="📺" FontSize="42" HorizontalAlignment="Center" Margin="0,0,0,8" Opacity="0.5"/>
+                                <TextBlock Text="VIDEO PREVIEW MUTED (SAVING GPU)" FontSize="13" FontWeight="SemiBold" Foreground="#888888" HorizontalAlignment="Center"/>
+                                <TextBlock Text="Encoder &amp; WebRTC Transmission are still actively running." FontSize="11" Foreground="#555555" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Source Watermark Badge (Top Left) -->
+                        <Border HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12,12,0,0" Background="#90000000" CornerRadius="4" Padding="8,4">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse x:Name="LedLiveInput" Width="8" Height="8" Fill="#00E676" Margin="0,0,6,0"/>
+                                <TextBlock x:Name="TxtActiveSourceBadge" Text="INPUT: COLORBAR" FontSize="11" FontWeight="Bold" Foreground="#FFFFFF"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Tally Watermark (Top Center) -->
+                        <Border x:Name="BrdOnAirBanner" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,12,0,0" Background="#DC2626" CornerRadius="4" Padding="12,4" Visibility="Collapsed">
+                            <TextBlock Text="🔴 ON-AIR (PGM)" FontSize="12" FontWeight="Black" Foreground="#FFFFFF"/>
+                        </Border>
+
+                        <!-- WebRTC Telemetry HUD Overlay -->
+                        <Border x:Name="OverlayTelemetry" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,12,0" Background="#CC121216" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="6" Padding="10,8" Visibility="Visible">
+                            <StackPanel Width="236">
+                                <Grid Margin="0,0,0,6">
+                                    <TextBlock Text="REAL-TIME TELEMETRY" FontSize="10" FontWeight="Bold" Foreground="#007ACC" VerticalAlignment="Center"/>
+                                    <Border x:Name="BrdHudQosBadge" HorizontalAlignment="Right" Background="#1B5E20" CornerRadius="3" Padding="6,1.5">
+                                        <TextBlock x:Name="TxtHudQos" Text="● EXCELLENT (100%)" FontSize="9" FontWeight="Bold" Foreground="#69F0AE"/>
+                                    </Border>
+                                </Grid>
+
+                                <Grid Margin="0,2">
+                                    <TextBlock Text="⏱️ ICE / SFU RTT:" FontSize="11" Foreground="#CCCCCC"/>
+                                    <TextBlock x:Name="TxtHudRtt" Text="0 ms" HorizontalAlignment="Right" FontSize="12" FontWeight="Bold" Foreground="#00E676"/>
+                                </Grid>
+
+                                <Grid Margin="0,2">
+                                    <TextBlock Text="📉 Packet Loss:" FontSize="11" Foreground="#CCCCCC"/>
+                                    <TextBlock x:Name="TxtHudLoss" Text="0.0 %" HorizontalAlignment="Right" FontSize="12" FontWeight="Bold" Foreground="#00E676"/>
+                                </Grid>
+
+                                <Grid Margin="0,2">
+                                    <TextBlock Text="📶 Jitter:" FontSize="11" Foreground="#CCCCCC"/>
+                                    <TextBlock x:Name="TxtHudJitter" Text="0.0 ms" HorizontalAlignment="Right" FontSize="11" FontWeight="SemiBold" Foreground="#64B5F6"/>
+                                </Grid>
+
+                                <Grid Margin="0,2">
+                                    <TextBlock Text="🚀 Total Bitrate:" FontSize="11" Foreground="#CCCCCC"/>
+                                    <TextBlock x:Name="TxtHudBitrate" Text="0 kbps" HorizontalAlignment="Right" FontSize="12" FontWeight="Bold" Foreground="#00E676"/>
+                                </Grid>
+
+                                <Grid Margin="0,1">
+                                    <TextBlock Text="   ↳ V / A Rate:" FontSize="9.5" Foreground="#888888"/>
+                                    <TextBlock x:Name="TxtHudBitrateDetail" Text="V: 0k | A: 0k" HorizontalAlignment="Right" FontSize="9.5" Foreground="#AAAAAA"/>
+                                </Grid>
+
+                                <Grid Margin="0,2">
+                                    <TextBlock Text="🎞️ FPS / Drop:" FontSize="11" Foreground="#CCCCCC"/>
+                                    <TextBlock x:Name="TxtHudFps" Text="0.0 FPS (Drop: 0)" HorizontalAlignment="Right" FontSize="11" FontWeight="SemiBold" Foreground="#FFFFFF"/>
+                                </Grid>
+
+                                <Grid Margin="0,2">
+                                    <TextBlock Text="🔄 NACK / Retrans:" FontSize="11" Foreground="#CCCCCC"/>
+                                    <TextBlock x:Name="TxtHudNack" Text="0 pkts" HorizontalAlignment="Right" FontSize="11" FontWeight="SemiBold" Foreground="#FFD54F"/>
+                                </Grid>
+
+                                <Grid Margin="0,2">
+                                    <TextBlock Text="🔑 Keyframe PLIs:" FontSize="11" Foreground="#CCCCCC"/>
+                                    <TextBlock x:Name="TxtHudPli" Text="0 reqs" HorizontalAlignment="Right" FontSize="11" FontWeight="SemiBold" Foreground="#4EC9B0"/>
+                                </Grid>
+
+                                <Grid Margin="0,2">
+                                    <TextBlock Text="🕒 Master PTS:" FontSize="11" Foreground="#CCCCCC"/>
+                                    <TextBlock x:Name="TxtHudPts" Text="00:00:00.000" FontFamily="Consolas, Monospace" HorizontalAlignment="Right" FontSize="11" FontWeight="Bold" Foreground="#FFD54F"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Multi-Channel Audio VU Meter Overlay (Bottom-Left) -->
+                        <Border x:Name="OverlayAudioVu" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="12,0,0,12" Background="#EA0C0C10" BorderBrush="#007ACC" BorderThickness="1.5" CornerRadius="6" Padding="8,6" Visibility="Visible">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,5">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Border Background="#1E3A5F" CornerRadius="3" Padding="4,1">
+                                            <TextBlock x:Name="TxtVuChannelCountBadge" Text="16-CH EMBEDDED" FontSize="8.5" FontWeight="Bold" Foreground="#64B5F6"/>
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock x:Name="TxtAudioPeakSummary" Text="Peak: SILENT" HorizontalAlignment="Right" FontSize="9.5" FontWeight="SemiBold" Foreground="#4EC9B0" Visibility="Collapsed"/>
+                                </Grid>
+
+                                <StackPanel Orientation="Horizontal">
+                                    <Grid Height="65" Margin="0,8,4,14" VerticalAlignment="Bottom">
+                                        <TextBlock Text="0" FontSize="7.5" FontWeight="Bold" Foreground="#F44336" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,0,0"/>
+                                        <TextBlock Text="-6" FontSize="7.5" Foreground="#FFB74D" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,9,0,0"/>
+                                        <TextBlock Text="-12" FontSize="7.5" Foreground="#FFD54F" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,20,0,0"/>
+                                        <TextBlock Text="-18" FontSize="7.5" FontWeight="Bold" Foreground="#00E676" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,32,0,0"/>
+                                        <TextBlock Text="-24" FontSize="7.5" Foreground="#81C784" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,42,0,0"/>
+                                        <TextBlock Text="-40" FontSize="7.5" Foreground="#666666" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,0,8"/>
+                                        <TextBlock Text="-60" FontSize="7.5" Foreground="#444444" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,0,-2"/>
+                                    </Grid>
+
+                                    <!-- 16 Channel VU Bars -->
+                                    <StackPanel x:Name="ColVu1" Width="13" Margin="0,0,1,0"><Ellipse x:Name="ClipLed1" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/><ProgressBar x:Name="VuBar1" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/><TextBlock x:Name="LblVu1" Text="1" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/></StackPanel>
+                                    <StackPanel x:Name="ColVu2" Width="13" Margin="0,0,4,0"><Ellipse x:Name="ClipLed2" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/><ProgressBar x:Name="VuBar2" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/><TextBlock x:Name="LblVu2" Text="2" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/></StackPanel>
+                                    <StackPanel x:Name="ColVu3" Width="13" Margin="0,0,1,0"><Ellipse x:Name="ClipLed3" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/><ProgressBar x:Name="VuBar3" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/><TextBlock x:Name="LblVu3" Text="3" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/></StackPanel>
+                                    <StackPanel x:Name="ColVu4" Width="13" Margin="0,0,4,0"><Ellipse x:Name="ClipLed4" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/><ProgressBar x:Name="VuBar4" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/><TextBlock x:Name="LblVu4" Text="4" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/></StackPanel>
+                                    <StackPanel x:Name="ColVu5" Width="13" Margin="0,0,1,0"><Ellipse x:Name="ClipLed5" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/><ProgressBar x:Name="VuBar5" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/><TextBlock x:Name="LblVu5" Text="5" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/></StackPanel>
+                                    <StackPanel x:Name="ColVu6" Width="13" Margin="0,0,4,0"><Ellipse x:Name="ClipLed6" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/><ProgressBar x:Name="VuBar6" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/><TextBlock x:Name="LblVu6" Text="6" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/></StackPanel>
+                                    <StackPanel x:Name="ColVu7" Width="13" Margin="0,0,1,0"><Ellipse x:Name="ClipLed7" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/><ProgressBar x:Name="VuBar7" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/><TextBlock x:Name="LblVu7" Text="7" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/></StackPanel>
+                                    <StackPanel x:Name="ColVu8" Width="13" Margin="0,0,4,0"><Ellipse x:Name="ClipLed8" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/><ProgressBar x:Name="VuBar8" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/><TextBlock x:Name="LblVu8" Text="8" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/></StackPanel>
+                                    <StackPanel x:Name="ColVu9" Width="13" Margin="0,0,1,0"><Ellipse x:Name="ClipLed9" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/><ProgressBar x:Name="VuBar9" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/><TextBlock x:Name="LblVu9" Text="9" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/></StackPanel>
+                                    <StackPanel x:Name="ColVu10" Width="13" Margin="0,0,4,0"><Ellipse x:Name="ClipLed10" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/><ProgressBar x:Name="VuBar10" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/><TextBlock x:Name="LblVu10" Text="10" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/></StackPanel>
+                                    <StackPanel x:Name="ColVu11" Width="13" Margin="0,0,1,0"><Ellipse x:Name="ClipLed11" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/><ProgressBar x:Name="VuBar11" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/><TextBlock x:Name="LblVu11" Text="11" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/></StackPanel>
+                                    <StackPanel x:Name="ColVu12" Width="13" Margin="0,0,4,0"><Ellipse x:Name="ClipLed12" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/><ProgressBar x:Name="VuBar12" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/><TextBlock x:Name="LblVu12" Text="12" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/></StackPanel>
+                                    <StackPanel x:Name="ColVu13" Width="13" Margin="0,0,1,0"><Ellipse x:Name="ClipLed13" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/><ProgressBar x:Name="VuBar13" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/><TextBlock x:Name="LblVu13" Text="13" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/></StackPanel>
+                                    <StackPanel x:Name="ColVu14" Width="13" Margin="0,0,4,0"><Ellipse x:Name="ClipLed14" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/><ProgressBar x:Name="VuBar14" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/><TextBlock x:Name="LblVu14" Text="14" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/></StackPanel>
+                                    <StackPanel x:Name="ColVu15" Width="13" Margin="0,0,1,0"><Ellipse x:Name="ClipLed15" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/><ProgressBar x:Name="VuBar15" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/><TextBlock x:Name="LblVu15" Text="15" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/></StackPanel>
+                                    <StackPanel x:Name="ColVu16" Width="13"><Ellipse x:Name="ClipLed16" Width="6" Height="6" Fill="#2A2A2E" Margin="0,0,0,2" HorizontalAlignment="Center"/><ProgressBar x:Name="VuBar16" Orientation="Vertical" Height="65" Width="8" Minimum="-60" Maximum="0" Value="-60" Foreground="#00E676" Background="#161618" BorderThickness="0"/><TextBlock x:Name="LblVu16" Text="16" FontSize="9" FontWeight="Bold" Foreground="#CCCCCC" HorizontalAlignment="Center" Margin="0,2,0,0"/></StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- 2. Preview & Monitoring Toggles -->
+                <Border Grid.Row="1" Style="{StaticResource DarkCardBorderStyle}" Margin="0,0,0,6" Padding="10,6">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <CheckBox x:Name="ChkEnableVideoPreview" Grid.Column="0" Content="Video Preview" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkEnableVideoPreview_Changed" Unchecked="ChkEnableVideoPreview_Changed" Margin="0,0,12,0"/>
+                        <CheckBox x:Name="ChkEnableAudioMonitor" Grid.Column="1" Content="Audio VU Meter" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkEnableAudioMonitor_Changed" Unchecked="ChkEnableAudioMonitor_Changed" Margin="0,0,12,0"/>
+                        <CheckBox x:Name="ChkShowTelemetry" Grid.Column="2" Content="Telemetry HUD" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="ChkShowTelemetry_Changed" Unchecked="ChkShowTelemetry_Changed" Margin="0,0,12,0"/>
+                        <Button x:Name="BtnAspectMode" Grid.Column="3" Content="📐 Aspect: Fit" Background="#252526" Foreground="#00E676" BorderBrush="#007ACC" BorderThickness="1" Padding="8,2" FontSize="11" FontWeight="SemiBold" Height="24" Cursor="Hand" Click="BtnAspectMode_Click" Margin="0,0,8,0"/>
+
+                        <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button x:Name="BtnAudioMute" Style="{StaticResource IconOnlyButtonStyle}" Click="BtnAudioMute_Click" Margin="0,0,3,0">
+                                <TextBlock x:Name="TxtAudioMuteIcon" Text="🔇" FontSize="13" Foreground="#EF4444" VerticalAlignment="Center"/>
+                            </Button>
+                            <TextBlock Text="Vol:" FontSize="11" Foreground="#9E9E9E" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <Slider x:Name="SldMonitorVolume" Width="70" Minimum="0" Maximum="1" Value="0" ValueChanged="SldMonitorVolume_ValueChanged" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtMonitorVolumeVal" Text="0%" FontSize="11" Foreground="#FFFFFF" Width="28" TextAlignment="Right" VerticalAlignment="Center" Margin="2,0,0,0"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- 3. Activity Log Console -->
+                <Border Grid.Row="2" Background="#16161A" BorderBrush="#2A2A30" BorderThickness="1" CornerRadius="6" Padding="8,5">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0" Margin="0,0,0,3">
+                            <TextBlock Text="EVENT &amp; BROADCAST LOG (NEWEST ON TOP)" FontWeight="Bold" FontSize="10" Foreground="#9E9E9E"/>
+                            <Button Content="Clear Logs" Style="{StaticResource ActionButtonStyle}" HorizontalAlignment="Right" Padding="6,1" FontSize="10" Height="20" Click="BtnClearLog_Click"/>
+                        </Grid>
+
+                        <ScrollViewer x:Name="ScrollerLogs" Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                            <TextBox x:Name="TxtLogConsole" Background="Transparent" Foreground="#D4D4D4" BorderThickness="0" FontFamily="Cascadia Mono, Consolas, Courier New, Monospace" FontSize="9.5" Padding="0" Margin="0" Height="Auto" VerticalContentAlignment="Top" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"/>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Center" Background="#2A2A30"/>
+
+            <!-- RIGHT COLUMN: CONFIGURATION TABS -->
+            <Grid Grid.Column="2">
+                <TabControl SelectedIndex="1" Background="#1A1A1E" BorderBrush="#2A2A30" Foreground="#E0E0E0">
+                    <TabControl.Resources>
+                        <Style TargetType="TabItem">
+                            <Setter Property="Background" Value="#222228"/>
+                            <Setter Property="Foreground" Value="#CCCCCC"/>
+                            <Setter Property="BorderBrush" Value="#2A2A30"/>
+                            <Setter Property="Padding" Value="12,8"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                            <Setter Property="FontSize" Value="12"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="TabItem">
+                                        <Border x:Name="Border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1,1,1,0" CornerRadius="4,4,0,0" Margin="0,0,2,0" Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="Border" Property="Background" Value="#1A1A1E"/>
+                                                <Setter Property="Foreground" Value="#007ACC"/>
+                                                <Setter TargetName="Border" Property="BorderThickness" Value="1,2,1,0"/>
+                                                <Setter TargetName="Border" Property="BorderBrush" Value="#007ACC"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </TabControl.Resources>
+
+                    <!-- TAB 1: WEBRTC TRANSMISSION CONFIG -->
+                    <TabItem Header="🌐 1. WebRTC Transmit">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="WEBRTC TRANSMISSION &amp; SIGNALING" FontWeight="Bold" FontSize="14" Foreground="#FFFFFF" Margin="0,0,0,4"/>
+                                <TextBlock Text="Configure WebSocket signaling connection, camera role, SFU ingress ports and hardware codec." FontSize="11" Foreground="#888888" Margin="0,0,0,12"/>
+
+                                <!-- Camera Identity & Room Session Card -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}" BorderBrush="#007ACC">
+                                    <StackPanel>
+                                        <TextBlock Text="CAMERA IDENTITY &amp; BROADCAST SESSION" FontWeight="Bold" FontSize="12" Foreground="#007ACC" Margin="0,0,0,10"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="130"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                <TextBlock Text="Assigned Camera ID:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <ComboBox x:Name="CmbCameraId" SelectionChanged="CmbCameraId_SelectionChanged">
+                                                    <ComboBoxItem Content="cam-01" IsSelected="True"/>
+                                                    <ComboBoxItem Content="cam-02"/>
+                                                    <ComboBoxItem Content="cam-03"/>
+                                                    <ComboBoxItem Content="cam-04"/>
+                                                    <ComboBoxItem Content="cam-05"/>
+                                                    <ComboBoxItem Content="cam-06"/>
+                                                    <ComboBoxItem Content="cam-07"/>
+                                                    <ComboBoxItem Content="cam-08"/>
+                                                    <ComboBoxItem Content="cam-09"/>
+                                                    <ComboBoxItem Content="cam-10"/>
+                                                </ComboBox>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="4,0,8,0">
+                                                <TextBlock Text="Camera Display Name:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <TextBox x:Name="TxtCameraDisplayName" Text="Máy quay 01" TextChanged="TxtCameraDisplayName_TextChanged"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Margin="4,0,0,0">
+                                                <TextBlock Text="Session / Room Name:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <TextBox x:Name="TxtSessionId" Text="broadcast-01"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Signaling Server Connection Card -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="SIGNALING SERVER (WEBSOCKET)" FontWeight="Bold" FontSize="12" Foreground="#007ACC" Margin="0,0,0,10"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                <TextBlock Text="Signaling Server URL:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <TextBox x:Name="TxtSignalingUrl" Text="ws://127.0.0.1:3000/ws"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Bottom">
+                                                <Button x:Name="BtnToggleSignaling" Content="🔗 Connect Signaling" Style="{StaticResource ActionButtonStyle}" Height="30" Click="BtnToggleSignaling_Click"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- SFU Ingress UDP Mapping Card -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="SFU MEDIA SERVER INGRESS (UDP RTP)" FontWeight="Bold" FontSize="12" Foreground="#007ACC" Margin="0,0,0,10"/>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                <TextBlock Text="SFU Host IP / FQDN:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <TextBox x:Name="TxtSfuHost" Text="127.0.0.1"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                <TextBlock Text="RTP Port Mode:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <ComboBox x:Name="CmbPortMode" SelectionChanged="CmbPortMode_SelectionChanged">
+                                                    <ComboBoxItem Content="2 Ports (Split A/V)" IsSelected="True"/>
+                                                    <ComboBoxItem Content="1 Port (Muxed BUNDLE)"/>
+                                                </ComboBox>
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBlock x:Name="TxtPortStatus" Text="Trạng thái Port: Sẵn sàng tự động cấp" Foreground="#A0A0A0" FontSize="11" Margin="0,0,0,6"/>
+                                        <CheckBox x:Name="ChkAntiEcho" Content="Bật WebRTC 2.0 Echo Guard (Chống vòng lặp phản hồi âm thanh / Loopback)" IsChecked="True" Checked="ChkAntiEcho_Changed" Unchecked="ChkAntiEcho_Changed" Foreground="#38BDF8" FontWeight="SemiBold" FontSize="11" ToolTip="Ngăn chặn âm thanh từ micro bị loopback phát ngược lại loa kiểm âm cùng máy, tránh hú rít." Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Video Codec & Compression Selection -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="VIDEO CODEC &amp; HARDWARE ACCELERATION" FontWeight="Bold" FontSize="12" Foreground="#007ACC" Margin="0,0,0,10"/>
+
+                                        <Grid Margin="0,0,0,10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                <TextBlock Text="WebRTC Video Codec:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <ComboBox x:Name="CmbVideoCodec" SelectionChanged="CmbVideoCodec_SelectionChanged">
+                                                    <ComboBoxItem Content="H.264 / AVC (Payload Type 96)" IsSelected="True"/>
+                                                    <ComboBoxItem Content="H.265 / HEVC (Payload Type 97)"/>
+                                                    <ComboBoxItem Content="⚡ Passthrough (Copy Source NALs)"/>
+                                                </ComboBox>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                <TextBlock Text="Hardware Acceleration Engine:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <ComboBox x:Name="CmbHardwareEncoder" Grid.Column="0" Margin="0,0,8,0" SelectionChanged="CmbHardwareEncoder_SelectionChanged"/>
+                                                    <Button x:Name="BtnScanHardwareEncoder" Grid.Column="1" Content="🔄 Scan GPU" Style="{StaticResource ActionButtonStyle}" Click="BtnScanHardwareEncoder_Click" ToolTip="Quét lại các bộ mã hóa phần cứng GPU (NVIDIA NVENC, Intel QuickSync, AMD AMF) trên máy"/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <!-- Bitrate Controls -->
+                                        <Grid Margin="0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="Target Bitrate:" Style="{StaticResource HeaderLabelStyle}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <TextBlock x:Name="TxtBitrateDisplay" Text="(8.0 Mbps)" FontSize="12" FontWeight="SemiBold" Foreground="#4EC9B0" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBox x:Name="TxtTargetBitrateInput" Text="8000" Width="80" Height="26" TextAlignment="Right" FontWeight="Bold" FontSize="12" Foreground="#00E676" Background="#252526" BorderBrush="#007ACC" BorderThickness="1" Padding="6,2" TextChanged="TxtTargetBitrateInput_TextChanged" VerticalContentAlignment="Center"/>
+                                                <TextBlock Text="kbps" FontSize="11" Foreground="#9E9E9E" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
+                                        <Slider x:Name="SldTargetBitrate" Minimum="1000" Maximum="25000" Value="8000" SmallChange="500" LargeChange="1000" ValueChanged="SldTargetBitrate_ValueChanged" Margin="0,6,0,10"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Audio Opus Stream Config -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                            <TextBlock Text="Stream Audio Channels:" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <ComboBox x:Name="CmbStreamAudioChannels" SelectionChanged="CmbStreamAudioChannels_SelectionChanged">
+                                                <ComboBoxItem Content="Auto (Theo nguồn phát)" IsSelected="True"/>
+                                                <ComboBoxItem Content="Mono (1 Channel)"/>
+                                                <ComboBoxItem Content="Stereo (2 Channels - L/R)"/>
+                                                <ComboBoxItem Content="4 Channels"/>
+                                                <ComboBoxItem Content="8 Channels"/>
+                                                <ComboBoxItem Content="16 Channels (Embedded)"/>
+                                            </ComboBox>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                            <TextBlock Text="Audio RTP Payload:" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <Border Background="#252526" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Height="30" Padding="8,4">
+                                                <TextBlock x:Name="TxtStreamAudioSummary" Text="Opus 128 kbps @ 48.0 kHz (PT 111)" FontSize="11" FontWeight="SemiBold" Foreground="#00FFCC" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                            </Border>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Live Telemetry & QoS Monitoring Card -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,8">
+                                            <TextBlock Text="LIVE TRANSMISSION TELEMETRY &amp; QoS" FontWeight="Bold" FontSize="12" Foreground="#007ACC" VerticalAlignment="Center"/>
+                                            <Border x:Name="BrdTabQosBadge" HorizontalAlignment="Right" Background="#1B5E20" CornerRadius="3" Padding="8,2">
+                                                <TextBlock x:Name="TxtTabQos" Text="● EXCELLENT (100%)" FontSize="9.5" FontWeight="Bold" Foreground="#69F0AE"/>
+                                            </Border>
+                                        </Grid>
+
+                                        <Grid Margin="0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Background="#1A1A22" CornerRadius="4" Padding="8,6" Margin="0,0,4,0">
+                                                <StackPanel>
+                                                    <TextBlock Text="LATENCY / RTT" FontSize="9.5" Foreground="#888888"/>
+                                                    <TextBlock x:Name="TxtTabRtt" Text="0 ms" FontSize="16" FontWeight="Bold" Foreground="#00E676" Margin="0,2,0,0"/>
+                                                    <TextBlock Text="SFU / Peer Roundtrip" FontSize="9" Foreground="#555555"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Grid.Column="1" Background="#1A1A22" CornerRadius="4" Padding="8,6" Margin="4,0,0,0">
+                                                <StackPanel>
+                                                    <TextBlock Text="PACKET LOSS RATE" FontSize="9.5" Foreground="#888888"/>
+                                                    <TextBlock x:Name="TxtTabLoss" Text="0.00 %" FontSize="16" FontWeight="Bold" Foreground="#00E676" Margin="0,2,0,0"/>
+                                                    <TextBlock x:Name="TxtTabLossDetail" Text="0 NACKs / 0 Pkts" FontSize="9" Foreground="#555555"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+
+                                        <Grid Margin="0,6,0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Background="#1A1A22" CornerRadius="4" Padding="8,6" Margin="0,0,4,0">
+                                                <StackPanel>
+                                                    <TextBlock Text="ACTUAL ENCODE FPS" FontSize="9.5" Foreground="#888888"/>
+                                                    <TextBlock x:Name="TxtTabFps" Text="0.0 FPS" FontSize="16" FontWeight="Bold" Foreground="#FFFFFF" Margin="0,2,0,0"/>
+                                                    <TextBlock x:Name="TxtTabDropDetail" Text="Dropped: 0 frames" FontSize="9" Foreground="#555555"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Grid.Column="1" Background="#1A1A22" CornerRadius="4" Padding="8,6" Margin="4,0,0,0">
+                                                <StackPanel>
+                                                    <TextBlock Text="REAL TRANSMIT BITRATE" FontSize="9.5" Foreground="#888888"/>
+                                                    <TextBlock x:Name="TxtTabBitrate" Text="0 kbps" FontSize="16" FontWeight="Bold" Foreground="#4EC9B0" Margin="0,2,0,0"/>
+                                                    <TextBlock x:Name="TxtTabBitrateBreakdown" Text="Video: 0k | Audio: 0k" FontSize="9" Foreground="#555555"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- TAB 2: INPUT SOURCE SELECTION -->
+                    <TabItem Header="📡 2. Input Source">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="SELECT BROADCAST VIDEO SOURCE" FontWeight="Bold" FontSize="14" Foreground="#FFFFFF" Margin="0,0,0,4"/>
+                                <TextBlock Text="Choose your capture device, live IP feed, media file or SMPTE pattern." FontSize="11" Foreground="#888888" Margin="0,0,0,12"/>
+
+                                <Border Style="{StaticResource DarkCardBorderStyle}" BorderBrush="#007ACC" Background="#1A1F26" Padding="14,12">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,8">
+                                            <TextBlock Text="Select Broadcast Video Source:" FontWeight="Bold" FontSize="13" Foreground="#4EC9B0" VerticalAlignment="Center"/>
+                                            <Border Background="#252526" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="3" Padding="6,2" HorizontalAlignment="Right">
+                                                <TextBlock x:Name="TxtActiveSourceTypeBadge" Text="📁 FILE ACTIVE" FontSize="10" FontWeight="Bold" Foreground="#00E676"/>
+                                            </Border>
+                                        </Grid>
+
+                                        <ComboBox x:Name="CmbInputSource" SelectionChanged="CmbInputSource_SelectionChanged" Height="34" FontSize="13" FontWeight="SemiBold">
+                                            <ComboBoxItem Content="📡 SDI Input (Blackmagic DeckLink / AJA Capture Card)"/>
+                                            <ComboBoxItem Content="🌐 NDI Network Stream (NewTek NDI Live Ingest)"/>
+                                            <ComboBoxItem Content="📁 Media File Input (ProRes, DNxHD, MP4, MKV, TS)" IsSelected="True"/>
+                                            <ComboBoxItem Content="🎨 Colorbar &amp; Tone Test Generator (SMPTE / EBU)"/>
+                                        </ComboBox>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- File Config Panel (Đóng khung bao xanh) -->
+                                <Border x:Name="PnlFileConfig" Style="{StaticResource DarkCardBorderStyle}" BorderBrush="#007ACC" BorderThickness="1.5" Background="#161B22" Visibility="Visible">
+                                    <StackPanel>
+                                        <TextBlock Text="MEDIA FILE PATH:" Style="{StaticResource HeaderLabelStyle}"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                 <ColumnDefinition Width="*"/>
+                                                 <ColumnDefinition Width="Auto"/>
+                                             </Grid.ColumnDefinitions>
+                                             <TextBox x:Name="TxtFilePath" Grid.Column="0" Margin="0,0,8,0" KeyDown="TxtFilePath_KeyDown"/>
+                                             <Button Grid.Column="1" Content="📁 Browse..." Style="{StaticResource ActionButtonStyle}" Click="BtnBrowseFile_Click"/>
+                                         </Grid>
+                                     </StackPanel>
+                                 </Border>
+
+                                 <!-- NDI Config Panel (Đóng khung bao xanh) -->
+                                 <Border x:Name="PnlNdiConfig" Style="{StaticResource DarkCardBorderStyle}" BorderBrush="#007ACC" BorderThickness="1.5" Background="#161B22" Visibility="Collapsed">
+                                     <StackPanel>
+                                         <TextBlock Text="NDI SOURCE SCANNER:" Style="{StaticResource HeaderLabelStyle}"/>
+                                         <Grid>
+                                             <Grid.ColumnDefinitions>
+                                                 <ColumnDefinition Width="*"/>
+                                                 <ColumnDefinition Width="Auto"/>
+                                             </Grid.ColumnDefinitions>
+                                             <ComboBox x:Name="CmbNdiSources" Grid.Column="0" Margin="0,0,8,0" SelectionChanged="CmbNdiSources_SelectionChanged"/>
+                                             <Button x:Name="BtnScanNdi" Grid.Column="1" Content="🔄 Scan NDI" Style="{StaticResource ActionButtonStyle}" Click="BtnScanNdi_Click"/>
+                                         </Grid>
+                                     </StackPanel>
+                                 </Border>
+
+                                 <!-- SDI Config Panel (Đóng khung bao xanh) -->
+                                 <Border x:Name="PnlSdiConfig" Style="{StaticResource DarkCardBorderStyle}" BorderBrush="#007ACC" BorderThickness="1.5" Background="#161B22" Visibility="Collapsed">
+                                     <StackPanel>
+                                         <TextBlock Text="SDI CAPTURE HARDWARE:" Style="{StaticResource HeaderLabelStyle}"/>
+                                         <Grid>
+                                             <Grid.ColumnDefinitions>
+                                                 <ColumnDefinition Width="*"/>
+                                                 <ColumnDefinition Width="Auto"/>
+                                             </Grid.ColumnDefinitions>
+                                             <ComboBox x:Name="CmbSdiDevices" Grid.Column="0" Margin="0,0,8,0" SelectionChanged="CmbSdiDevices_SelectionChanged"/>
+                                             <Button x:Name="BtnScanSdi" Grid.Column="1" Content="🔄 Scan SDI" Style="{StaticResource ActionButtonStyle}" Click="BtnScanSdi_Click"/>
+                                         </Grid>
+                                     </StackPanel>
+                                 </Border>
+
+                                 <!-- Colorbar Config Panel (Đóng khung bao xanh) -->
+                                 <Border x:Name="PnlColorbarConfig" Style="{StaticResource DarkCardBorderStyle}" BorderBrush="#007ACC" BorderThickness="1.5" Background="#161B22" Visibility="Collapsed">
+                                    <StackPanel>
+                                        <TextBlock Text="COLORBAR &amp; TEST PATTERN CONFIG" FontWeight="Bold" FontSize="12" Foreground="#007ACC" Margin="0,0,0,10"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                                <TextBlock Text="Pattern Type:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <ComboBox x:Name="CmbColorbarPattern" SelectionChanged="CmbColorbarPattern_SelectionChanged">
+                                                    <ComboBoxItem Content="SMPTE RP 219 Color Bars" IsSelected="True"/>
+                                                    <ComboBoxItem Content="EBU 100% Color Bars"/>
+                                                    <ComboBoxItem Content="Grid Alignment Pattern"/>
+                                                </ComboBox>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                                                <TextBlock Text="Audio Test Tone:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <ComboBox x:Name="CmbAudioTone" SelectionChanged="CmbAudioTone_SelectionChanged">
+                                                    <ComboBoxItem Content="1 kHz Sine (-18 dBFS)" IsSelected="True"/>
+                                                    <ComboBoxItem Content="1 kHz Sine (-20 dBFS)"/>
+                                                    <ComboBoxItem Content="400 Hz Tone (GLITS)"/>
+                                                </ComboBox>
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Intercom / Field Communication Card -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}" BorderBrush="#3B82F6" Background="#161B22">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,8">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <CheckBox x:Name="ChkEnableMic" Content="🎙️ Bật Intercom Headset (Cameraman Comm)" IsChecked="False" Checked="ChkEnableMic_Changed" Unchecked="ChkEnableMic_Changed" Foreground="#38BDF8" FontWeight="Bold" FontSize="12" VerticalAlignment="Center" ToolTip="Kênh đàm thoại 2 chiều độc lập với Đạo diễn/Phòng điều khiển. Tách biệt hoàn toàn khỏi luồng âm thanh phát sóng."/>
+                                            </StackPanel>
+                                            <Border x:Name="PnlMicBadge" Background="#262626" BorderBrush="#525252" BorderThickness="1" CornerRadius="3" Padding="6,1" HorizontalAlignment="Right">
+                                                <TextBlock x:Name="TxtMicBadge" Text="INTERCOM DISABLED" FontSize="9" FontWeight="Bold" Foreground="#9E9E9E"/>
+                                            </Border>
+                                        </Grid>
+
+                                        <Grid Margin="0,4,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                <TextBlock Text="Thiết Bị Micro Intercom Headset:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <ComboBox x:Name="CmbMicrophoneDevice" IsEnabled="False" SelectionChanged="CmbMicrophoneDevice_SelectionChanged" DropDownOpened="CmbMicrophoneDevice_DropDownOpened"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Bottom">
+                                                <Button x:Name="BtnRefreshMicDevices" Content="🔄 Quét Micro" Style="{StaticResource ActionButtonStyle}" Height="30" Click="BtnRefreshMicDevices_Click"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <!-- Speaker Intercom Device Selection & Auto Scan -->
+                                        <Grid Margin="0,4,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                <TextBlock Text="Thiết Bị Loa / Speaker Intercom (Lối phát âm thanh):" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <ComboBox x:Name="CmbSpeakerDevice" SelectionChanged="CmbSpeakerDevice_SelectionChanged" DropDownOpened="CmbSpeakerDevice_DropDownOpened" ToolTip="Chọn ngõ xuất âm thanh (Loa ngoài, tai nghe USB, Headset) để nghe Đạo diễn đàm thoại"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Bottom">
+                                                <Button x:Name="BtnRefreshSpeakerDevices" Content="🔄 Quét Loa" Style="{StaticResource ActionButtonStyle}" Height="30" Click="BtnRefreshSpeakerDevices_Click" ToolTip="Tự động quét lại danh sách thiết bị Loa / Tai nghe phát"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <!-- PTT & Receive Volume Grid -->
+                                        <Grid Margin="0,8,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="150"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- PTT Action Button (Focusable="False" chống kẹt phím Spacebar và kẹt hover chuột) -->
+                                            <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                                <Button x:Name="BtnPttTalk" Height="46" Background="#1F2937" BorderBrush="#374151" BorderThickness="2" Cursor="Hand"
+                                                        Focusable="False"
+                                                        PreviewMouseDown="BtnPttTalk_PreviewMouseDown" PreviewMouseUp="BtnPttTalk_PreviewMouseUp" MouseLeave="BtnPttTalk_MouseLeave"
+                                                        ToolTip="Giữ chuột hoặc nhấn Spacebar để nói (PTT), hoặc bấm nhanh để bật/tắt">
+                                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        <TextBlock x:Name="TxtPttLabel" Text="🎙️ TALK (PTT)" FontWeight="ExtraBold" FontSize="12" Foreground="#9CA3AF" HorizontalAlignment="Center"/>
+                                                        <TextBlock Text="SPACEBAR = PTT" FontSize="8" Foreground="#6B7280" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                                    </StackPanel>
+                                                </Button>
+                                            </StackPanel>
+
+                                            <!-- Status & Volume -->
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <Grid Margin="0,0,0,4">
+                                                    <TextBlock x:Name="TxtDirectorStatus" Text="📢 DIRECTOR: OFF-AIR" FontSize="11" FontWeight="Bold" Foreground="#6B7280"/>
+                                                </Grid>
+                                                <Grid Margin="0,2,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Tai Nghe Nhận:" Style="{StaticResource HeaderLabelStyle}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                    <Slider x:Name="SldIntercomReceiveVolume" Grid.Column="1" Minimum="0" Maximum="150" Value="75" ValueChanged="SldIntercomReceiveVolume_ValueChanged" VerticalAlignment="Center"/>
+                                                    <TextBlock x:Name="TxtIntercomReceiveVolumeVal" Grid.Column="2" Text="75%" FontSize="11" Foreground="#38BDF8" Width="36" TextAlignment="Right" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <Grid Margin="0,6,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="Độ Nhạy / Gain Micro:" Style="{StaticResource HeaderLabelStyle}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <Slider x:Name="SldMicGain" Grid.Column="1" Minimum="0" Maximum="200" Value="100" IsEnabled="False" ValueChanged="SldMicGain_ValueChanged" VerticalAlignment="Center"/>
+                                            <TextBlock x:Name="TxtMicGainVal" Grid.Column="2" Text="100%" FontSize="11" Foreground="#00E676" Width="36" TextAlignment="Right" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- TAB 3: NTP WALL-CLOCK SYNC -->
+                    <TabItem Header="🕒 3. NTP Wall-Clock Sync">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="MULTI-CAMERA NTP WALL-CLOCK SYNCHRONIZATION" FontWeight="Bold" FontSize="14" Foreground="#FFFFFF" Margin="0,0,0,4"/>
+                                <TextBlock Text="Đồng bộ hóa thời gian thực và chèn SEI Timecode cho luồng WebRTC RTP đa camera (Mặc định Zero-Latency)." FontSize="11" Foreground="#888888" Margin="0,0,0,12"/>
+
+                                <Border Background="#261E14" BorderBrush="#F57C00" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,12">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Multi-Camera NTP Synchronization" FontWeight="Bold" FontSize="13" Foreground="#FFB74D"/>
+                                            <TextBlock Text="Đồng bộ hóa nhịp phát giữa các camera với máy chủ thời gian NTP quốc gia." FontSize="11" Foreground="#FFE0B2" Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="ChkNtpSync" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="False" Checked="ChkNtpSync_Changed" Unchecked="ChkNtpSync_Changed" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+
+                                <Border Style="{StaticResource DarkCardBorderStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="NTP SERVER CONFIGURATION" FontWeight="Bold" FontSize="12" Foreground="#007ACC" Margin="0,0,0,10"/>
+                                        <Grid Margin="0,0,0,10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="TxtNtpServer" Grid.Column="0" Text="time.google.com" Margin="0,0,8,0"/>
+                                            <Button Grid.Column="1" Content="📡 Sync Now" Style="{StaticResource ActionButtonStyle}" Click="BtnSyncNtp_Click"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </Grid>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             BOTTOM MASTER ACTION & CONTROL BAR
+             ════════════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="2" Background="#16161A" BorderBrush="#2A2A30" BorderThickness="0,1,0,0" Padding="12,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Left Summary -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="#222228" CornerRadius="4" Padding="8,4" Margin="0,0,8,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="TARGET: " FontWeight="Bold" FontSize="11" Foreground="#888888"/>
+                            <TextBlock x:Name="TxtTargetSummary" Text="WebRTC RTP -> 127.0.0.1:10000 (cam-01)" FontSize="11" FontWeight="Bold" Foreground="#00E676"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Background="#222228" CornerRadius="4" Padding="8,4">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="CODEC: " FontWeight="Bold" FontSize="11" Foreground="#888888"/>
+                            <TextBlock x:Name="TxtCodecSummary" Text="H.264 / NVENC (8000 kbps)" FontSize="11" FontWeight="Bold" Foreground="#4EC9B0"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Center Counters -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="DURATION:" FontSize="11" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <TextBlock x:Name="TxtSessionDuration" Text="00:00:00" FontFamily="Consolas, Monospace" FontSize="13" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center" Margin="0,0,12,0"/>
+
+                    <TextBlock Text="SENT:" FontSize="11" Foreground="#888888" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <TextBlock x:Name="TxtTotalBytesSent" Text="0.00 MB" FontFamily="Consolas, Monospace" FontSize="13" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Right Action Buttons -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="BtnStartStreaming" Content="🚀 START TRANSMISSION (WEBRTC)" Background="#16A34A" Foreground="#FFFFFF" FontWeight="Bold" FontSize="12" Padding="14,6" Margin="0,0,8,0" Cursor="Hand" Click="BtnStartStreaming_Click">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="4"/>
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+
+                    <Button x:Name="BtnStopStreaming" Content="⏹ STOP" Background="#DC2626" Foreground="#FFFFFF" FontWeight="Bold" FontSize="12" Padding="14,6" Cursor="Hand" IsEnabled="False" Click="BtnStopStreaming_Click">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="4"/>
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

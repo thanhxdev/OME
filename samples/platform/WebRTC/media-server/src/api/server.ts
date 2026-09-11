@@ -59,11 +59,36 @@ export function createMediaApiRouter(router: RtpRouter): Router {
     });
   });
 
-  // Unsubscribe
-  api.delete('/streams/:id/subscribe/:subId', (req: Request, res: Response) => {
+  // Dynamically allocate ingress UDP port(s) for a camera stream
+  api.post('/streams/:id/allocate', async (req: Request, res: Response) => {
+    const cameraId = req.params.id;
+    const isSinglePort = req.body.isSinglePort === true;
+    const codec = req.body.codec || 'h264';
+
+    try {
+      const producer = await router.allocateCamera(cameraId, isSinglePort, codec);
+      res.status(200).json({
+        success: true,
+        cameraId,
+        videoPort: producer.videoPort,
+        audioPort: producer.audioPort,
+        isSinglePort: !!producer.isSinglePort,
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        success: false,
+        error: `Failed to allocate ports for camera ${cameraId}: ${err?.message || err}`,
+      });
+    }
+  });
+
+  // Unsubscribe (supports both /subscribe/:subId and /subscribers/:subId)
+  const handleUnsubscribe = (req: Request, res: Response) => {
     router.removeSubscriber(req.params.id, req.params.subId);
     res.json({ success: true, message: `Subscriber ${req.params.subId} removed` });
-  });
+  };
+  api.delete('/streams/:id/subscribe/:subId', handleUnsubscribe);
+  api.delete('/streams/:id/subscribers/:subId', handleUnsubscribe);
 
   // List all subscribers
   api.get('/subscribers', (_req: Request, res: Response) => {
