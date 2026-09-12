@@ -110,11 +110,16 @@ namespace SRT_DECODE
         private TextBlock[] _hudLoss = Array.Empty<TextBlock>();
         private TextBlock[] _hudBitrate = Array.Empty<TextBlock>();
         private TextBlock[] _hudDrift = Array.Empty<TextBlock>();
+        private TextBlock[] _txtResFps = Array.Empty<TextBlock>();
 
         private TextBlock[] _diagRtt = Array.Empty<TextBlock>();
         private TextBlock[] _diagLoss = Array.Empty<TextBlock>();
         private TextBlock[] _diagBitrate = Array.Empty<TextBlock>();
         private TextBlock[] _diagHealth = Array.Empty<TextBlock>();
+        private TextBlock[] _diagBandwidth = Array.Empty<TextBlock>();
+        private TextBlock[] _diagRexmit = Array.Empty<TextBlock>();
+        private TextBlock[] _diagDrop = Array.Empty<TextBlock>();
+        private TextBlock[] _diagUptime = Array.Empty<TextBlock>();
         private ProgressBar[] _pbBuffer = Array.Empty<ProgressBar>();
         private TextBlock[] _txtDriftVal = Array.Empty<TextBlock>();
 
@@ -248,6 +253,7 @@ namespace SRT_DECODE
                 _badgeCamTexts = new[] { TxtBadgeCam1, TxtBadgeCam2, TxtBadgeCam3, TxtBadgeCam4, TxtBadgeCam5, TxtBadgeCam6, TxtBadgeCam7, TxtBadgeCam8, TxtBadgeCam9, TxtBadgeCam10 };
                 _driftLabels = new[] { TxtDriftCamLabel1, TxtDriftCamLabel2, TxtDriftCamLabel3, TxtDriftCamLabel4, TxtDriftCamLabel5, TxtDriftCamLabel6, TxtDriftCamLabel7, TxtDriftCamLabel8, TxtDriftCamLabel9, TxtDriftCamLabel10 };
                 _telemetryTitles = new[] { TxtTelemetryCamTitle1, TxtTelemetryCamTitle2, TxtTelemetryCamTitle3, TxtTelemetryCamTitle4, TxtTelemetryCamTitle5, TxtTelemetryCamTitle6, TxtTelemetryCamTitle7, TxtTelemetryCamTitle8, TxtTelemetryCamTitle9, TxtTelemetryCamTitle10 };
+                _txtResFps = new[] { TxtResFpsCam1, TxtResFpsCam2, TxtResFpsCam3, TxtResFpsCam4, TxtResFpsCam5, TxtResFpsCam6, TxtResFpsCam7, TxtResFpsCam8, TxtResFpsCam9, TxtResFpsCam10 };
 
                 _ledIndicators = new[] { LedCam1, LedCam2, LedCam3, LedCam4, LedCam5, LedCam6, LedCam7, LedCam8, LedCam9, LedCam10 };
                 _pgmButtons = new[] { BtnPgmCam1, BtnPgmCam2, BtnPgmCam3, BtnPgmCam4, BtnPgmCam5, BtnPgmCam6, BtnPgmCam7, BtnPgmCam8, BtnPgmCam9, BtnPgmCam10 };
@@ -355,6 +361,20 @@ namespace SRT_DECODE
                 }
                 UpdateSoloButtonsUI();
 
+                // Cài đặt mặc định khi mở App là ở chế độ MUTE PREVIEW (Loa/tai nghe kiểm âm tắt, PGM bình thường)
+                _audioManager.IsPreviewMuted = true;
+                if (BtnMutePreview != null)
+                {
+                    BtnMutePreview.Content = "UNMUTE PVW";
+                    BtnMutePreview.Background = Brushes.Red;
+                }
+                _audioManager.IsProgramMuted = false;
+                if (BtnMixerMutePgm != null)
+                {
+                    BtnMixerMutePgm.Content = "MUTE";
+                    BtnMixerMutePgm.Background = new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x34));
+                }
+
                 _hudRtt = new[] { HudRttCam1, HudRttCam2, HudRttCam3, HudRttCam4, HudRttCam5, HudRttCam6, HudRttCam7, HudRttCam8, HudRttCam9, HudRttCam10 };
                 _hudLoss = new[] { HudLossCam1, HudLossCam2, HudLossCam3, HudLossCam4, HudLossCam5, HudLossCam6, HudLossCam7, HudLossCam8, HudLossCam9, HudLossCam10 };
                 _hudBitrate = new[] { HudBitrateCam1, HudBitrateCam2, HudBitrateCam3, HudBitrateCam4, HudBitrateCam5, HudBitrateCam6, HudBitrateCam7, HudBitrateCam8, HudBitrateCam9, HudBitrateCam10 };
@@ -364,6 +384,10 @@ namespace SRT_DECODE
                 _diagLoss = new[] { DiagLossCam1, DiagLossCam2, DiagLossCam3, DiagLossCam4, DiagLossCam5, DiagLossCam6, DiagLossCam7, DiagLossCam8, DiagLossCam9, DiagLossCam10 };
                 _diagBitrate = new[] { DiagBitrateCam1, DiagBitrateCam2, DiagBitrateCam3, DiagBitrateCam4, DiagBitrateCam5, DiagBitrateCam6, DiagBitrateCam7, DiagBitrateCam8, DiagBitrateCam9, DiagBitrateCam10 };
                 _diagHealth = new[] { DiagHealthCam1, DiagHealthCam2, DiagHealthCam3, DiagHealthCam4, DiagHealthCam5, DiagHealthCam6, DiagHealthCam7, DiagHealthCam8, DiagHealthCam9, DiagHealthCam10 };
+                _diagBandwidth = new[] { DiagBandwidthCam1, DiagBandwidthCam2, DiagBandwidthCam3, DiagBandwidthCam4, DiagBandwidthCam5, DiagBandwidthCam6, DiagBandwidthCam7, DiagBandwidthCam8, DiagBandwidthCam9, DiagBandwidthCam10 };
+                _diagRexmit = new[] { DiagRexmitCam1, DiagRexmitCam2, DiagRexmitCam3, DiagRexmitCam4, DiagRexmitCam5, DiagRexmitCam6, DiagRexmitCam7, DiagRexmitCam8, DiagRexmitCam9, DiagRexmitCam10 };
+                _diagDrop = new[] { DiagDropCam1, DiagDropCam2, DiagDropCam3, DiagDropCam4, DiagDropCam5, DiagDropCam6, DiagDropCam7, DiagDropCam8, DiagDropCam9, DiagDropCam10 };
+                _diagUptime = new[] { DiagUptimeCam1, DiagUptimeCam2, DiagUptimeCam3, DiagUptimeCam4, DiagUptimeCam5, DiagUptimeCam6, DiagUptimeCam7, DiagUptimeCam8, DiagUptimeCam9, DiagUptimeCam10 };
                 _pbBuffer = new[] { PbBufferCam1, PbBufferCam2, PbBufferCam3, PbBufferCam4, PbBufferCam5, PbBufferCam6, PbBufferCam7, PbBufferCam8, PbBufferCam9, PbBufferCam10 };
                 _txtDriftVal = new[] { TxtDriftValCam1, TxtDriftValCam2, TxtDriftValCam3, TxtDriftValCam4, TxtDriftValCam5, TxtDriftValCam6, TxtDriftValCam7, TxtDriftValCam8, TxtDriftValCam9, TxtDriftValCam10 };
 
@@ -720,47 +744,56 @@ namespace SRT_DECODE
         {
             if (!_isInitialized || MultiviewerContainer == null || _cellBorders.Length < MaxChannels) return;
 
-            int selected = CmbLayoutMode.SelectedIndex; // 0: View (Multi-view 2 cột), 1: PGM+View (PGM trên + Multi-view)
+            int selected = CmbLayoutMode.SelectedIndex;
+            // 0: View (Multi-view 2 cột)
+            // 1: View (Multi-view 3 cột)
+            // 2: View (Multi-view 4 cột)
+            // 3: PGM+View (PGM trên + Multi-view)
+
+            int cols = 2;
+            bool isPgmTop = false;
+
+            switch (selected)
+            {
+                case 1:
+                    cols = 3;
+                    isPgmTop = false;
+                    break;
+                case 2:
+                    cols = 4;
+                    isPgmTop = false;
+                    break;
+                case 3:
+                    cols = 2;
+                    isPgmTop = true;
+                    break;
+                case 0:
+                default:
+                    cols = 2;
+                    isPgmTop = false;
+                    break;
+            }
 
             MultiviewerContainer.RowDefinitions.Clear();
             MultiviewerContainer.ColumnDefinitions.Clear();
 
-            // Always strictly 2 columns for Multi-view
-            MultiviewerContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            MultiviewerContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            for (int c = 0; c < cols; c++)
+            {
+                MultiviewerContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            }
 
-            int numRows = Math.Max(1, (_activeChannelCount + 1) / 2);
+            int numRows = Math.Max(1, (_activeChannelCount + cols - 1) / cols);
             for (int r = 0; r < numRows; r++)
             {
                 MultiviewerContainer.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             }
 
-            if (selected == 0)
+            if (!isPgmTop)
             {
-                // ─── OPTION 1: "View" (Multi-view 2 cột, không có màn hình mở rộng toàn khung) ────────
                 CellPgmMaster.Visibility = Visibility.Collapsed;
-
-                for (int i = 0; i < MaxChannels; i++)
-                {
-                    if (i < _activeChannelCount)
-                    {
-                        _cellBorders[i].Visibility = Visibility.Visible;
-                        int row = i / 2;
-                        int col = i % 2;
-                        Grid.SetRow(_cellBorders[i], row);
-                        Grid.SetColumn(_cellBorders[i], col);
-                        Grid.SetRowSpan(_cellBorders[i], 1);
-                        Grid.SetColumnSpan(_cellBorders[i], 1); // Strictly 1 column, never expand to 2
-                    }
-                    else
-                    {
-                        _cellBorders[i].Visibility = Visibility.Collapsed;
-                    }
-                }
             }
             else
             {
-                // ─── OPTION 2: "PGM+View" (PGM trên cùng, dưới là tất cả các cam theo thứ tự 2 cột) ───
                 CellPgmMaster.Visibility = Visibility.Visible;
                 TxtPgmMasterTitle.Text = $"PROGRAM ({_channelNames[_currentProgramIndex]})";
 
@@ -770,23 +803,23 @@ namespace SRT_DECODE
                     VideoViewPgm.PresentBitmap(_camBitmaps[_currentProgramIndex]);
                 }
                 FallbackPgm.Visibility = _fallbacks[_currentProgramIndex].Visibility;
+            }
 
-                for (int i = 0; i < MaxChannels; i++)
+            for (int i = 0; i < MaxChannels; i++)
+            {
+                if (i < _activeChannelCount)
                 {
-                    if (i < _activeChannelCount)
-                    {
-                        _cellBorders[i].Visibility = Visibility.Visible;
-                        int row = i / 2;
-                        int col = i % 2;
-                        Grid.SetRow(_cellBorders[i], row);
-                        Grid.SetColumn(_cellBorders[i], col);
-                        Grid.SetRowSpan(_cellBorders[i], 1);
-                        Grid.SetColumnSpan(_cellBorders[i], 1); // Strictly 1 column, view all cameras in order
-                    }
-                    else
-                    {
-                        _cellBorders[i].Visibility = Visibility.Collapsed;
-                    }
+                    _cellBorders[i].Visibility = Visibility.Visible;
+                    int row = i / cols;
+                    int col = i % cols;
+                    Grid.SetRow(_cellBorders[i], row);
+                    Grid.SetColumn(_cellBorders[i], col);
+                    Grid.SetRowSpan(_cellBorders[i], 1);
+                    Grid.SetColumnSpan(_cellBorders[i], 1);
+                }
+                else
+                {
+                    _cellBorders[i].Visibility = Visibility.Collapsed;
                 }
             }
         }
@@ -886,15 +919,80 @@ namespace SRT_DECODE
 
                 _diagRtt[i].Text = $"⏱️ RTT: {ch.CurrentRttMs:F1} ms";
                 _diagLoss[i].Text = $"📉 Loss: {ch.CurrentPacketLoss:F2} %";
-                _diagLoss[i].Foreground = ch.CurrentPacketLoss > 3.0 ? Brushes.Red : Brushes.LightGreen;
+                _diagLoss[i].Foreground = ch.CurrentPacketLoss > 3.0 ? Brushes.Red : (ch.CurrentPacketLoss > 1.0 ? Brushes.Orange : Brushes.LightGreen);
+
+                _diagRexmit[i].Text = $"🔁 Rexmit: {ch.PacketsRetransmitted:N0} pkts";
+                _diagRexmit[i].Foreground = ch.PacketsRetransmitted > 50 ? Brushes.Orange : new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0));
+
+                _diagHealth[i].Text = $"🩺 Health: {ch.BufferHealthPercent:F0}% ({(ch.BufferHealthPercent >= 90 ? "Stable" : ch.BufferHealthPercent >= 70 ? "Fair" : "Degraded")})";
+                _diagHealth[i].Foreground = ch.BufferHealthPercent >= 90 ? Brushes.LightGreen : (ch.BufferHealthPercent >= 70 ? Brushes.Orange : Brushes.Red);
+
                 _diagBitrate[i].Text = $"🚀 Ingest: {ch.CurrentBitrateKbps:F0} kbps";
-                _diagHealth[i].Text = $"⏳ Health: {ch.BufferHealthPercent:F0}% ({(ch.BufferHealthPercent > 80 ? "Stable" : "Jittering")})";
+                _diagBandwidth[i].Text = $"📶 Bandwidth: {ch.BandwidthMbps:F2} Mbps";
+
+                _diagDrop[i].Text = $"❌ Drop: {ch.PacketsDropped:N0} pkts";
+                _diagDrop[i].Foreground = ch.PacketsDropped > 0 ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+
+                _diagUptime[i].Text = $"🕒 Uptime: {ch.Uptime:hh\\:mm\\:ss}";
                 _pbBuffer[i].Value = sync.BufferFillPercent;
                 _pbBuffer[i].Foreground = sync.LockState == SyncLockState.Locked ? Brushes.LightGreen : (sync.LockState == SyncLockState.Syncing ? Brushes.Orange : Brushes.Gray);
                 
                 string dropRptInfo = sync.DroppedFrames > 0 || sync.RepeatedFrames > 0 ? $" • Drop:{sync.DroppedFrames} Rpt:{sync.RepeatedFrames}" : "";
                 _txtDriftVal[i].Text = $"Δt: {sync.GetFormattedDrift()} ({sync.LockState}{dropRptInfo})";
                 _txtDriftVal[i].Foreground = sync.LockState == SyncLockState.Locked ? Brushes.LightGreen : (sync.LockState == SyncLockState.Syncing ? Brushes.Orange : Brushes.Gray);
+
+                // Update real incoming stream resolution & frame rate on camera preview header
+                if (i < _txtResFps.Length && _txtResFps[i] != null)
+                {
+                    if (ch.IsConnected)
+                    {
+                        double fps = ch.MeasuredFps > 0.1 ? ch.MeasuredFps : (ch.CurrentFps > 0.1 ? ch.CurrentFps : 0.0);
+                        int h = ch.VideoHeight > 0 ? ch.VideoHeight : 1080;
+                        if (fps > 0.5)
+                        {
+                            _txtResFps[i].Text = $"{h}p{fps:F2}";
+                            _txtResFps[i].Foreground = new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76));
+                        }
+                        else
+                        {
+                            _txtResFps[i].Text = $"{h}p 0.0 FPS";
+                            _txtResFps[i].Foreground = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B));
+                        }
+                    }
+                    else
+                    {
+                        _txtResFps[i].Text = "STANDBY";
+                        _txtResFps[i].Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+                    }
+                }
+            }
+
+            // Inactive channels reset to STANDBY
+            for (int i = _activeChannelCount; i < MaxChannels; i++)
+            {
+                if (i < _txtResFps.Length && _txtResFps[i] != null)
+                {
+                    _txtResFps[i].Text = "STANDBY";
+                    _txtResFps[i].Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+                }
+            }
+
+            // Update PGM Master Header Resolution & FPS
+            if (TxtPgmMasterFps != null)
+            {
+                var pgmCh = _receiverEngine.Channels[_currentProgramIndex];
+                if (pgmCh.IsConnected && _currentProgramIndex < _activeChannelCount)
+                {
+                    double pgmFps = pgmCh.MeasuredFps > 0.1 ? pgmCh.MeasuredFps : (pgmCh.CurrentFps > 0.1 ? pgmCh.CurrentFps : 0.0);
+                    int pgmH = pgmCh.VideoHeight > 0 ? pgmCh.VideoHeight : 1080;
+                    TxtPgmMasterFps.Text = $"{pgmH}p{pgmFps:F2} Master Playout";
+                    TxtPgmMasterFps.Foreground = new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76));
+                }
+                else
+                {
+                    TxtPgmMasterFps.Text = "No Program Signal";
+                    TxtPgmMasterFps.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+                }
             }
 
             // Bottom status updates
@@ -1497,22 +1595,48 @@ namespace SRT_DECODE
             }
         }
 
-        private void BtnMuteAll_Click(object sender, RoutedEventArgs e)
+        private void BtnMutePreview_Click(object sender, RoutedEventArgs e)
         {
-            _audioManager.IsMuteAll = !_audioManager.IsMuteAll;
-            string text = _audioManager.IsMuteAll ? "UNMUTE" : "MUTE ALL";
-            Brush bg = _audioManager.IsMuteAll ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x38));
+            _audioManager.IsPreviewMuted = !_audioManager.IsPreviewMuted;
+            bool isMuted = _audioManager.IsPreviewMuted;
+            string bottomText = isMuted ? "UNMUTE PVW" : "MUTE PREVIEW";
+            Brush bg = isMuted ? Brushes.Red : new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x38));
 
-            if (BtnMuteAll != null)
+            if (BtnMutePreview != null)
             {
-                BtnMuteAll.Content = text;
-                BtnMuteAll.Background = bg;
+                BtnMutePreview.Content = bottomText;
+                BtnMutePreview.Background = bg;
+                BtnMutePreview.ToolTip = isMuted 
+                    ? "Bật tiếng loa kiểm âm Preview (Không ảnh hưởng đến âm thanh PGM)" 
+                    : "Tắt tiếng loa kiểm âm Preview (Không ảnh hưởng đến âm thanh PGM)";
             }
-            if (BtnMixerMuteAll != null)
+
+            LogEvent("[AUDIO]", isMuted 
+                ? "🔇 Đã MUTE kiểm âm Preview (Loa/Tai nghe). Luồng PGM phát sóng và ghi hình vẫn giữ nguyên âm thanh!" 
+                : "🔊 Đã BẬT lại kiểm âm Preview (Loa/Tai nghe).");
+        }
+
+        private void BtnMixerMutePgm_Click(object sender, RoutedEventArgs e)
+        {
+            _audioManager.IsProgramMuted = !_audioManager.IsProgramMuted;
+            bool isMuted = _audioManager.IsProgramMuted;
+            string pgmText = isMuted ? "UNMUTE" : "MUTE";
+            Brush bg = isMuted 
+                ? new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44)) 
+                : new SolidColorBrush(Color.FromRgb(0x2C, 0x2C, 0x34));
+
+            if (BtnMixerMutePgm != null)
             {
-                BtnMixerMuteAll.Content = text;
-                BtnMixerMuteAll.Background = bg;
+                BtnMixerMutePgm.Content = pgmText;
+                BtnMixerMutePgm.Background = bg;
+                BtnMixerMutePgm.ToolTip = isMuted 
+                    ? "Bật lại âm thanh luồng PGM (Phát sóng SDI, NDI, Ghi hình, SRT TX)" 
+                    : "Mute luồng âm thanh PGM (SDI, NDI, Rec, SRT TX)";
             }
+
+            LogEvent("[AUDIO]", isMuted 
+                ? "🔇 Đã MUTE âm thanh luồng PGM (SDI, NDI, Ghi hình, SRT TX Bridge)!" 
+                : "🔊 Đã BẬT lại âm thanh luồng PGM (SDI, NDI, Ghi hình, SRT TX Bridge).");
         }
 
         private void ChkMuteCam_Click(object sender, RoutedEventArgs e)
@@ -1611,6 +1735,7 @@ namespace SRT_DECODE
             if (!_isInitialized) return;
             if (sender is Slider slider)
             {
+                _audioManager.MasterVolumePercent = slider.Value;
                 _audioManager.MonitorVolumePercent = slider.Value;
                 if (TxtGainDbMaster != null)
                 {
@@ -2267,7 +2392,10 @@ namespace SRT_DECODE
 
         private void LogEvent(string tag, string message)
         {
-            if (_isShuttingDown) return;
+            if (_isShuttingDown || string.IsNullOrWhiteSpace(message)) return;
+
+            // Bỏ qua các dòng log chứa thông số và tốc độ truyền frames trên bảng hiển thị log
+            if (IsFrameStatsLog(tag, message)) return;
 
             try
             {
@@ -2297,6 +2425,42 @@ namespace SRT_DECODE
                 });
             }
             catch { }
+        }
+
+        /// <summary>
+        /// Bộ lọc loại trừ các thông số và tốc độ truyền frames gây tràn console log.
+        /// </summary>
+        private static bool IsFrameStatsLog(string tag, string message)
+        {
+            // Bỏ qua thông số tốc độ giải mã & tiến trình khung hình (frame=, fps=, speed=, bitrate=, q=, size=, time=)
+            if (message.Contains("frame=", StringComparison.OrdinalIgnoreCase) || 
+                message.Contains("fps=", StringComparison.OrdinalIgnoreCase) || 
+                message.Contains("speed=", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("bitrate=", StringComparison.OrdinalIgnoreCase) || 
+                message.Contains("q=", StringComparison.OrdinalIgnoreCase) || 
+                message.Contains("size=", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("kB time=", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("dup=", StringComparison.OrdinalIgnoreCase) || 
+                message.Contains("drop=", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            // Bỏ qua các metadata dòng stream của FFmpeg (Stream #, Metadata:, Duration:)
+            if (tag.Contains("FFMPEG", StringComparison.OrdinalIgnoreCase))
+            {
+                if (message.Contains("fps", StringComparison.OrdinalIgnoreCase) || 
+                    message.Contains("tbr", StringComparison.OrdinalIgnoreCase) || 
+                    message.Contains("tbn", StringComparison.OrdinalIgnoreCase) ||
+                    message.Contains("Stream #", StringComparison.OrdinalIgnoreCase) || 
+                    message.Contains("Metadata:", StringComparison.OrdinalIgnoreCase) || 
+                    message.Contains("Duration:", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private void BtnClearLogs_Click(object sender, RoutedEventArgs e)

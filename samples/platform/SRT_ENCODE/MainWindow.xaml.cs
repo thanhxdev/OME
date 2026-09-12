@@ -48,6 +48,8 @@ namespace SRT_ENCODE
         private int _droppedFramesCount = 0;
         private ulong _workerBytesSent = 0;
         private ulong _lastWorkerBytesSent = 0;
+        private long _workerFramesSent = 0;
+        private long _lastWorkerFramesSent = 0;
         private DateTime _lastWorkerBitrateSampleTime = DateTime.UtcNow;
         private CancellationTokenSource? _transmissionCts;
         private MpegTsMuxer? _currentMuxer;
@@ -121,7 +123,7 @@ namespace SRT_ENCODE
                     ScrollerLogs?.ScrollToHome();
                 }
 
-                LogEvent("[INFO]", "Ứng dụng OME Broadcast Live Encoder đang khởi chạy...");
+                LogEvent("[INFO]", "Ứng dụng Encoder đang khởi chạy...");
                 TxtEngineStatus.Text = "Engine: Connecting...";
 
                 // Start High-precision Master UTC Clock
@@ -369,6 +371,8 @@ namespace SRT_ENCODE
             if (!string.IsNullOrWhiteSpace(_sourceManager.CurrentTelemetry.FrameRate))
             {
                 string rawFps = _sourceManager.CurrentTelemetry.FrameRate.Replace("FPS", "").Trim();
+                int spaceIdx = rawFps.IndexOf(' ');
+                if (spaceIdx > 0) rawFps = rawFps.Substring(0, spaceIdx).Trim();
                 if (double.TryParse(rawFps, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double parsedFps) && parsedFps > 0)
                 {
                     sourceFps = parsedFps;
@@ -377,30 +381,23 @@ namespace SRT_ENCODE
 
             if (!_isStreaming)
             {
-                // Trạng thái PREVIEW / STANDBY: Hiển thị đầy đủ thông số thời gian thực của Source & Preview thay vì để 0
-                TxtHudRtt.Text = "0 ms (Local Preview)";
-                TxtHudRtt.Foreground = new SolidColorBrush(Color.FromRgb(100, 181, 246)); // Soft Blue
+                // Trạng thái PREVIEW / STANDBY: Hiển thị đúng trạng thái chờ thực tế của hệ thống
+                TxtHudRtt.Text = "-- ms (Standby)";
+                TxtHudRtt.Foreground = new SolidColorBrush(Color.FromRgb(140, 140, 140));
 
-                TxtHudLoss.Text = "0.0 % (Clean)";
-                TxtHudLoss.Foreground = new SolidColorBrush(Color.FromRgb(0, 230, 118)); // Green
+                TxtHudLoss.Text = "-- % (Standby)";
+                TxtHudLoss.Foreground = new SolidColorBrush(Color.FromRgb(140, 140, 140));
 
-                // Hiển thị bitrate của video nguồn hoặc cấu hình encoder dự kiến
-                if (!string.IsNullOrWhiteSpace(_sourceManager.CurrentTelemetry.Bitrate) && _sourceManager.CurrentTelemetry.Bitrate.Contains("kbps"))
-                {
-                    TxtHudBitrate.Text = _sourceManager.CurrentTelemetry.Bitrate;
-                }
-                else
-                {
-                    int targetKbps = (int)(SldTargetBitrate?.Value ?? 6000);
-                    TxtHudBitrate.Text = $"{targetKbps:N0} kbps (Configured)";
-                }
-                TxtHudBitrate.Foreground = new SolidColorBrush(Color.FromRgb(0, 230, 118));
+                TxtHudBitrate.Text = "0 kbps (Standby)";
+                TxtHudBitrate.Foreground = new SolidColorBrush(Color.FromRgb(140, 140, 140));
 
                 bool isPlaying = (_sourceManager.Player != null && _sourceManager.Player.State == OpenMedia.Platform.PlaybackState.Playing)
-                    || (CmbInputSource?.SelectedIndex == 3 && _colorbarEngine.IsAudioTonePlaying);
+                    || (CmbInputSource?.SelectedIndex == 3 && _colorbarEngine.IsAudioTonePlaying)
+                    || (_sourceManager.CurrentSource == InputSourceType.NDI && _sourceManager.CurrentTelemetry.IsLocked)
+                    || (_sourceManager.CurrentSource == InputSourceType.SDI && _sourceManager.CurrentTelemetry.IsLocked);
 
                 double displayFps = isPlaying ? sourceFps : 0.0;
-                TxtHudFps.Text = $"{displayFps:F2} FPS (Preview Active)";
+                TxtHudFps.Text = isPlaying ? $"{displayFps:F1} FPS (Preview)" : "0.0 FPS (Standby)";
                 TxtHudFps.Foreground = isPlaying 
                     ? new SolidColorBrush(Color.FromRgb(255, 255, 255)) 
                     : new SolidColorBrush(Color.FromRgb(140, 140, 140));
@@ -408,40 +405,64 @@ namespace SRT_ENCODE
                 if (TxtHudEncryption != null)
                 {
                     bool isEnc = ChkEnableEncryption?.IsChecked == true;
-                    TxtHudEncryption.Text = isEnc ? "AES-256 (Ready)" : "None";
+                    TxtHudEncryption.Text = isEnc ? "AES-256 (Armed)" : "None";
                     TxtHudEncryption.Foreground = isEnc ? new SolidColorBrush(Color.FromRgb(0, 230, 118)) : new SolidColorBrush(Color.FromRgb(136, 136, 136));
                 }
                 return;
             }
 
-            // Trạng thái TRANSMITTING (LIVE): Tính toán Bitrate thực tế và trích xuất số liệu SRT Socket
+            // Trạng thái TRANSMITTING (LIVE): Tính toán Throughput và FPS thật từ dữ liệu phát sinh
             DateTime now = DateTime.UtcNow;
             double elapsedSec = (now - _lastWorkerBitrateSampleTime).TotalSeconds;
-            if (elapsedSec >= 0.8)
+            if (elapsedSec >= 0.5)
             {
                 if (_workerBytesSent >= _lastWorkerBytesSent)
                 {
-                    ulong delta = _workerBytesSent - _lastWorkerBytesSent;
-                    double dynamicThroughputKbps = (delta * 8.0 / 1000.0) / elapsedSec;
-                    if (dynamicThroughputKbps > 0)
-                    {
-                        _currentBitrateKbps = dynamicThroughputKbps;
-                    }
+                    ulong deltaBytes = _workerBytesSent - _lastWorkerBytesSent;
+                    double dynamicThroughputKbps = (deltaBytes * 8.0 / 1000.0) / elapsedSec;
+                    _currentBitrateKbps = dynamicThroughputKbps;
                 }
+                else
+                {
+                    _currentBitrateKbps = 0.0;
+                }
+
+                if (_workerFramesSent >= _lastWorkerFramesSent)
+                {
+                    long deltaFrames = _workerFramesSent - _lastWorkerFramesSent;
+                    _currentFps = deltaFrames > 0 ? (deltaFrames / elapsedSec) : 0.0;
+                }
+                else
+                {
+                    _currentFps = 0.0;
+                }
+
                 _lastWorkerBytesSent = _workerBytesSent;
+                _lastWorkerFramesSent = _workerFramesSent;
                 _lastWorkerBitrateSampleTime = now;
             }
 
-            // Fallback bitrate nếu socket stats hoặc delta chưa kịp tính
-            if (_currentBitrateKbps <= 10.0)
+            // Nếu SRT Socket có thống kê native từ libsrt
+            if (_srtStream?.Statistics != null && _srtStream.Statistics.IsConnected)
             {
-                _currentBitrateKbps = (double)(SldTargetBitrate?.Value ?? 6000);
+                if (_srtStream.Statistics.RttMs >= 0)
+                {
+                    _currentRttMs = _srtStream.Statistics.RttMs;
+                }
+                if (_srtStream.Statistics.PacketLossPercent >= 0)
+                {
+                    _currentPacketLoss = _srtStream.Statistics.PacketLossPercent;
+                }
+                if (_srtStream.Statistics.CurrentBitrateKbps > 0)
+                {
+                    _currentBitrateKbps = _srtStream.Statistics.CurrentBitrateKbps;
+                }
             }
 
-            // Fallback FPS khi đang truyền dẫn
-            if (_currentFps <= 1.0)
+            // Đối với nguồn File: khi luồng đang truyền bitrate > 0 thì FPS tương ứng với tốc độ mã hóa nguồn
+            if (_sourceManager.CurrentSource == InputSourceType.File)
             {
-                _currentFps = sourceFps;
+                _currentFps = _currentBitrateKbps > 0 ? sourceFps : 0.0;
             }
 
             // Auto Latency calculation: Latency = 3 * RTT (min 120ms)
@@ -452,15 +473,16 @@ namespace SRT_ENCODE
                 TxtManualLatency.Text = calculatedLatency.ToString();
             }
 
-            // Update HUD UI with actual real-time metrics
-            TxtHudRtt.Text = _currentRttMs > 0 ? $"{_currentRttMs:F0} ms" : "< 1 ms (Loopback/LAN)";
+            // Cập nhật UI HUD số liệu thời gian thực
+            TxtHudRtt.Text = _currentRttMs > 0 ? $"{_currentRttMs:F0} ms" : "< 1 ms (LAN/Local)";
             TxtHudRtt.Foreground = new SolidColorBrush(Color.FromRgb(0, 230, 118));
 
             TxtHudBitrate.Text = $"{_currentBitrateKbps:N0} kbps";
-            TxtHudBitrate.Foreground = new SolidColorBrush(Color.FromRgb(0, 230, 118));
+            TxtHudBitrate.Foreground = _currentBitrateKbps > 0 
+                ? new SolidColorBrush(Color.FromRgb(0, 230, 118)) 
+                : new SolidColorBrush(Color.FromRgb(244, 67, 54));
 
             TxtHudLoss.Text = $"{_currentPacketLoss:F2} %";
-
             if (_currentPacketLoss >= 5.0)
             {
                 TxtHudLoss.Foreground = new SolidColorBrush(Color.FromRgb(244, 67, 54)); // Warning Red
@@ -475,8 +497,10 @@ namespace SRT_ENCODE
                 TxtHudLoss.Foreground = new SolidColorBrush(Color.FromRgb(0, 230, 118)); // Green
             }
 
-            TxtHudFps.Text = $"{_currentFps:F2} FPS (Drop: {_droppedFramesCount})";
-            TxtHudFps.Foreground = new SolidColorBrush(Color.FromRgb(255, 255, 255));
+            TxtHudFps.Text = $"{_currentFps:F1} FPS (Drop: {_droppedFramesCount})";
+            TxtHudFps.Foreground = _currentFps > 0 
+                ? new SolidColorBrush(Color.FromRgb(255, 255, 255)) 
+                : new SolidColorBrush(Color.FromRgb(244, 67, 54));
 
             if (TxtHudEncryption != null)
             {
@@ -1859,8 +1883,14 @@ namespace SRT_ENCODE
                             {
                                 _currentRttMs = stats.RttMs;
                                 _currentPacketLoss = stats.PacketLossPercent;
-                                _currentBitrateKbps = stats.CurrentBitrateKbps > 0 ? stats.CurrentBitrateKbps : (_activeSrtConfig?.BitrateKbps ?? 6000);
-                                _currentFps = stats.CurrentFps;
+                                if (stats.CurrentBitrateKbps > 0)
+                                {
+                                    _currentBitrateKbps = stats.CurrentBitrateKbps;
+                                }
+                                if (stats.CurrentFps > 0)
+                                {
+                                    _currentFps = stats.CurrentFps;
+                                }
                                 _totalBytesTransferred = stats.TotalBytesTransferred;
                             };
 
@@ -2339,6 +2369,7 @@ namespace SRT_ENCODE
                             await stdin.WriteAsync(frameData.AsMemory(0, frameData.Length), token).ConfigureAwait(false);
                             await stdin.FlushAsync(token).ConfigureAwait(false);
                             frameCount++;
+                            Interlocked.Increment(ref _workerFramesSent);
                         }
 
                         double targetTimeMs = frameCount * (1000.0 / 30.0);
@@ -2552,15 +2583,15 @@ namespace SRT_ENCODE
             if (BtnAudioMute != null)
             {
                 BtnAudioMute.ToolTip = _isAudioMuted
-                    ? "Đang tắt tiếng loa kiểm âm (MUTED) - Click để Bật tiếng (UNMUTE)"
-                    : "Đang bật tiếng loa kiểm âm (ACTIVE) - Click để Tắt tiếng (MUTE)";
+                    ? "Loa kiểm âm (Monitor Speaker): Đang tắt tiếng (MUTED) - Click để Bật tiếng (UNMUTE)"
+                    : "Loa kiểm âm (Monitor Speaker): Đang bật tiếng (ACTIVE) - Click để Tắt tiếng (MUTE)";
             }
 
             if (logChange)
             {
                 LogEvent("[AUDIO]", _isAudioMuted
-                    ? "🔇 Đã tắt tiếng (MUTE) âm thanh kiểm âm."
-                    : $"🔊 Đã bật tiếng (UNMUTE) âm thanh kiểm âm (Âm lượng: {(int)(SldMonitorVolume.Value * 100)}%).");
+                    ? "🔇 Đã tắt tiếng loa kiểm âm (Speaker Mute)."
+                    : $"🔊 Đã bật tiếng loa kiểm âm (Speaker Unmute) (Âm lượng: {(int)(SldMonitorVolume.Value * 100)}%).");
             }
         }
 

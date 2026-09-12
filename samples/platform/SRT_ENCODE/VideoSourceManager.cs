@@ -324,11 +324,11 @@ namespace SRT_ENCODE
                 long fileSizeBytes = 0;
                 try { fileSizeBytes = new FileInfo(filePath).Length; } catch { }
 
-                _currentTelemetry.Resolution = "Dynamic Container";
-                _currentTelemetry.FrameRate = "Dynamic Frame Stream";
-                _currentTelemetry.VideoCodec = $"{ext} Media Stream (Hardware Accelerated)";
-                _currentTelemetry.Bitrate = fileSizeBytes > 0 ? $"{(fileSizeBytes / (1024.0 * 1024.0)):F1} MB File" : "Dynamic Bitrate";
-                _currentTelemetry.AudioFormat = "Dynamic Multi-Channel Audio Stream";
+                _currentTelemetry.Resolution = "Đang đọc metadata...";
+                _currentTelemetry.FrameRate = "-- FPS";
+                _currentTelemetry.VideoCodec = $"{ext} File Stream";
+                _currentTelemetry.Bitrate = fileSizeBytes > 0 ? $"{(fileSizeBytes / (1024.0 * 1024.0)):F1} MB (File Size)" : "0 kbps";
+                _currentTelemetry.AudioFormat = "Đang kiểm tra kênh...";
             }
 
             _currentTelemetry.ColorSpace = "ITU-R BT.709 / YUV 4:2:0 (8/10-bit)";
@@ -441,6 +441,22 @@ namespace SRT_ENCODE
             lock (_masterFrameLock)
             {
                 _latestMasterFrame = frameData;
+            }
+
+            // Cập nhật thông số telemetry thật từ khung hình phần cứng SDI/DirectShow thực tế
+            if (width > 0 && height > 0)
+            {
+                string resTag = (width >= 3840) ? "4K UHD" : (width >= 1920) ? "1080p FHD" : $"{height}p HD";
+                string newRes = $"{width} x {height} ({resTag})";
+                string newFps = $"{fps:F2} FPS (DirectShow Live)";
+                if (_currentTelemetry.Resolution != newRes || _currentTelemetry.FrameRate != newFps || !_currentTelemetry.IsLocked)
+                {
+                    _currentTelemetry.Resolution = newRes;
+                    _currentTelemetry.FrameRate = newFps;
+                    _currentTelemetry.Status = "● HARDWARE LOCKED (RECEIVING FRAMES)";
+                    _currentTelemetry.IsLocked = true;
+                    TelemetryUpdated?.Invoke(_currentTelemetry);
+                }
             }
 
             if (_reviewView != null && _currentSource == InputSourceType.SDI && _isPreviewEnabled)
@@ -781,7 +797,7 @@ namespace SRT_ENCODE
             _currentTelemetry.Resolution = "1920 x 1080 (16:9 Reference Full HD)";
             _currentTelemetry.FrameRate = "59.94 FPS (Broadcast Master Clock Locked)";
             _currentTelemetry.VideoCodec = "RAW 10-bit RGBA Vector (No Compression)";
-            _currentTelemetry.Bitrate = "2.97 Gbps (Uncompressed 3G-SDI Standard)";
+            _currentTelemetry.Bitrate = "2.97 Gbps (Raw 3G-SDI Raster) • 0 kbps Net";
             _currentTelemetry.AudioFormat = $"16 Ch @ 48.0 kHz 24-bit ({_colorbarEngine.GetToneDescription()})";
             _currentTelemetry.ColorSpace = "ITU-R BT.709 (100% Full Color Gamut Calibration)";
             _currentTelemetry.PipelineDetails = "High-Precision Vector Shape Renderer • Realtime UTC SEI Burnt-in";

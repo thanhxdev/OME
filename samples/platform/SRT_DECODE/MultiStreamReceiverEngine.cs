@@ -19,7 +19,14 @@ namespace SRT_DECODE
         public double CurrentPacketLoss { get; set; }
         public double CurrentBitrateKbps { get; set; }
         public double CurrentFps { get; set; }
+        public double MeasuredFps { get; set; }
+        public int VideoWidth { get; set; } = 1920;
+        public int VideoHeight { get; set; } = 1080;
         public double BufferHealthPercent { get; set; } = 100.0;
+        public double BandwidthMbps { get; set; }
+        public int PacketsRetransmitted { get; set; }
+        public int PacketsReceived { get; set; }
+        public int PacketsDropped { get; set; }
         public ulong TotalBytesReceived { get; set; }
         public TimeSpan Uptime { get; set; } = TimeSpan.Zero;
         public string StatusMessage { get; set; } = "Standby / Idle";
@@ -105,18 +112,32 @@ namespace SRT_DECODE
                     ch.CurrentRttMs = stats.RttMs;
                     ch.CurrentPacketLoss = stats.PacketLossPercent;
                     ch.CurrentBitrateKbps = stats.CurrentBitrateKbps;
-                    ch.CurrentFps = stats.CurrentFps;
+                    ch.CurrentFps = (ch.MeasuredFps > 0.1) ? ch.MeasuredFps : (_decoders[index] != null ? _decoders[index]!.GetCurrentFps() : stats.CurrentFps);
                     ch.TotalBytesReceived = stats.TotalBytesTransferred;
                     ch.Uptime = stats.Uptime;
+                    ch.BandwidthMbps = stats.BandwidthMbps;
+                    ch.PacketsRetransmitted = stats.PacketsRetransmitted;
+                    ch.PacketsReceived = stats.PacketsReceived;
+                    ch.PacketsDropped = stats.PacketsDropped;
 
-                    // Evaluate buffer health based on packet loss & RTT
-                    if (stats.PacketLossPercent > 5.0 || stats.RttMs > 250)
+                    // Evaluate real stream buffer health deterministically based on loss, dropped pkts, and RTT
+                    if (!ch.IsConnected)
                     {
-                        ch.BufferHealthPercent = Math.Max(30.0, 100.0 - stats.PacketLossPercent * 5.0);
+                        ch.BufferHealthPercent = 0.0;
                     }
                     else
                     {
-                        ch.BufferHealthPercent = 98.0 + (new Random().NextDouble() * 2.0);
+                        double health = 100.0;
+                        health -= stats.PacketLossPercent * 6.0;
+                        if (stats.RttMs > 100.0)
+                        {
+                            health -= Math.Min(30.0, (stats.RttMs - 100.0) * 0.2);
+                        }
+                        if (stats.PacketsDropped > 0)
+                        {
+                            health -= Math.Min(25.0, stats.PacketsDropped * 2.0);
+                        }
+                        ch.BufferHealthPercent = Math.Clamp(Math.Round(health, 1), 0.0, 100.0);
                     }
 
                     // Feed frame timing into NTP Sync Engine
@@ -150,6 +171,10 @@ namespace SRT_DECODE
                     decoder.LogEmitted += (tag, msg) => Log(tag, msg);
                     decoder.FrameDecoded += (chIdx, frameBytes, w, h) =>
                     {
+                        ch.VideoWidth = decoder.DetectedWidth;
+                        ch.VideoHeight = decoder.DetectedHeight;
+                        ch.MeasuredFps = decoder.GetCurrentFps();
+                        ch.CurrentFps = ch.MeasuredFps;
                         FrameReady?.Invoke(chIdx, frameBytes, w, h);
                     };
                     decoder.Start();
@@ -271,6 +296,7 @@ namespace SRT_DECODE
                 ch.CurrentPacketLoss = 0;
                 ch.CurrentBitrateKbps = 0;
                 ch.CurrentFps = 0;
+                ch.MeasuredFps = 0;
                 ch.StatusMessage = "Standby / Stopped";
 
                 ChannelUpdated?.Invoke(index, ch);

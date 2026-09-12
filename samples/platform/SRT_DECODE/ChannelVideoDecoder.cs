@@ -23,10 +23,32 @@ namespace SRT_DECODE
         private bool _isRunning;
         private bool _disposed;
 
+        private int _detectedWidth = 1920;
+        private int _detectedHeight = 1080;
+        private double _detectedFps = 59.94;
+        private int _decodedFrameCounter;
+        private long _lastFpsTick = Environment.TickCount64;
+        private double _measuredFps = 0.0;
+
         public int ChannelIndex => _channelIndex;
         public int Width => _width;
         public int Height => _height;
         public bool IsRunning => _isRunning;
+
+        public int DetectedWidth => _detectedWidth;
+        public int DetectedHeight => _detectedHeight;
+        public double DetectedFps => _detectedFps;
+        public double MeasuredFps => _measuredFps;
+
+        public double GetCurrentFps()
+        {
+            long elapsed = Environment.TickCount64 - _lastFpsTick;
+            if (elapsed > 2000 && _decodedFrameCounter == 0)
+            {
+                _measuredFps = 0.0;
+            }
+            return _measuredFps > 0.1 ? _measuredFps : (_detectedFps > 0.1 ? _detectedFps : 0.0);
+        }
 
         /// <summary>
         /// Fired when a new decoded BGRA video frame is ready.
@@ -53,7 +75,8 @@ namespace SRT_DECODE
                 // - probesize & analyzeduration kept minimal to start rendering first frames immediately
                 // - nobuffer and low_delay flags eliminate internal buffering
                 // - rawvideo bgra matches WPF WriteableBitmap Bgra32 pixel format directly
-                string args = $"-hide_banner -loglevel error -probesize 64k -analyzeduration 200k -fflags nobuffer+flush_packets -flags low_delay -f mpegts -i pipe:0 -an -sn -dn -f rawvideo -pix_fmt bgra -s {_width}x{_height} pipe:1";
+                // - loglevel info outputs stream header metadata (resolution & fps) to stderr for auto-detection
+                string args = $"-hide_banner -loglevel info -probesize 128k -analyzeduration 250k -fflags nobuffer+flush_packets -flags low_delay -f mpegts -i pipe:0 -an -sn -dn -f rawvideo -pix_fmt bgra -s {_width}x{_height} pipe:1";
 
                 var psi = new ProcessStartInfo
                 {
@@ -92,7 +115,43 @@ namespace SRT_DECODE
                         {
                             string? line = await reader.ReadLineAsync().ConfigureAwait(false);
                             if (line == null) break;
-                            Log("[FFMPEG]", $"Cam {_channelIndex + 1}: {line}");
+
+                            // Detect input stream resolution & nominal FPS from FFmpeg banner
+                            if (line.Contains("Video:"))
+                            {
+                                var resMatch = System.Text.RegularExpressions.Regex.Match(line, @"\b(\d{3,4})x(\d{3,4})\b");
+                                if (resMatch.Success && int.TryParse(resMatch.Groups[1].Value, out int w) && int.TryParse(resMatch.Groups[2].Value, out int h))
+                                {
+                                    if (w >= 320 && h >= 240)
+                                    {
+                                        _detectedWidth = w;
+                                        _detectedHeight = h;
+                                    }
+                                }
+                                var fpsMatch = System.Text.RegularExpressions.Regex.Match(line, @"([0-9.]+)\s+fps");
+                                if (fpsMatch.Success && double.TryParse(fpsMatch.Groups[1].Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double parsedFps))
+                                {
+                                    if (parsedFps > 1.0)
+                                    {
+                                        _detectedFps = parsedFps;
+                                    }
+                                }
+                            }
+
+                            // Bỏ qua các dòng log chứa thông số và tốc độ truyền frames (frame=, fps=, speed=, bitrate=, time=, stream mapping)
+                            if (line.Contains("frame=") || line.Contains("fps=") || line.Contains("speed=") || 
+                                line.Contains("bitrate=") || line.Contains("time=") || line.Contains("Stream #") ||
+                                line.Contains("size=") || line.Contains("q="))
+                            {
+                                continue;
+                            }
+
+                            // Chỉ ghi log các lỗi hoặc cảnh báo thực sự quan trọng
+                            if (line.Contains("Error", StringComparison.OrdinalIgnoreCase) || 
+                                line.Contains("Fatal", StringComparison.OrdinalIgnoreCase))
+                            {
+                                Log("[FFMPEG]", $"Cam {_channelIndex + 1}: {line}");
+                            }
                         }
                     }
                     catch { }
@@ -116,6 +175,16 @@ namespace SRT_DECODE
 
                             if (totalRead == _frameSizeBytes)
                             {
+                                _decodedFrameCounter++;
+                                long now = Environment.TickCount64;
+                                long elapsed = now - _lastFpsTick;
+                                if (elapsed >= 1000)
+                                {
+                                    _measuredFps = Math.Round((_decodedFrameCounter * 1000.0) / elapsed, 2);
+                                    _decodedFrameCounter = 0;
+                                    _lastFpsTick = now;
+                                }
+
                                 // Create a copy of the frame bytes for UI thread consumption
                                 byte[] frameCopy = new byte[_frameSizeBytes];
                                 Buffer.BlockCopy(frameBuffer, 0, frameCopy, 0, _frameSizeBytes);
@@ -177,6 +246,8 @@ namespace SRT_DECODE
         {
             if (!_isRunning) return;
             _isRunning = false;
+            _measuredFps = 0.0;
+            _decodedFrameCounter = 0;
 
             try
             {

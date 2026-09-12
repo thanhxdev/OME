@@ -127,9 +127,12 @@ namespace SRT_DECODE
 
         private SoloAudioSource _soloSource = SoloAudioSource.ProgramMaster;
         private AudioChannelConfiguration _channelConfig = AudioChannelConfiguration.Stereo2Ch;
-        private bool _isMuteAll = false;
+        private bool _isPreviewMuted = true;
+        private bool _isProgramMuted = false;
         private double _monitorVolumePercent = 80.0;
-        private float _currentMasterRamp = 0.8f;
+        private double _masterVolumePercent = 80.0;
+        private float _currentMasterRamp = 0.0f;
+        private float _currentPgmRamp = 0.8f;
         private int _currentProgramIndex = 0;
         private bool _disposed;
 
@@ -234,15 +237,55 @@ namespace SRT_DECODE
             }
         }
 
-        public bool IsMuteAll
+        /// <summary>
+        /// Mute kiểm âm loa / tai nghe Preview (Local Monitoring) mà KHÔNG ảnh hưởng đến âm thanh phát sóng PGM (SDI, NDI, Recording, SRT TX Bridge).
+        /// </summary>
+        public bool IsPreviewMuted
         {
-            get => _isMuteAll;
+            get => _isPreviewMuted;
             set
             {
-                _isMuteAll = value;
-                Log("[AUDIO]", _isMuteAll ? "🔇 MUTE ALL kiểm âm Master" : "🔊 UNMUTE kiểm âm Master");
+                _isPreviewMuted = value;
+                Log("[AUDIO]", _isPreviewMuted 
+                    ? "🔇 MUTE PREVIEW: Đã ngắt tiếng loa/tai nghe kiểm âm (Âm thanh phát sóng PGM vẫn hoạt động bình thường)" 
+                    : "🔊 UNMUTE PREVIEW: Đã bật lại tiếng loa/tai nghe kiểm âm");
                 _audioOutput.Wake();
             }
+        }
+
+        /// <summary>
+        /// Mute luồng âm thanh phát sóng & ghi hình PGM (SDI, NDI, Recording, SRT TX Bridge).
+        /// </summary>
+        public bool IsProgramMuted
+        {
+            get => _isProgramMuted;
+            set
+            {
+                _isProgramMuted = value;
+                Log("[AUDIO]", _isProgramMuted
+                    ? "🔇 MUTE PGM: Đã ngắt tiếng luồng âm thanh PGM (SDI, NDI, Recording, SRT TX Bridge)"
+                    : "🔊 UNMUTE PGM: Đã bật lại tiếng luồng âm thanh PGM");
+                _audioOutput.Wake();
+            }
+        }
+
+        public double MasterVolumePercent
+        {
+            get => _masterVolumePercent;
+            set
+            {
+                _masterVolumePercent = Math.Clamp(value, 0.0, 100.0);
+                _audioOutput.Wake();
+            }
+        }
+
+        /// <summary>
+        /// Tương thích ngược: Thao tác mute kiểm âm local monitor.
+        /// </summary>
+        public bool IsMuteAll
+        {
+            get => _isPreviewMuted;
+            set => IsPreviewMuted = value;
         }
 
         public double MonitorVolumePercent
@@ -261,7 +304,7 @@ namespace SRT_DECODE
             {
                 _camLevels[i] = new ChannelAudioLevels();
                 _camMeters[i] = new AudioMeterService();
-                _camRingBuffers[i] = new AudioRingBuffer(capacityBytes: 96000, preRollMs: 20); // 500ms buffer capacity with 20ms ultra-low latency jitter pre-roll
+                _camRingBuffers[i] = new AudioRingBuffer(capacityBytes: 96000, preRollMs: 80); // 500ms buffer capacity with 80ms jitter pre-roll
                 _channelMuted[i] = true; // Mặc định các preview màn hình ingest đều được Mute
                 _channelGainDb[i] = 0.0; // Mặc định 0 dB (Unity gain)
                 _channelPan[i] = 0.0;    // Mặc định Center
@@ -338,7 +381,7 @@ namespace SRT_DECODE
                 }
 
                 bool streamAlive = (now - _lastPcmReceivedTicks[i]) < 1000;
-                _targetMuteRamp[i] = (chShouldPlay && streamAlive && !_isMuteAll) ? 1.0f : 0.0f;
+                _targetMuteRamp[i] = (chShouldPlay && streamAlive) ? 1.0f : 0.0f;
 
                 // Calculate target linear gain from dB (-60 dB to +12 dB)
                 if (_channelGainDb[i] <= -58.0)
@@ -393,19 +436,23 @@ namespace SRT_DECODE
                 }
             }
 
-            // Master Output Stage: Apply master volume fader & soft-knee peak limiter
-            float targetMasterRamp = _isMuteAll ? 0.0f : (float)(_monitorVolumePercent / 100.0);
+            // ─── Stage 1: PGM Broadcast Master Output ──────────────────────────────
+            // Render pure, broadcast-grade Master Program audio with soft-knee limiter and master volume/mute.
+            // This is the definitive PGM mix for SDI Card, NDI, Recording, and SRT Bridge.
+            float targetPgmRamp = _isProgramMuted ? 0.0f : (float)(_masterVolumePercent / 100.0);
 
             for (int n = 0; n < frameCount; n++)
             {
-                _currentMasterRamp += (targetMasterRamp - _currentMasterRamp) * 0.005f;
-                float sampleL = _mixL[n] * _currentMasterRamp;
-                float sampleR = _mixR[n] * _currentMasterRamp;
+                _currentPgmRamp += (targetPgmRamp - _currentPgmRamp) * 0.01f;
 
-                // Soft-Knee Saturation Limiter: Transparent up to 0.85 (-1.4 dBFS),
-                // smoothly saturates peaks above 0.85 without hard clipping or pops
-                sampleL = SoftLimit(sampleL);
-                sampleR = SoftLimit(sampleR);
+                float sampleL = 0.0f;
+                float sampleR = 0.0f;
+
+                if (_currentPgmRamp > 0.0001f)
+                {
+                    sampleL = SoftLimit(_mixL[n] * _currentPgmRamp);
+                    sampleR = SoftLimit(_mixR[n] * _currentPgmRamp);
+                }
 
                 short outL = (short)Math.Clamp(sampleL * 32767.0f, short.MinValue, short.MaxValue);
                 short outR = (short)Math.Clamp(sampleR * 32767.0f, short.MinValue, short.MaxValue);
@@ -417,11 +464,43 @@ namespace SRT_DECODE
                 destination[destIdx + 3] = (byte)((outR >> 8) & 0xFF);
             }
 
-            // Feed actual mixed PCM into program meter
+            // Feed actual full-level broadcast PGM audio into program meter
             _programMeter.ProcessPcmBytes(destination, offset, count, 16, 2, 48000, isFloat: false);
 
             // Emit mixed Program PCM audio for NDI, SDI, Recording & SRT Bridge outputs
+            // (ALWAYS active and clean, completely unaffected by operator preview mute or monitor volume)
             ProgramMixedPcmAvailable?.Invoke(destination, offset, count);
+
+            // ─── Stage 2: Local Preview Monitoring (Headphones / Speakers) ─────────
+            // Apply Preview Mute and local monitor volume fader ONLY to the buffer sent to AudioOutputDevice.
+            float targetMonitorRamp = _isPreviewMuted ? 0.0f : (float)(_monitorVolumePercent / 100.0);
+
+            for (int n = 0; n < frameCount; n++)
+            {
+                _currentMasterRamp += (targetMonitorRamp - _currentMasterRamp) * 0.01f;
+                int destIdx = offset + (n * 4);
+
+                if (_currentMasterRamp <= 0.0001f)
+                {
+                    // Completely silence local preview audio output
+                    destination[destIdx] = 0;
+                    destination[destIdx + 1] = 0;
+                    destination[destIdx + 2] = 0;
+                    destination[destIdx + 3] = 0;
+                }
+                else if (_currentMasterRamp < 0.999f || _currentMasterRamp > 1.001f)
+                {
+                    short pcmL = BitConverter.ToInt16(destination, destIdx);
+                    short pcmR = BitConverter.ToInt16(destination, destIdx + 2);
+                    short monL = (short)Math.Clamp((int)(pcmL * _currentMasterRamp), short.MinValue, short.MaxValue);
+                    short monR = (short)Math.Clamp((int)(pcmR * _currentMasterRamp), short.MinValue, short.MaxValue);
+
+                    destination[destIdx] = (byte)(monL & 0xFF);
+                    destination[destIdx + 1] = (byte)((monL >> 8) & 0xFF);
+                    destination[destIdx + 2] = (byte)(monR & 0xFF);
+                    destination[destIdx + 3] = (byte)((monR >> 8) & 0xFF);
+                }
+            }
 
             return count;
         }
@@ -482,18 +561,9 @@ namespace SRT_DECODE
                 }
             }
 
-            // Fetch Master Program meter levels (which are fed continuously from the real mixer output)
-            if (!_isMuteAll)
-            {
-                _programMeter.GetPreviewAudioLevels(tempPeaks, tempRms, tempClips, isAudioActive: true);
-                _programLevels.CopyFrom(tempPeaks, tempRms, tempClips, configuredChannels);
-            }
-            else
-            {
-                _programMeter.DecayMeters();
-                _programMeter.GetPreviewAudioLevels(tempPeaks, tempRms, tempClips, isAudioActive: false);
-                _programLevels.CopyFrom(tempPeaks, tempRms, tempClips, configuredChannels);
-            }
+            // Fetch Master Program meter levels (which are fed continuously from the real broadcast PGM mixer output)
+            _programMeter.GetPreviewAudioLevels(tempPeaks, tempRms, tempClips, isAudioActive: true);
+            _programLevels.CopyFrom(tempPeaks, tempRms, tempClips, configuredChannels);
 
             CamLevelsUpdated?.Invoke(_camLevels);
             ProgramLevelsUpdated?.Invoke(_programLevels);

@@ -44,6 +44,7 @@ namespace SRT_DECODE
         private bool _wasInSilence = true;
         private short _lastSampleL = 0;
         private short _lastSampleR = 0;
+        private int _consecutiveStarvations = 0;
 
         public int Capacity => _capacity;
         public bool IsBuffering => _isBuffering;
@@ -59,17 +60,17 @@ namespace SRT_DECODE
             }
         }
 
-        public AudioRingBuffer(int capacityBytes = 96000, int preRollMs = 20)
+        public AudioRingBuffer(int capacityBytes = 96000, int preRollMs = 80)
         {
             // Ensure capacity is aligned to 4 bytes
             _capacity = capacityBytes - (capacityBytes % FrameAlignment);
             if (_capacity <= 0) _capacity = 96000;
             _buffer = new byte[_capacity];
 
-            // 20ms default low-latency pre-roll threshold (48000 * 4 * 0.02 = 3840 bytes)
+            // 80ms default low-latency jitter pre-roll threshold (48000 * 4 * 0.08 = 15360 bytes, ~3.2 output frames)
             int preRoll = (preRollMs * 48000 * FrameAlignment) / 1000;
             preRoll -= (preRoll % FrameAlignment);
-            _preRollBytes = Math.Clamp(preRoll, 960, _capacity / 2); // 5ms to 50% capacity
+            _preRollBytes = Math.Clamp(preRoll, 9600, _capacity / 2); // Minimum 9600 bytes (~50ms) to ensure at least 2 full output buffers
         }
 
         /// <summary>
@@ -142,6 +143,7 @@ namespace SRT_DECODE
                     if (_count >= _preRollBytes)
                     {
                         _isBuffering = false;
+                        _consecutiveStarvations = 0;
                     }
                 }
 
@@ -162,16 +164,17 @@ namespace SRT_DECODE
 
                         _readPos = (_readPos + toRead) % _capacity;
                         _count -= toRead;
-
-                        // If reading drained the buffer completely, enter buffering mode to avoid ping-pong starvation
-                        if (_count == 0)
-                        {
-                            _isBuffering = true;
-                        }
+                        _consecutiveStarvations = 0;
                     }
                     else
                     {
-                        _isBuffering = true;
+                        _consecutiveStarvations++;
+                        // Only re-enter buffering mode if starved for at least 4 consecutive reads (~100ms stall)
+                        // This prevents temporary 1ms packet jitter from shutting down playback
+                        if (_consecutiveStarvations >= 4)
+                        {
+                            _isBuffering = true;
+                        }
                     }
                 }
             }
@@ -323,6 +326,7 @@ namespace SRT_DECODE
                 _readPos = 0;
                 _writePos = 0;
                 _count = 0;
+                _consecutiveStarvations = 0;
                 _isBuffering = true;
                 _wasInSilence = true;
                 _lastSampleL = 0;

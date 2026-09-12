@@ -6,7 +6,7 @@
         xmlns:om="clr-namespace:OpenMedia.Platform.Controls.Wpf;assembly=OpenMedia.Platform"
         xmlns:local="clr-namespace:SRT_ENCODE"
         mc:Ignorable="d"
-        Title="OME Broadcast Live Encoder - SRT Professional Transmitter"
+        Title="Encoder - SRT Professional Transmitter"
         Height="720" Width="1180"
         MinHeight="500" MinWidth="850"
         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -436,7 +436,7 @@
                     <Border Background="#007ACC" CornerRadius="4" Padding="6,3" Margin="0,0,10,0">
                         <TextBlock Text="SRT LIVE" FontWeight="Bold" FontSize="12" Foreground="White"/>
                     </Border>
-                    <TextBlock Text="OME Broadcast Live Encoder" FontSize="17" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center"/>
+                    <TextBlock Text="Encoder" FontSize="17" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center"/>
                     <Border Background="#2A2A2E" CornerRadius="3" Padding="5,2" Margin="10,0,0,0" VerticalAlignment="Center">
                         <TextBlock Text="PRO v1.0" FontSize="10" FontWeight="SemiBold" Foreground="#4EC9B0"/>
                     </Border>
@@ -769,7 +769,7 @@
 
                         <!-- Volume & Audio Mute/Unmute Controls (Default: Muted) -->
                         <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button x:Name="BtnAudioMute" Style="{StaticResource IconOnlyButtonStyle}" Click="BtnAudioMute_Click" ToolTip="Đang tắt tiếng loa kiểm âm (MUTED) - Click để Bật tiếng (UNMUTE)" Margin="0,0,3,0">
+                            <Button x:Name="BtnAudioMute" Style="{StaticResource IconOnlyButtonStyle}" Click="BtnAudioMute_Click" ToolTip="Loa kiểm âm (Monitor Speaker): Đang tắt tiếng (MUTED) - Click để Bật tiếng (UNMUTE)" Margin="0,0,3,0">
                                 <TextBlock x:Name="TxtAudioMuteIcon" Text="🔇" FontSize="13" Foreground="#EF4444" VerticalAlignment="Center"/>
                             </Button>
                             <TextBlock Text="Vol:" FontSize="11" Foreground="#9E9E9E" VerticalAlignment="Center" Margin="0,0,4,0"/>
