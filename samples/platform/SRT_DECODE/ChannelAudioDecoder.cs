@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace SRT_DECODE
@@ -16,6 +17,7 @@ namespace SRT_DECODE
         private Process? _process;
         private Stream? _stdin;
         private Stream? _stdout;
+        private Channel<byte[]>? _inputChannel;
         private CancellationTokenSource? _cts;
         private bool _isRunning;
         private bool _disposed;
@@ -42,12 +44,11 @@ namespace SRT_DECODE
             try
             {
                 // Low-latency FFmpeg audio decoder parameters:
-                // - probesize 128k & analyzeduration 250k closely mirrors video decoder (64k/200k)
-                //   to eliminate any A/V startup delay skew (resolving the ~800ms desync)
+                // - probesize 1000k & analyzeduration 1000k ensures full detection of AAC/MP2/SMPTE stream headers
                 // - -map 0:a? maps the first available audio track
                 // - nobuffer and low_delay flags eliminate internal latency
                 // - s16le 48000Hz 2ch directly matches Windows sound card / mixer output
-                string args = "-hide_banner -loglevel warning -err_detect ignore_err -probesize 128k -analyzeduration 250k -fflags nobuffer+flush_packets -flags low_delay -f mpegts -i pipe:0 -map 0:a? -vn -sn -dn -f s16le -ar 48000 -ac 2 pipe:1";
+                string args = "-hide_banner -loglevel warning -err_detect ignore_err -probesize 1000k -analyzeduration 1000k -thread_queue_size 512 -fflags nobuffer -flags low_delay -f mpegts -i pipe:0 -map 0:a? -vn -sn -dn -f s16le -ar 48000 -ac 2 pipe:1";
 
                 var psi = new ProcessStartInfo
                 {
@@ -69,12 +70,72 @@ namespace SRT_DECODE
 
                 _stdin = _process.StandardInput.BaseStream;
                 _stdout = _process.StandardOutput.BaseStream;
+                // Unbounded channel: NEVER drop compressed audio TS packets
+                _inputChannel = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions
+                {
+                    SingleReader = true,
+                    SingleWriter = false
+                });
                 _cts = new CancellationTokenSource();
                 _isRunning = true;
 
                 var token = _cts.Token;
                 var proc = _process;
                 var stdout = _stdout;
+                var stdin = _stdin;
+                var inputChannel = _inputChannel;
+
+                // Dedicated decoupled background task to pump TS data into Audio FFmpeg stdin with batch coalescing
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var reader = inputChannel.Reader;
+                        byte[] batchBuffer = new byte[32768];
+                        int batchLen = 0;
+
+                        while (!token.IsCancellationRequested && await reader.WaitToReadAsync(token).ConfigureAwait(false))
+                        {
+                            while (reader.TryRead(out var chunk))
+                            {
+                                if (proc.HasExited || stdin == null) return;
+
+                                if (chunk.Length > batchBuffer.Length - batchLen)
+                                {
+                                    if (batchLen > 0)
+                                    {
+                                        await stdin.WriteAsync(batchBuffer.AsMemory(0, batchLen), token).ConfigureAwait(false);
+                                        batchLen = 0;
+                                    }
+                                }
+
+                                if (chunk.Length >= batchBuffer.Length)
+                                {
+                                    await stdin.WriteAsync(chunk.AsMemory(0, chunk.Length), token).ConfigureAwait(false);
+                                }
+                                else
+                                {
+                                    Buffer.BlockCopy(chunk, 0, batchBuffer, batchLen, chunk.Length);
+                                    batchLen += chunk.Length;
+                                }
+                            }
+
+                            if (batchLen > 0)
+                            {
+                                if (proc.HasExited || stdin == null) return;
+                                await stdin.WriteAsync(batchBuffer.AsMemory(0, batchLen), token).ConfigureAwait(false);
+                                batchLen = 0;
+                            }
+
+                            if (stdin != null)
+                            {
+                                await stdin.FlushAsync(token).ConfigureAwait(false);
+                            }
+                        }
+                    }
+                    catch (OperationCanceledException) { }
+                    catch { }
+                }, token);
 
                 // Drain stderr loop for diagnostics
                 _ = Task.Run(async () =>
@@ -170,14 +231,20 @@ namespace SRT_DECODE
 
         public void FeedData(byte[] data, int length)
         {
-            if (!_isRunning || _stdin == null || _process == null || _process.HasExited || data == null || length <= 0) return;
+            if (!_isRunning || _inputChannel == null || data == null || length <= 0) return;
 
             try
             {
-                _stdin.Write(data, 0, length);
-                _stdin.Flush();
+                byte[] chunk = new byte[length];
+                Buffer.BlockCopy(data, 0, chunk, 0, length);
+                _inputChannel.Writer.TryWrite(chunk);
             }
             catch { }
+        }
+
+        public void Flush()
+        {
+            // Handled asynchronously in decoupled pump
         }
 
         public void Stop()
@@ -188,6 +255,9 @@ namespace SRT_DECODE
             try
             {
                 _cts?.Cancel();
+
+                try { _inputChannel?.Writer.TryComplete(); } catch { }
+                _inputChannel = null;
 
                 // Kill process tree first so readers unblock immediately
                 if (_process != null && !_process.HasExited)

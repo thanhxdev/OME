@@ -192,10 +192,25 @@ namespace OpenMedia.SDK
             }
         }
 
-        public bool Send(byte[] data)
+        public bool Send(byte[] data, int length = -1)
         {
             if (_handle.IsInvalid || !IsOpen || data == null || data.Length == 0) return false;
-            return NativeBridge.ome_srt_output_send(_handle, data, data.Length);
+            int size = length > 0 && length <= data.Length ? length : data.Length;
+            return NativeBridge.ome_srt_output_send(_handle, data, size);
+        }
+
+        public bool SendMsg(byte[] data, int length = -1, int ttlMs = 0, bool inOrder = true)
+        {
+            if (_handle.IsInvalid || !IsOpen || data == null || data.Length == 0) return false;
+            int size = length > 0 && length <= data.Length ? length : data.Length;
+            try
+            {
+                return NativeBridge.ome_srt_output_send_msg(_handle, data, size, ttlMs, inOrder);
+            }
+            catch (EntryPointNotFoundException)
+            {
+                return NativeBridge.ome_srt_output_send(_handle, data, size);
+            }
         }
 
         public bool GetStatistics(out NativeBridge.SRTNativeStats stats)

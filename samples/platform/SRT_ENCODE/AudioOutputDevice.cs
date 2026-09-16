@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-namespace WEBRTC_DECODE
+namespace SRT_ENCODE
 {
     /// <summary>
     /// Rock-solid, low-latency Windows audio output device using Win32 waveOut (winmm.dll).
@@ -22,10 +22,10 @@ namespace WEBRTC_DECODE
         private const int BitsPerSample = 16;
         private const int BytesPerSample = Channels * (BitsPerSample / 8); // 4 bytes per stereo frame
 
-        // 4 buffers of 20ms each = 80ms total hardware buffer pool for sweet-spot WebRTC A/V synchronization
-        private const int BufferCount = 4;
-        private const int BufferDurationMs = 20;
-        private const int BufferSizeBytes = (SampleRate * BytesPerSample * BufferDurationMs) / 1000; // 3840 bytes (20ms @ 48kHz stereo)
+        // 6 buffers of 25ms each = 150ms total hardware buffer pool for smooth, jitter-free playback
+        private const int BufferCount = 6;
+        private const int BufferDurationMs = 25;
+        private const int BufferSizeBytes = (SampleRate * BytesPerSample * BufferDurationMs) / 1000; // 4800 bytes
 
         [StructLayout(LayoutKind.Sequential)]
         public struct WaveFormatEx
@@ -52,26 +52,6 @@ namespace WEBRTC_DECODE
             public IntPtr reserved;
         }
 
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
-        public struct WaveOutCaps
-        {
-            public ushort wMid;
-            public ushort wPid;
-            public uint vDriverVersion;
-            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
-            public string szPname;
-            public uint dwFormats;
-            public ushort wChannels;
-            public ushort wReserved1;
-            public uint dwSupport;
-        }
-
-        [DllImport("winmm.dll", EntryPoint = "waveOutGetNumDevs")]
-        private static extern int WaveOutGetNumDevs();
-
-        [DllImport("winmm.dll", EntryPoint = "waveOutGetDevCapsW", CharSet = CharSet.Unicode)]
-        private static extern int WaveOutGetDevCaps(IntPtr uDeviceID, out WaveOutCaps pwoc, int cbwoc);
-
         [DllImport("winmm.dll")]
         private static extern int waveOutOpen(out IntPtr hWaveOut, int uDeviceID, ref WaveFormatEx lpFormat, IntPtr dwCallback, IntPtr dwInstance, int dwFlags);
 
@@ -97,9 +77,6 @@ namespace WEBRTC_DECODE
         private static extern uint timeEndPeriod(uint uMilliseconds);
 
         private IntPtr _hWaveOut = IntPtr.Zero;
-        private int _currentDeviceId = WAVE_MAPPER;
-        public int CurrentDeviceId => _currentDeviceId;
-
         private readonly IntPtr[] _nativeHdrPtrs = new IntPtr[BufferCount];
         private readonly IntPtr[] _nativeBufferPtrs = new IntPtr[BufferCount];
         private readonly bool[] _bufferInUse = new bool[BufferCount];
@@ -109,7 +86,7 @@ namespace WEBRTC_DECODE
         private byte[]? _carryOverChunk;
         private int _carryOverOffset;
         private volatile bool _isPreRolling = true;
-        private const int PreRollChunkCount = 2; // ~20ms initial buffer before starting hardware playback
+        private const int PreRollChunkCount = 3; // ~60ms initial buffer before starting hardware playback
         private bool _wasSilence = true;
 
         private readonly Thread? _playbackThread;
@@ -123,79 +100,6 @@ namespace WEBRTC_DECODE
         public void Wake() => _wakeEvent.Set();
 
         public bool IsOpen => _hWaveOut != IntPtr.Zero;
-
-        public static System.Collections.Generic.List<AudioDeviceInfo> GetOutputDevices()
-        {
-            var list = new System.Collections.Generic.List<AudioDeviceInfo>();
-            list.Add(new AudioDeviceInfo(WAVE_MAPPER, "Mặc định hệ thống (Default Audio Device)"));
-            int count = WaveOutGetNumDevs();
-            for (int i = 0; i < count; i++)
-            {
-                if (WaveOutGetDevCaps((IntPtr)i, out var caps, Marshal.SizeOf<WaveOutCaps>()) == 0)
-                {
-                    string name = string.IsNullOrWhiteSpace(caps.szPname) ? $"Speaker/Headphone {i}" : caps.szPname.Trim();
-                    list.Add(new AudioDeviceInfo(i, name));
-                }
-            }
-            return list;
-        }
-
-        public bool ChangeDevice(int deviceId)
-        {
-            lock (_lock)
-            {
-                try
-                {
-                    if (_hWaveOut != IntPtr.Zero)
-                    {
-                        IntPtr oldHw = _hWaveOut;
-                        _hWaveOut = IntPtr.Zero; // Pause writes during reset
-                        try { waveOutReset(oldHw); } catch { }
-                        int hdrSize = Marshal.SizeOf<WaveHdr>();
-                        for (int i = 0; i < BufferCount; i++)
-                        {
-                            if (_nativeHdrPtrs[i] != IntPtr.Zero && _bufferInUse[i])
-                            {
-                                try { waveOutUnprepareHeader(oldHw, _nativeHdrPtrs[i], hdrSize); } catch { }
-                                _bufferInUse[i] = false;
-                            }
-                        }
-                        try { waveOutClose(oldHw); } catch { }
-                    }
-
-                    var format = new WaveFormatEx
-                    {
-                        wFormatTag = 1, // PCM
-                        nChannels = (ushort)Channels,
-                        nSamplesPerSec = (uint)SampleRate,
-                        wBitsPerSample = (ushort)BitsPerSample,
-                        nBlockAlign = (ushort)BytesPerSample,
-                        nAvgBytesPerSec = (uint)(SampleRate * BytesPerSample),
-                        cbSize = 0
-                    };
-
-                    int res = waveOutOpen(out _hWaveOut, deviceId, ref format, IntPtr.Zero, IntPtr.Zero, CALLBACK_NULL);
-                    if (res != 0 || _hWaveOut == IntPtr.Zero)
-                    {
-                        Trace.WriteLine($"[AudioOutputDevice] ChangeDevice {deviceId} failed ({res}), falling back to WAVE_MAPPER");
-                        res = waveOutOpen(out _hWaveOut, WAVE_MAPPER, ref format, IntPtr.Zero, IntPtr.Zero, CALLBACK_NULL);
-                        _currentDeviceId = WAVE_MAPPER;
-                    }
-                    else
-                    {
-                        _currentDeviceId = deviceId;
-                    }
-
-                    Wake();
-                    return res == 0;
-                }
-                catch (Exception ex)
-                {
-                    Trace.WriteLine($"[AudioOutputDevice] ChangeDevice error: {ex.Message}");
-                    return false;
-                }
-            }
-        }
 
         public AudioOutputDevice()
         {
@@ -264,6 +168,13 @@ namespace WEBRTC_DECODE
         {
             if (!_isRunning || _hWaveOut == IntPtr.Zero || pcmData == null || count <= 0) return;
 
+            // If volume is effectively zero, avoid queuing audible noise
+            if (volumeMultiplier <= 0.0001)
+            {
+                ClearQueue();
+                return;
+            }
+
             // Prevent queue buildup beyond ~600ms (30 chunks of 20ms) to ensure low latency without premature packet drops
             while (_audioQueue.Count > 35)
             {
@@ -317,22 +228,10 @@ namespace WEBRTC_DECODE
             byte[] activePcmAccumulator = new byte[BufferSizeBytes];
             int accumOffset = 0;
 
-            while (_isRunning)
+            while (_isRunning && _hWaveOut != IntPtr.Zero)
             {
                 try
                 {
-                    IntPtr hWaveOut;
-                    lock (_lock)
-                    {
-                        hWaveOut = _hWaveOut;
-                    }
-
-                    if (hWaveOut == IntPtr.Zero)
-                    {
-                        Thread.Sleep(10);
-                        continue;
-                    }
-
                     IntPtr hdrPtr = _nativeHdrPtrs[bufferIndex];
                     IntPtr dataPtr = _nativeBufferPtrs[bufferIndex];
 
@@ -346,14 +245,10 @@ namespace WEBRTC_DECODE
                             prevHdr = Marshal.PtrToStructure<WaveHdr>(hdrPtr);
                         }
 
-                        lock (_lock)
-                        {
-                            if (_hWaveOut != IntPtr.Zero && _hWaveOut == hWaveOut)
-                            {
-                                try { waveOutUnprepareHeader(hWaveOut, hdrPtr, hdrSize); } catch { }
-                                _bufferInUse[bufferIndex] = false;
-                            }
-                        }
+                        if (!_isRunning) break;
+
+                        waveOutUnprepareHeader(_hWaveOut, hdrPtr, hdrSize);
+                        _bufferInUse[bufferIndex] = false;
                     }
 
                     if (MixerReader != null)
@@ -361,7 +256,7 @@ namespace WEBRTC_DECODE
                         int read = MixerReader(activePcmAccumulator, 0, BufferSizeBytes);
                         if (read <= 0)
                         {
-                            _wakeEvent.WaitOne(4);
+                            _wakeEvent.WaitOne(10);
                             if (!_isRunning) break;
                             continue;
                         }
@@ -395,7 +290,6 @@ namespace WEBRTC_DECODE
                         }
 
                         // Fill accumulator with incoming audio chunks until BufferSizeBytes is reached
-                        // Zero sample loss: Any unconsumed remainder of a chunk is preserved for the next buffer cycle
                         accumOffset = 0;
                         while (accumOffset < BufferSizeBytes)
                         {
@@ -425,21 +319,17 @@ namespace WEBRTC_DECODE
 
                                 if (toCopy < chunk.Length)
                                 {
-                                    // Keep remaining unconsumed bytes for the next buffer cycle - NEVER DISCARD SAMPLES!
                                     _carryOverChunk = chunk;
                                     _carryOverOffset = toCopy;
                                 }
                             }
                             else
                             {
-                                // If we have partial data in accumulator, give the next packet 4ms to arrive
-                                // rather than immediately cliff-cutting the waveform and padding silence!
                                 if (accumOffset > 0 && _wakeEvent.WaitOne(4))
                                 {
                                     continue;
                                 }
 
-                                // Underrun occurred: Apply anti-pop linear fade-out to zero on boundary
                                 if (accumOffset > 0)
                                 {
                                     ApplyFadeOut(activePcmAccumulator, accumOffset, 32);
@@ -450,7 +340,6 @@ namespace WEBRTC_DECODE
                             }
                         }
 
-                        // If accumulator is all silence and queue was empty, avoid hammering waveOut
                         if (accumOffset == 0 && _audioQueue.IsEmpty && _carryOverChunk == null)
                         {
                             _wasSilence = true;
@@ -458,7 +347,6 @@ namespace WEBRTC_DECODE
                             continue;
                         }
 
-                        // If resuming from silence, apply smooth anti-pop fade-in to prevent sharp vertical cliff
                         if (_wasSilence)
                         {
                             ApplyFadeIn(activePcmAccumulator, 0, BufferSizeBytes, 32);
@@ -482,23 +370,11 @@ namespace WEBRTC_DECODE
                     };
                     Marshal.StructureToPtr(hdr, hdrPtr, false);
 
-                    lock (_lock)
-                    {
-                        if (_hWaveOut != IntPtr.Zero && _hWaveOut == hWaveOut && _isRunning)
-                        {
-                            try
-                            {
-                                waveOutPrepareHeader(hWaveOut, hdrPtr, hdrSize);
-                                waveOutWrite(hWaveOut, hdrPtr, hdrSize);
-                                _bufferInUse[bufferIndex] = true;
-                                bufferIndex = (bufferIndex + 1) % BufferCount;
-                            }
-                            catch (Exception ex)
-                            {
-                                Trace.WriteLine($"[AudioOutputDevice] waveOutWrite error: {ex.Message}");
-                            }
-                        }
-                    }
+                    waveOutPrepareHeader(_hWaveOut, hdrPtr, hdrSize);
+                    waveOutWrite(_hWaveOut, hdrPtr, hdrSize);
+                    _bufferInUse[bufferIndex] = true;
+
+                    bufferIndex = (bufferIndex + 1) % BufferCount;
                 }
                 catch (Exception ex)
                 {
@@ -508,9 +384,6 @@ namespace WEBRTC_DECODE
             }
         }
 
-        /// <summary>
-        /// Ramps down the last sampleCount stereo frames to zero to eliminate DC clicks on underrun.
-        /// </summary>
         private static void ApplyFadeOut(byte[] buffer, int endOffset, int sampleCount = 32)
         {
             int frameBytes = BytesPerSample; // 4 bytes
@@ -536,9 +409,6 @@ namespace WEBRTC_DECODE
             }
         }
 
-        /// <summary>
-        /// Ramps up the first sampleCount stereo frames from zero to eliminate DC clicks when resuming.
-        /// </summary>
         private static void ApplyFadeIn(byte[] buffer, int startOffset, int totalBytes, int sampleCount = 32)
         {
             int frameBytes = BytesPerSample; // 4 bytes
@@ -565,16 +435,11 @@ namespace WEBRTC_DECODE
 
         public void Close()
         {
-            _isRunning = false;
-            _wakeEvent.Set();
-
-            if (_playbackThread != null && _playbackThread.IsAlive && Thread.CurrentThread != _playbackThread)
-            {
-                try { _playbackThread.Join(250); } catch { }
-            }
-
             lock (_lock)
             {
+                if (!_isRunning) return;
+                _isRunning = false;
+                _wakeEvent.Set();
                 _carryOverChunk = null;
                 _carryOverOffset = 0;
                 _isPreRolling = true;

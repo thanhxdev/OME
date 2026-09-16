@@ -52,6 +52,7 @@ namespace WEBRTC_DECODE
                     type = "join_session",
                     sessionId = SessionId,
                     senderId = SenderId,
+                    cameraId = SenderId, // Maps to ws.cameraId on Signaling Server so encoders can direct intercom packets to "studio-decoder-1"
                     role = "decoder",
                     timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                     machineId = Environment.MachineName
@@ -90,13 +91,17 @@ namespace WEBRTC_DECODE
             var tallyMsg = new
             {
                 type = "tally_update",
+                sessionId = SessionId,
                 senderId = SenderId,
                 role = "decoder",
+                cameraId = cameraId,
+                state = tallyState,
                 timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                 payload = new
                 {
                     cameraId = cameraId,
-                    tally = tallyState
+                    tally = tallyState,
+                    state = tallyState
                 }
             };
 

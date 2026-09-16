@@ -90,6 +90,7 @@ namespace OpenMedia.Platform
 
             lock (_lock)
             {
+                _isShuttingDown = false;
                 if (_ipcClient?.IsConnected == true)
                     return true; // Already initialized
             }
@@ -209,55 +210,63 @@ namespace OpenMedia.Platform
             };
         }
 
+        private static bool _isShuttingDown = false;
+
         /// <summary>
         /// Shuts down the runtime, closing the IPC connection and releasing all resources.
         /// </summary>
         public static void Shutdown()
         {
-            StopHeartbeat();
-
-            if (_ipcClient != null)
+            lock (_lock)
             {
-                try
-                {
-                    var task = _ipcClient.ShutdownServerAsync();
-                    task.Wait(200);
-                }
-                catch { }
+                if (_isShuttingDown) return;
+                _isShuttingDown = true;
 
-                try
-                {
-                    _ipcClient.Dispose();
-                }
-                catch { }
-                _ipcClient = null;
-            }
+                StopHeartbeat();
 
-            if (_serverProcess != null)
-            {
-                try
+                if (_ipcClient != null)
                 {
-                    _serverProcess.Exited -= OnServerProcessExited;
-                    if (!_serverProcess.HasExited)
+                    try
                     {
-                        if (!_serverProcess.WaitForExit(150))
+                        var task = _ipcClient.ShutdownServerAsync();
+                        task.Wait(200);
+                    }
+                    catch { }
+
+                    try
+                    {
+                        _ipcClient.Dispose();
+                    }
+                    catch { }
+                    _ipcClient = null;
+                }
+
+                if (_serverProcess != null)
+                {
+                    try
+                    {
+                        _serverProcess.Exited -= OnServerProcessExited;
+                        if (!_serverProcess.HasExited)
                         {
-                            _serverProcess.Kill(entireProcessTree: true);
+                            if (!_serverProcess.WaitForExit(150))
+                            {
+                                _serverProcess.Kill(entireProcessTree: true);
+                            }
                         }
                     }
-                }
-                catch { }
+                    catch { }
 
-                try
-                {
-                    _serverProcess.Dispose();
+                    try
+                    {
+                        _serverProcess.Dispose();
+                    }
+                    catch { }
+                    _serverProcess = null;
                 }
-                catch { }
-                _serverProcess = null;
+
+                _engineVersion = null;
+                Trace.WriteLine("[OpenMedia.Platform] Runtime shut down.");
             }
-
-            _engineVersion = null;
-            Trace.WriteLine("[OpenMedia.Platform] Runtime shut down.");
         }
 
         /// <summary>

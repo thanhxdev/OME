@@ -26,6 +26,7 @@ namespace WEBRTC_DECODE
         private readonly UdpClient?[] _audioSockets = new UdpClient?[MaxChannels];
         private readonly CancellationTokenSource?[] _channelCts = new CancellationTokenSource?[MaxChannels];
         private readonly Task?[] _receiveTasks = new Task?[MaxChannels * 2];
+        private readonly bool[] _firstVideoFrameDecoded = new bool[MaxChannels];
 
         private readonly HttpClient _httpClient = new();
         private readonly NtpSyncEngine _syncEngine;
@@ -36,6 +37,8 @@ namespace WEBRTC_DECODE
         public event Action<int, string>? ChannelError;
         public event Action<int, byte[], int, int>? FrameReady;
         public event Action<int, byte[], int>? AudioPcmReady;
+        public event Action<int>? AudioAlignmentRequested; // channelIndex
+        public event Action<int>? AudioResetRequested;     // channelIndex
         public event Action<int, int, int, bool>? ChannelSocketsBound; // channelIndex, videoPort, audioPort, isSinglePort
         public event Action<int, string>? CameraDisplayNameReceived; // channelIndex, cameraDisplayName
 
@@ -108,6 +111,10 @@ namespace WEBRTC_DECODE
                 ch.StatusMessage = "Connecting UDP Sockets...";
                 ChannelUpdated?.Invoke(index, ch);
 
+                _firstVideoFrameDecoded[index] = false;
+                _depacketizers[index]?.Reset();
+                AudioResetRequested?.Invoke(index);
+
                 _channelCts[index] = new CancellationTokenSource();
                 var token = _channelCts[index]!.Token;
 
@@ -119,6 +126,11 @@ namespace WEBRTC_DECODE
                 _decoders[index]!.FrameDecoded += (c, bgra, w, h) =>
                 {
                     ch.IsConnected = true;
+                    if (!_firstVideoFrameDecoded[c])
+                    {
+                        _firstVideoFrameDecoded[c] = true;
+                        AudioAlignmentRequested?.Invoke(c);
+                    }
                     frameCount++;
                     var now = DateTime.UtcNow;
                     double elapsed = (now - lastFpsTime).TotalSeconds;
@@ -234,6 +246,10 @@ namespace WEBRTC_DECODE
                 ch.IsConnected = false;
                 ch.StatusMessage = "Stopping...";
                 ChannelUpdated?.Invoke(index, ch);
+
+                _firstVideoFrameDecoded[index] = false;
+                _depacketizers[index]?.Reset();
+                AudioResetRequested?.Invoke(index);
 
                 _channelCts[index]?.Cancel();
 

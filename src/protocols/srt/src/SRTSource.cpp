@@ -125,6 +125,18 @@ bool SRTSource::Connect(const std::string& uri) {
 
 void SRTSource::AcceptLoop() {
     while (m_running && m_socket != -1) {
+        int curClient = m_clientSocket.load();
+        if (curClient != -1 && curClient != SRT_INVALID_SOCK) {
+            SRT_SOCKSTATUS st = srt_getsockstate(curClient);
+            if (st != SRTS_CONNECTED && st != SRTS_CONNECTING) {
+                spdlog::warn("SRT client socket state changed to {} (disconnected). Resetting listener client.", (int)st);
+                int oldClient = m_clientSocket.exchange(-1);
+                if (oldClient != -1 && oldClient != SRT_INVALID_SOCK) {
+                    srt_close(oldClient);
+                }
+            }
+        }
+
         if (m_clientSocket == -1) {
             sockaddr_in client_sa;
             int client_sa_len = sizeof(client_sa);
@@ -158,7 +170,8 @@ void SRTSource::Disconnect() {
 
 bool SRTSource::IsConnected() const {
     if (m_isListener) {
-        return m_clientSocket != -1;
+        int client = m_clientSocket.load();
+        return client != -1 && client != SRT_INVALID_SOCK && srt_getsockstate(client) == SRTS_CONNECTED;
     }
     return m_socket != -1 && srt_getsockstate(m_socket) == SRTS_CONNECTED;
 }
@@ -171,6 +184,17 @@ int SRTSource::Receive(uint8_t* buffer, size_t size) {
     }
 
     int bytesRead = srt_recv(targetSocket, (char*)buffer, (int)size);
+    if (bytesRead < 0) {
+        SRT_SOCKSTATUS st = srt_getsockstate(targetSocket);
+        if (st != SRTS_CONNECTED && st != SRTS_CONNECTING) {
+            if (m_isListener) {
+                int oldClient = m_clientSocket.exchange(-1);
+                if (oldClient != -1 && oldClient != SRT_INVALID_SOCK) {
+                    srt_close(oldClient);
+                }
+            }
+        }
+    }
     return bytesRead;
 }
 

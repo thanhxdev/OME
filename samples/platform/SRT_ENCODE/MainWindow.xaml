@@ -769,12 +769,12 @@
 
                         <!-- Volume & Audio Mute/Unmute Controls (Default: Muted) -->
                         <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button x:Name="BtnAudioMute" Style="{StaticResource IconOnlyButtonStyle}" Click="BtnAudioMute_Click" ToolTip="Loa kiểm âm (Monitor Speaker): Đang tắt tiếng (MUTED) - Click để Bật tiếng (UNMUTE)" Margin="0,0,3,0">
-                                <TextBlock x:Name="TxtAudioMuteIcon" Text="🔇" FontSize="13" Foreground="#EF4444" VerticalAlignment="Center"/>
+                            <Button x:Name="BtnAudioMute" Style="{StaticResource IconOnlyButtonStyle}" Click="BtnAudioMute_Click" ToolTip="Loa kiểm âm (Monitor Speaker): Đang tắt tiếng (MUTED) - Click để Mở tiếng (UNMUTE)" Margin="0,0,3,0">
+                                <TextBlock x:Name="TxtAudioMuteIcon" Text="🔇" FontSize="13" Foreground="#FF5252" VerticalAlignment="Center"/>
                             </Button>
                             <TextBlock Text="Vol:" FontSize="11" Foreground="#9E9E9E" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                            <Slider x:Name="SldMonitorVolume" Width="70" Minimum="0" Maximum="1" Value="0.4" ValueChanged="SldMonitorVolume_ValueChanged" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="TxtMonitorVolumeVal" Text="40%" FontSize="11" Foreground="#FFFFFF" Width="28" TextAlignment="Right" VerticalAlignment="Center" Margin="2,0,0,0"/>
+                            <Slider x:Name="SldMonitorVolume" Width="70" Minimum="0" Maximum="1" Value="0.7" ValueChanged="SldMonitorVolume_ValueChanged" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtMonitorVolumeVal" Text="70%" FontSize="11" Foreground="#FFFFFF" Width="28" TextAlignment="Right" VerticalAlignment="Center" Margin="2,0,0,0"/>
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -870,13 +870,13 @@
                                                         <ColumnDefinition Width="*"/>
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
-                                                    <RadioButton x:Name="RbEncoderPipe" Grid.Column="0" Content="🎛️ Encoder Pipe" GroupName="VideoPipelineMode" Style="{StaticResource SegmentedRadioButtonStyle}" IsChecked="False" Checked="VideoPipelineMode_Changed" Unchecked="VideoPipelineMode_Changed"/>
-                                                    <RadioButton x:Name="RbPassthrough" Grid.Column="1" Content="⚡ Passthrough" GroupName="VideoPipelineMode" Style="{StaticResource SegmentedRadioButtonStyle}" IsChecked="True" Checked="VideoPipelineMode_Changed" Unchecked="VideoPipelineMode_Changed"/>
+                                                    <RadioButton x:Name="RbEncoderPipe" Grid.Column="0" Content="🎛️ Encoder Pipe" GroupName="VideoPipelineMode" Style="{StaticResource SegmentedRadioButtonStyle}" IsChecked="True" Checked="VideoPipelineMode_Changed" Unchecked="VideoPipelineMode_Changed"/>
+                                                    <RadioButton x:Name="RbPassthrough" Grid.Column="1" Content="⚡ Passthrough" GroupName="VideoPipelineMode" Style="{StaticResource SegmentedRadioButtonStyle}" IsChecked="False" Checked="VideoPipelineMode_Changed" Unchecked="VideoPipelineMode_Changed"/>
                                                 </Grid>
                                             </Border>
 
                                             <!-- Video Compression Codec (Visible when Encoder Pipe is selected) -->
-                                            <StackPanel x:Name="PnlVideoCodecContainer" Visibility="Collapsed">
+                                            <StackPanel x:Name="PnlVideoCodecContainer" Visibility="Visible">
                                                 <TextBlock Text="Video Compression Codec:" Style="{StaticResource HeaderLabelStyle}"/>
                                                 <ComboBox x:Name="CmbVideoCodec" SelectionChanged="CmbVideoCodec_SelectionChanged">
                                                     <ComboBoxItem x:Name="CmbItemH264" Content="H.264 / AVC (Broadcast Reference)" IsSelected="True"/>
@@ -886,11 +886,11 @@
                                             </StackPanel>
 
                                             <!-- Passthrough Information Notice (Visible when Passthrough is selected) -->
-                                            <Border x:Name="PnlPassthroughNotice" Visibility="Visible" Background="#14261C" BorderBrush="#2E7D32" BorderThickness="1" CornerRadius="4" Padding="8,6">
+                                            <Border x:Name="PnlPassthroughNotice" Visibility="Collapsed" Background="#14261C" BorderBrush="#2E7D32" BorderThickness="1" CornerRadius="4" Padding="8,6">
                                                 <StackPanel>
                                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
-                                                        <TextBlock Text="⚡" Margin="0,0,4,0"/>
-                                                        <TextBlock Text="DIRECT BITSTREAM PASSTHROUGH" FontWeight="Bold" FontSize="10.5" Foreground="#00E676"/>
+                                                         <TextBlock Text="⚡" Margin="0,0,4,0"/>
+                                                         <TextBlock Text="DIRECT BITSTREAM PASSTHROUGH" FontWeight="Bold" FontSize="10.5" Foreground="#00E676"/>
                                                     </StackPanel>
                                                     <TextBlock Text="Luồng video gốc từ File/Input được truyền trực tiếp qua SRT mà không cần chọn Codec hay nén lại." FontSize="10" Foreground="#A5D6A7" TextWrapping="Wrap"/>
                                                 </StackPanel>
@@ -955,7 +955,7 @@
                                 <!-- Bitrate & Hardware Acceleration Card -->
                                 <Border Style="{StaticResource DarkCardBorderStyle}">
                                     <StackPanel>
-                                        <TextBlock Text="BITRATE &amp; HARDWARE ENCODER" FontWeight="Bold" FontSize="12" Foreground="#007ACC" Margin="0,0,0,10"/>
+                                        <TextBlock Text="BITRATE, FPS &amp; HARDWARE ENCODER" FontWeight="Bold" FontSize="12" Foreground="#007ACC" Margin="0,0,0,10"/>
 
                                         <Grid Margin="0,4">
                                             <Grid.ColumnDefinitions>
@@ -978,7 +978,7 @@
                                         <Slider x:Name="SldTargetBitrate" Minimum="1000" Maximum="25000" Value="6000" SmallChange="500" LargeChange="1000" ValueChanged="SldTargetBitrate_ValueChanged" Margin="0,6,0,10"/>
 
                                         <TextBlock Text="Hardware Acceleration Engine:" Style="{StaticResource HeaderLabelStyle}"/>
-                                        <Grid>
+                                        <Grid Margin="0,0,0,10">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
@@ -990,6 +990,33 @@
                                                 <ComboBoxItem Content="Software (x264 Zerolatency CPU)"/>
                                             </ComboBox>
                                             <Button Grid.Column="1" Content="🔄 Scan GPU" Style="{StaticResource ActionButtonStyle}" Click="BtnScanHardwareEncoder_Click"/>
+                                        </Grid>
+
+                                        <!-- Target Frame Rate (FPS) & ULL Profile Grid -->
+                                        <Grid Margin="0,0,0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                <TextBlock Text="Transmission Frame Rate (FPS):" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <ComboBox x:Name="CmbStreamFrameRate" SelectionChanged="CmbStreamFrameRate_SelectionChanged">
+                                                    <ComboBoxItem Content="60.00 FPS (Ultra Smooth / Esports)"/>
+                                                    <ComboBoxItem Content="59.94 FPS (Broadcast NTSC Reference)"/>
+                                                    <ComboBoxItem Content="50.00 FPS (Broadcast PAL Reference)"/>
+                                                    <ComboBoxItem Content="30.00 FPS (Standard Web / Streaming)"/>
+                                                    <ComboBoxItem Content="29.97 FPS (Standard NTSC)"/>
+                                                    <ComboBoxItem Content="25.00 FPS (Standard PAL)" IsSelected="True"/>
+                                                    <ComboBoxItem Content="24.00 FPS (Cinema Film 24p)"/>
+                                                    <ComboBoxItem Content="Auto (Theo nguồn phát)"/>
+                                                </ComboBox>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                <TextBlock Text="Frame Interval / Quantum:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <Border Background="#252526" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Height="30" Padding="8,4">
+                                                    <TextBlock x:Name="TxtFrameIntervalSummary" Text="40.00 ms / Frame (Broadcast Paced)" FontSize="11" FontWeight="SemiBold" Foreground="#00FFCC" VerticalAlignment="Center"/>
+                                                </Border>
+                                            </StackPanel>
                                         </Grid>
                                     </StackPanel>
                                 </Border>
@@ -1451,7 +1478,7 @@
                     <Border Background="#222222" CornerRadius="4" Padding="8,4">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="CODEC: " FontWeight="Bold" FontSize="11" Foreground="#888888"/>
-                            <TextBlock x:Name="TxtCodecSummary" Text="⚡ PASSTHROUGH (Direct Stream)" FontSize="11" FontWeight="Bold" Foreground="#4EC9B0"/>
+                            <TextBlock x:Name="TxtCodecSummary" Text="H.264 @ 6,000 kbps (ULL B=0)" FontSize="11" FontWeight="Bold" Foreground="#4EC9B0"/>
                         </StackPanel>
                     </Border>
                 </StackPanel>

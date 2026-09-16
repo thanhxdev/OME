@@ -13,7 +13,7 @@ namespace OpenMedia.Platform.Internal
     ///   <item><description>Default install path <c>%ProgramFiles%\OpenMedia\bin\OpenMediaServer.exe</c></description></item>
     /// </list>
     /// </summary>
-    internal static class ServerDiscovery
+    public static class ServerDiscovery
     {
         private const string EnvVarName = "OPENMEDIA_SERVER_PATH";
         private const string RegistryKey = @"Software\OpenMedia";
@@ -25,7 +25,7 @@ namespace OpenMedia.Platform.Internal
         /// </summary>
         /// <param name="explicitPath">Optional explicit path that bypasses discovery.</param>
         /// <returns>Full path to <c>OpenMediaServer.exe</c>, or <c>null</c>.</returns>
-        internal static string? Discover(string? explicitPath = null)
+        public static string? Discover(string? explicitPath = null)
         {
             // 0. Explicit path (from RuntimeOptions.ServerPath)
             if (!string.IsNullOrWhiteSpace(explicitPath))
@@ -38,12 +38,30 @@ namespace OpenMedia.Platform.Internal
                 Trace.WriteLine($"[OpenMedia.Platform] Discovery: Explicit path not valid: {explicitPath}");
             }
 
-            // 1. Environment variable
+            // 1. Environment variable (Direct Server Path or SDK Directory)
             var envPath = Environment.GetEnvironmentVariable(EnvVarName);
             if (!string.IsNullOrWhiteSpace(envPath) && ValidateExecutable(envPath))
             {
                 Trace.WriteLine($"[OpenMedia.Platform] Discovery: Found via env var {EnvVarName}: {envPath}");
                 return envPath;
+            }
+
+            var sdkEnvDir = Environment.GetEnvironmentVariable("OPENMEDIA_SDK_DIR");
+            if (!string.IsNullOrWhiteSpace(sdkEnvDir))
+            {
+                var candidateBin = Path.Combine(sdkEnvDir, "bin", ServerExecutable);
+                if (ValidateExecutable(candidateBin))
+                {
+                    Trace.WriteLine($"[OpenMedia.Platform] Discovery: Found via OPENMEDIA_SDK_DIR (bin): {candidateBin}");
+                    return candidateBin;
+                }
+
+                var candidateRoot = Path.Combine(sdkEnvDir, ServerExecutable);
+                if (ValidateExecutable(candidateRoot))
+                {
+                    Trace.WriteLine($"[OpenMedia.Platform] Discovery: Found via OPENMEDIA_SDK_DIR (root): {candidateRoot}");
+                    return candidateRoot;
+                }
             }
 
             // 2. App directory (co-located server)
@@ -64,6 +82,13 @@ namespace OpenMedia.Platform.Internal
 
             // 4. Default install path
             var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            var sdkDefaultBin = Path.Combine(programFiles, "OpenMedia", "SDK", "bin", ServerExecutable);
+            if (ValidateExecutable(sdkDefaultBin))
+            {
+                Trace.WriteLine($"[OpenMedia.Platform] Discovery: Found at default SDK path: {sdkDefaultBin}");
+                return sdkDefaultBin;
+            }
+
             var defaultPath = Path.Combine(programFiles, "OpenMedia", "bin", ServerExecutable);
             if (ValidateExecutable(defaultPath))
             {
@@ -85,8 +110,28 @@ namespace OpenMedia.Platform.Internal
         {
             try
             {
-                using var key = Registry.LocalMachine.OpenSubKey(RegistryKey);
-                return key?.GetValue(RegistryValue) as string;
+                // 1. Try Software\OpenMedia\SDK (Modular Architecture)
+                using (var sdkKey = Registry.LocalMachine.OpenSubKey(@"Software\OpenMedia\SDK"))
+                {
+                    if (sdkKey != null)
+                    {
+                        var sdkPath = sdkKey.GetValue("Path") as string;
+                        if (!string.IsNullOrWhiteSpace(sdkPath))
+                        {
+                            var serverBin = Path.Combine(sdkPath, "bin", ServerExecutable);
+                            if (ValidateExecutable(serverBin)) return serverBin;
+
+                            var serverRoot = Path.Combine(sdkPath, ServerExecutable);
+                            if (ValidateExecutable(serverRoot)) return serverRoot;
+                        }
+                    }
+                }
+
+                // 2. Try legacy Software\OpenMedia -> ServerPath
+                using (var key = Registry.LocalMachine.OpenSubKey(RegistryKey))
+                {
+                    return key?.GetValue(RegistryValue) as string;
+                }
             }
             catch
             {

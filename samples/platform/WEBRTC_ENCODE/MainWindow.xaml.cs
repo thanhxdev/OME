@@ -110,6 +110,7 @@ namespace WEBRTC_ENCODE
 
             _sourceManager = new VideoSourceManager(_colorbarEngine);
             _sourceManager.SourceChanged += (src, path) => _sourceAudioJitterBuffer.Reset();
+            _sourceManager.PlaybackLooped += () => _sourceAudioJitterBuffer.Reset();
             _sourceManager.LogRequested += (tag, msg) => LogEvent(tag, msg);
             _sourceManager.TelemetryUpdated += UpdateSourceTelemetryUI;
             _sourceManager.AudioSamplesArrived += (samples, channels, sampleRate) =>
@@ -631,6 +632,9 @@ namespace WEBRTC_ENCODE
                 _currentRealFps = 0.0;
                 _lastFpsCalcTime = DateTime.UtcNow;
 
+                // Triệt tiêu toàn bộ âm thanh preview tích luỹ trước khi bấm phát sóng để đồng bộ chặt chẽ với video live
+                _sourceAudioJitterBuffer.Reset();
+
                 RefreshMasterProgramFrameBuffer();
                 StartVideoEncodeWorker(token, rtpCodec);
                 StartAudioTransmissionWorker(token);
@@ -681,12 +685,20 @@ namespace WEBRTC_ENCODE
 
                 int width = 1920;
                 int height = 1080;
-                visual.Measure(new Size(width, height));
-                visual.Arrange(new Rect(0, 0, width, height));
-                visual.UpdateLayout();
+                var dv = new DrawingVisual();
+                using (var dc = dv.RenderOpen())
+                {
+                    var brush = new VisualBrush(visual)
+                    {
+                        Stretch = Stretch.Uniform,
+                        AlignmentX = AlignmentX.Center,
+                        AlignmentY = AlignmentY.Center
+                    };
+                    dc.DrawRectangle(brush, null, new Rect(0, 0, width, height));
+                }
 
                 var rtb = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
-                rtb.Render(visual);
+                rtb.Render(dv);
 
                 int stride = width * 4;
                 byte[] raw = new byte[height * stride];

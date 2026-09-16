@@ -45,6 +45,7 @@ namespace SRT_DECODE
         private Action<string, string>? _logDelegate;
         private Action<int, ReceiverChannelState>? _channelUpdatedDelegate;
         private Action<int, byte[], int, int>? _frameReadyDelegate;
+        private Action<int, byte[], int, int, long, long>? _frameReadyWithPtsDelegate;
         private Action<int, byte[], int>? _audioPcmReadyDelegate;
         private Action<ChannelAudioLevels[]>? _camLevelsUpdatedDelegate;
         private Action<ChannelAudioLevels>? _programLevelsUpdatedDelegate;
@@ -132,6 +133,9 @@ namespace SRT_DECODE
         private TextBox[] _txtLatencies = Array.Empty<TextBox>();
         private CheckBox[] _chkAutoLatencies = Array.Empty<CheckBox>();
         private Button[] _btnToggles = Array.Empty<Button>();
+        private CheckBox[] _chkDecrypts = Array.Empty<CheckBox>();
+        private TextBox[] _txtPassphrases = Array.Empty<TextBox>();
+        private ComboBox[] _cmbKeyLens = Array.Empty<ComboBox>();
 
         // ─── Hardware & Display Discovery ───────────────────────────
         private List<DisplayMonitorInfo> _monitors = new();
@@ -156,11 +160,25 @@ namespace SRT_DECODE
         private ComboBox[] _cmbIsoBitrate = Array.Empty<ComboBox>();
         private ComboBox[] _cmbIsoFps = Array.Empty<ComboBox>();
 
-        // ─── Video Presentation Bitmaps ─────────────────────────────
+        // ─── Video Presentation Bitmaps & Frame Conflation ────────
+        private sealed class ChannelFrameHolder
+        {
+            public byte[]? Buffer;
+            public int Width;
+            public int Height;
+            public int RenderScheduled;
+        }
+
+        private readonly ChannelFrameHolder[] _channelFrameHolders = new ChannelFrameHolder[MaxChannels];
         private readonly WriteableBitmap?[] _camBitmaps = new WriteableBitmap?[MaxChannels];
 
         public MainWindow()
         {
+            for (int i = 0; i < MaxChannels; i++)
+            {
+                _channelFrameHolders[i] = new ChannelFrameHolder();
+            }
+
             _playoutAlignmentEngine = new VideoPlayoutAlignmentEngine(_syncEngine);
             _playoutAlignmentEngine.FrameReadyForPlayout += OnPlayoutFrameReady;
 
@@ -170,6 +188,7 @@ namespace SRT_DECODE
             _logDelegate = LogEvent;
             _channelUpdatedDelegate = OnReceiverChannelUpdated;
             _frameReadyDelegate = OnFrameReady;
+            _frameReadyWithPtsDelegate = OnFrameReadyWithPts;
             _audioPcmReadyDelegate = (chIdx, pcm, len) =>
             {
                 if (_isShuttingDown) return;
@@ -194,6 +213,7 @@ namespace SRT_DECODE
 
             // Wire receiver updates
             _receiverEngine.ChannelUpdated += _channelUpdatedDelegate;
+            _receiverEngine.FrameReadyWithPts += _frameReadyWithPtsDelegate;
             _receiverEngine.FrameReady += _frameReadyDelegate;
             _receiverEngine.AudioPcmReady += _audioPcmReadyDelegate;
             _audioManager.CamLevelsUpdated += _camLevelsUpdatedDelegate;
@@ -350,7 +370,7 @@ namespace SRT_DECODE
                     }
                 }
 
-                // Set default audio preview MUTE for all preview screens on layout
+                // Cài đặt mặc định kiểm âm: Toàn bộ các kênh CAM (CAM 1..10) đều MUTE mặc định, chỉ unmute khi click
                 for (int i = 0; i < MaxChannels; i++)
                 {
                     if (i < _chkMuteCams.Length && _chkMuteCams[i] != null)
@@ -358,15 +378,16 @@ namespace SRT_DECODE
                         _chkMuteCams[i].IsChecked = true;
                     }
                     _audioManager.SetChannelMuted(i, true, _channelNames[i]);
+                    UpdateMixerMuteUI(i, true);
                 }
                 UpdateSoloButtonsUI();
 
-                // Cài đặt mặc định khi mở App là ở chế độ MUTE PREVIEW (Loa/tai nghe kiểm âm tắt, PGM bình thường)
-                _audioManager.IsPreviewMuted = true;
+                // Cài đặt mặc định khi mở App: BẬT kiểm âm Preview cho CAM 1
+                _audioManager.IsPreviewMuted = false;
                 if (BtnMutePreview != null)
                 {
-                    BtnMutePreview.Content = "UNMUTE PVW";
-                    BtnMutePreview.Background = Brushes.Red;
+                    BtnMutePreview.Content = "MUTE PVW";
+                    BtnMutePreview.Background = new SolidColorBrush(Color.FromRgb(0x2E, 0x7D, 0x32)); // Green
                 }
                 _audioManager.IsProgramMuted = false;
                 if (BtnMixerMutePgm != null)
@@ -399,6 +420,9 @@ namespace SRT_DECODE
                 _txtLatencies = new[] { TxtLatencyCam1, TxtLatencyCam2, TxtLatencyCam3, TxtLatencyCam4, TxtLatencyCam5, TxtLatencyCam6, TxtLatencyCam7, TxtLatencyCam8, TxtLatencyCam9, TxtLatencyCam10 };
                 _chkAutoLatencies = new[] { ChkAutoLatencyCam1, ChkAutoLatencyCam2, ChkAutoLatencyCam3, ChkAutoLatencyCam4, ChkAutoLatencyCam5, ChkAutoLatencyCam6, ChkAutoLatencyCam7, ChkAutoLatencyCam8, ChkAutoLatencyCam9, ChkAutoLatencyCam10 };
                 _btnToggles = new[] { BtnToggleCam1, BtnToggleCam2, BtnToggleCam3, BtnToggleCam4, BtnToggleCam5, BtnToggleCam6, BtnToggleCam7, BtnToggleCam8, BtnToggleCam9, BtnToggleCam10 };
+                _chkDecrypts = new[] { ChkDecryptCam1, ChkDecryptCam2, ChkDecryptCam3, ChkDecryptCam4, ChkDecryptCam5, ChkDecryptCam6, ChkDecryptCam7, ChkDecryptCam8, ChkDecryptCam9, ChkDecryptCam10 };
+                _txtPassphrases = new[] { TxtPassphraseCam1, TxtPassphraseCam2, TxtPassphraseCam3, TxtPassphraseCam4, TxtPassphraseCam5, TxtPassphraseCam6, TxtPassphraseCam7, TxtPassphraseCam8, TxtPassphraseCam9, TxtPassphraseCam10 };
+                _cmbKeyLens = new[] { CmbKeyLenCam1, CmbKeyLenCam2, CmbKeyLenCam3, CmbKeyLenCam4, CmbKeyLenCam5, CmbKeyLenCam6, CmbKeyLenCam7, CmbKeyLenCam8, CmbKeyLenCam9, CmbKeyLenCam10 };
 
                 for (int i = 0; i < MaxChannels; i++)
                 {
@@ -445,10 +469,20 @@ namespace SRT_DECODE
                 }
 
                 // Initialize OpenMedia Runtime Engine
-                bool runtimeInit = await OpenMediaRuntime.InitializeAsync(new RuntimeOptions { AutoLaunch = true });
+                string? serverPath = FindServerExecutable();
+                if (!string.IsNullOrEmpty(serverPath))
+                {
+                    LogEvent("[INFO]", $"Tìm thấy OpenMediaServer: {serverPath}");
+                }
+
+                bool runtimeInit = await OpenMediaRuntime.InitializeAsync(new RuntimeOptions 
+                { 
+                    AutoLaunch = true,
+                    ServerPath = serverPath 
+                });
                 if (runtimeInit)
                 {
-                    TxtEngineStatus.Text = "Engine: OpenMedia.Platform Active (DirectX 11 D3D11 Shared Textures)";
+                    TxtEngineStatus.Text = $"Engine: Connected (v{OpenMediaRuntime.EngineVersion} - D3D11 Shared Textures)";
                     TxtEngineStatus.Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
                     LogEvent("[ENGINE]", "Khởi tạo OpenMedia.Platform thành công với GPU D3D11 Zero-Copy Pipeline.");
                 }
@@ -471,7 +505,10 @@ namespace SRT_DECODE
                 // Auto-scan display monitors and SDI broadcast ports on startup
                 await RefreshDevicesAsync();
 
-                LogEvent("[INFO]", "Hệ thống Master Control Room đã sẵn sàng (Tab 1. SRT Ingest, 2. Tab Outputs, tối đa 10 luồng).");
+                // Áp dụng thông số cấu hình mặc định cho CAM 1 (chưa nhận luồng cho đến khi người dùng nhấn nút)
+                ApplyFormInputsToChannel(0);
+
+                LogEvent("[INFO]", "Hệ thống Master Control Room đã sẵn sàng (Nhấn 'Start CAM 1' để bắt đầu nhận luồng).");
             }
             catch (Exception ex)
             {
@@ -497,6 +534,8 @@ namespace SRT_DECODE
                     _receiverEngine.ChannelUpdated -= _channelUpdatedDelegate;
                 if (_frameReadyDelegate != null)
                     _receiverEngine.FrameReady -= _frameReadyDelegate;
+                if (_frameReadyWithPtsDelegate != null)
+                    _receiverEngine.FrameReadyWithPts -= _frameReadyWithPtsDelegate;
                 if (_audioPcmReadyDelegate != null)
                     _receiverEngine.AudioPcmReady -= _audioPcmReadyDelegate;
                 if (_camLevelsUpdatedDelegate != null)
@@ -659,8 +698,15 @@ namespace SRT_DECODE
             if (_activeChannelCount < MaxChannels)
             {
                 _activeChannelCount++;
+                int newIdx = _activeChannelCount - 1;
+                _audioManager.SetChannelMuted(newIdx, true, _channelNames[newIdx]);
+                if (newIdx < _chkMuteCams.Length && _chkMuteCams[newIdx] != null)
+                {
+                    _chkMuteCams[newIdx].IsChecked = true;
+                }
+                UpdateMixerMuteUI(newIdx, true);
                 UpdateActiveStreamsUI();
-                LogEvent("[INGEST]", $"➕ Đã thêm khung SRT Receiver Ingest #{_activeChannelCount} ({_channelNames[_activeChannelCount - 1]}). Tổng số luồng: {_activeChannelCount}/10.");
+                LogEvent("[INGEST]", $"➕ Đã thêm khung SRT Receiver Ingest #{_activeChannelCount} ({_channelNames[newIdx]}). Tổng số luồng: {_activeChannelCount}/10.");
             }
             else
             {
@@ -745,31 +791,36 @@ namespace SRT_DECODE
             if (!_isInitialized || MultiviewerContainer == null || _cellBorders.Length < MaxChannels) return;
 
             int selected = CmbLayoutMode.SelectedIndex;
-            // 0: View (Multi-view 2 cột)
-            // 1: View (Multi-view 3 cột)
-            // 2: View (Multi-view 4 cột)
+            // 0: View (Multi-view 2x2)
+            // 1: View (Multi-view 3x3)
+            // 2: View (Multi-view 4x4)
             // 3: PGM+View (PGM trên + Multi-view)
 
             int cols = 2;
+            int rows = 2;
             bool isPgmTop = false;
 
             switch (selected)
             {
                 case 1:
                     cols = 3;
+                    rows = 3;
                     isPgmTop = false;
                     break;
                 case 2:
                     cols = 4;
+                    rows = 4;
                     isPgmTop = false;
                     break;
                 case 3:
                     cols = 2;
+                    rows = 2;
                     isPgmTop = true;
                     break;
                 case 0:
                 default:
                     cols = 2;
+                    rows = 2;
                     isPgmTop = false;
                     break;
             }
@@ -782,10 +833,12 @@ namespace SRT_DECODE
                 MultiviewerContainer.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             }
 
-            int numRows = Math.Max(1, (_activeChannelCount + cols - 1) / cols);
-            for (int r = 0; r < numRows; r++)
+            // Đảm bảo số hàng tối thiểu luôn khớp với ma trận cấu hình (2x2, 3x3, 4x4)
+            int neededRows = Math.Max(1, (_activeChannelCount + cols - 1) / cols);
+            int totalRows = Math.Max(rows, neededRows);
+            for (int r = 0; r < totalRows; r++)
             {
-                MultiviewerContainer.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+                MultiviewerContainer.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             }
 
             if (!isPgmTop)
@@ -1030,9 +1083,18 @@ namespace SRT_DECODE
 
                     // Update Status text and LED
                     _statusTexts[index].Text = state.StatusMessage;
-                    _ledIndicators[index].Fill = state.IsConnected 
-                        ? new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)) 
-                        : new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+                    if (state.IsConnected)
+                    {
+                        _ledIndicators[index].Fill = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E)); // Green (Live)
+                    }
+                    else if (state.IsRunning)
+                    {
+                        _ledIndicators[index].Fill = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B)); // Amber / Orange (Waiting / Reconnecting)
+                    }
+                    else
+                    {
+                        _ledIndicators[index].Fill = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)); // Grey (Standby)
+                    }
 
                     // Show fallback placeholder if disconnected
                     if (!state.IsConnected)
@@ -1066,6 +1128,15 @@ namespace SRT_DECODE
             _playoutAlignmentEngine.EnqueueFrame(channelIndex, frameBytes, width, height, rttMs);
         }
 
+        private void OnFrameReadyWithPts(int channelIndex, byte[] frameBytes, int width, int height, long pts, long duration)
+        {
+            if (_isShuttingDown || Dispatcher.HasShutdownStarted) return;
+            if (channelIndex < 0 || channelIndex >= MaxChannels) return;
+
+            double rttMs = _receiverEngine.Channels[channelIndex].CurrentRttMs;
+            _playoutAlignmentEngine.EnqueueFrameWithPts(channelIndex, frameBytes, width, height, pts, duration, rttMs);
+        }
+
         private void OnPlayoutFrameReady(int channelIndex, byte[] frameBytes, int width, int height)
         {
             if (_isShuttingDown || Dispatcher.HasShutdownStarted) return;
@@ -1093,45 +1164,71 @@ namespace SRT_DECODE
                 }
             }
 
-            Dispatcher.InvokeAsync(() =>
+            // Frame Conflation: Lưu tham chiếu frame mới nhất vào holder
+            var holder = _channelFrameHolders[channelIndex];
+            holder.Buffer = frameBytes;
+            holder.Width = width;
+            holder.Height = height;
+
+            // Chỉ schedule một lần vẽ nếu Dispatcher chưa có task của camera này
+            if (Interlocked.CompareExchange(ref holder.RenderScheduled, 1, 0) == 0)
             {
-                try
+                Dispatcher.InvokeAsync(() =>
                 {
-                    var bmp = _camBitmaps[channelIndex];
-                    if (bmp == null || bmp.PixelWidth != width || bmp.PixelHeight != height)
+                    try
                     {
-                        bmp = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
-                        _camBitmaps[channelIndex] = bmp;
-                        _videoViews[channelIndex].PresentBitmap(bmp);
-                    }
+                        Interlocked.Exchange(ref holder.RenderScheduled, 0);
+                        byte[]? currentBytes = holder.Buffer;
+                        int w = holder.Width;
+                        int h = holder.Height;
+                        if (currentBytes == null || w <= 0 || h <= 0) return;
 
-                    int stride = width * 4;
-                    bmp.WritePixels(new Int32Rect(0, 0, width, height), frameBytes, stride, 0);
-
-                    // Ensure video is visible and fallback placeholder is hidden
-                    if (_fallbacks[channelIndex].Visibility != Visibility.Collapsed)
-                    {
-                        _fallbacks[channelIndex].Visibility = Visibility.Collapsed;
-                    }
-
-                    // If this channel is the active Program on PGM+View top screen, present it
-                    if (channelIndex == _currentProgramIndex)
-                    {
-                        if (FallbackPgm.Visibility != Visibility.Collapsed)
+                        var bmp = _camBitmaps[channelIndex];
+                        if (bmp == null || bmp.PixelWidth != w || bmp.PixelHeight != h)
                         {
-                            FallbackPgm.Visibility = Visibility.Collapsed;
+                            bmp = new WriteableBitmap(w, h, 96, 96, PixelFormats.Bgra32, null);
+                            _camBitmaps[channelIndex] = bmp;
+                            _videoViews[channelIndex].PresentBitmap(bmp);
                         }
-                        VideoViewPgm.PresentBitmap(bmp);
+
+                        int stride = w * 4;
+                        bmp.WritePixels(new Int32Rect(0, 0, w, h), currentBytes, stride, 0);
+
+                        // Ensure video is visible and fallback placeholder is hidden
+                        if (_fallbacks[channelIndex].Visibility != Visibility.Collapsed)
+                        {
+                            _fallbacks[channelIndex].Visibility = Visibility.Collapsed;
+                        }
+
+                        // If this channel is the active Program on PGM+View top screen, present it
+                        if (channelIndex == _currentProgramIndex)
+                        {
+                            if (FallbackPgm.Visibility != Visibility.Collapsed)
+                            {
+                                FallbackPgm.Visibility = Visibility.Collapsed;
+                            }
+                            if (VideoViewPgm.VideoImageControl.Source != bmp)
+                            {
+                                VideoViewPgm.PresentBitmap(bmp);
+                            }
+                        }
                     }
-                }
-                catch { }
-            }, DispatcherPriority.Render);
+                    catch { }
+                }, DispatcherPriority.Render);
+            }
         }
 
         private async void BtnToggleCam_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button btn && btn.Tag is string tagStr && int.TryParse(tagStr, out int index))
             {
+                // Tự động mở rộng active count nếu user bật camera cao hơn số lượng active hiện tại
+                if (index >= _activeChannelCount)
+                {
+                    _activeChannelCount = index + 1;
+                    UpdateActiveStreamsUI();
+                }
+
                 // Apply UI inputs to config before connecting
                 ApplyFormInputsToChannel(index);
 
@@ -1184,11 +1281,17 @@ namespace SRT_DECODE
             // Update Name
             UpdateChannelDisplayMeta(index);
 
-            // Cam 1 has decryption controls
-            if (index == 0)
+            // Decryption controls (AES)
+            if (index < _chkDecrypts.Length && _chkDecrypts[index] != null)
             {
-                ch.Config.EncryptionEnabled = ChkDecryptCam1.IsChecked == true;
-                ch.Config.Passphrase = TxtPassphraseCam1.Text;
+                ch.Config.EncryptionEnabled = _chkDecrypts[index].IsChecked == true;
+                ch.Config.Passphrase = _txtPassphrases[index]?.Text?.Trim() ?? string.Empty;
+                if (_cmbKeyLens[index]?.SelectedItem is ComboBoxItem item && item.Content is string keyStr)
+                {
+                    if (keyStr.Contains("128")) ch.Config.KeyLength = 16;
+                    else if (keyStr.Contains("192")) ch.Config.KeyLength = 24;
+                    else ch.Config.KeyLength = 32;
+                }
             }
         }
 
@@ -1350,7 +1453,7 @@ namespace SRT_DECODE
             {
                 for (int i = 0; i < MaxChannels; i++)
                 {
-                    if (i < levels.Length && i < _activeChannelCount)
+                    if (i < levels.Length && (i < _activeChannelCount || _receiverEngine.Channels[i].IsRunning))
                     {
                         double leftDb = Math.Clamp(levels[i].LeftDb, -60.0, 0.0);
                         double rightDb = Math.Clamp(levels[i].RightDb, -60.0, 0.0);
@@ -2478,6 +2581,129 @@ namespace SRT_DECODE
             }
             catch { }
         }
+
+        #region Server Discovery
+
+        private static string? FindServerExecutable()
+        {
+            // 1. Dùng trực tiếp ServerDiscovery từ OpenMedia.Platform
+            try
+            {
+                string? discovered = OpenMedia.Platform.Internal.ServerDiscovery.Discover();
+                if (!string.IsNullOrEmpty(discovered) && System.IO.File.Exists(discovered))
+                {
+                    return discovered;
+                }
+            }
+            catch { }
+
+            // 2. Tra cứu từ biến môi trường OPENMEDIA_SERVER_PATH hoặc OPENMEDIA_SDK_DIR
+            string? envServerPath = Environment.GetEnvironmentVariable("OPENMEDIA_SERVER_PATH");
+            if (!string.IsNullOrEmpty(envServerPath) && System.IO.File.Exists(envServerPath))
+            {
+                return envServerPath;
+            }
+
+            string? sdkDir = Environment.GetEnvironmentVariable("OPENMEDIA_SDK_DIR");
+            if (!string.IsNullOrEmpty(sdkDir))
+            {
+                string p1 = System.IO.Path.Combine(sdkDir, "bin", "OpenMediaServer.exe");
+                if (System.IO.File.Exists(p1)) return p1;
+                string p2 = System.IO.Path.Combine(sdkDir, "OpenMediaServer.exe");
+                if (System.IO.File.Exists(p2)) return p2;
+            }
+
+            // 3. Tra cứu từ Windows Registry HKLM\Software\OpenMedia\SDK (Path) hoặc HKLM\Software\OpenMedia (ServerPath / InstallPath)
+            try
+            {
+                using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"Software\OpenMedia\SDK"))
+                {
+                    if (key != null)
+                    {
+                        string? regPath = key.GetValue("Path") as string;
+                        if (!string.IsNullOrEmpty(regPath))
+                        {
+                            string binPath = System.IO.Path.Combine(regPath, "bin", "OpenMediaServer.exe");
+                            if (System.IO.File.Exists(binPath)) return binPath;
+                            string rootPath = System.IO.Path.Combine(regPath, "OpenMediaServer.exe");
+                            if (System.IO.File.Exists(rootPath)) return rootPath;
+                        }
+                    }
+                }
+
+                using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"Software\OpenMedia"))
+                {
+                    if (key != null)
+                    {
+                        string? serverPath = key.GetValue("ServerPath") as string;
+                        if (!string.IsNullOrEmpty(serverPath) && System.IO.File.Exists(serverPath)) return serverPath;
+
+                        string? installPath = key.GetValue("InstallPath") as string;
+                        if (!string.IsNullOrEmpty(installPath))
+                        {
+                            string binPath = System.IO.Path.Combine(installPath, "bin", "OpenMediaServer.exe");
+                            if (System.IO.File.Exists(binPath)) return binPath;
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            // 4. Tra cứu đường dẫn mặc định trong Program Files
+            string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            var defaultPaths = new[]
+            {
+                System.IO.Path.Combine(programFiles, "OpenMedia", "SDK", "bin", "OpenMediaServer.exe"),
+                System.IO.Path.Combine(programFiles, "OpenMedia", "bin", "OpenMediaServer.exe"),
+                System.IO.Path.Combine(programFiles, "OpenMedia", "OpenMediaServer.exe")
+            };
+            foreach (var dp in defaultPaths)
+            {
+                if (System.IO.File.Exists(dp)) return dp;
+            }
+
+            // 5. Tra cứu trong thư mục chạy của ứng dụng (Co-located)
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            var localCandidates = new[]
+            {
+                System.IO.Path.Combine(baseDir, "OpenMediaServer.exe"),
+                System.IO.Path.Combine(baseDir, "bin", "OpenMediaServer.exe"),
+                System.IO.Path.Combine(baseDir, "OpenMediaServer", "OpenMediaServer.exe")
+            };
+            foreach (var lc in localCandidates)
+            {
+                if (System.IO.File.Exists(lc)) return lc;
+            }
+
+            // 6. Tra cứu trong các thư mục build trong môi trường phát triển (Dev Fallback)
+            string current = baseDir;
+            for (int i = 0; i < 6; i++)
+            {
+                if (string.IsNullOrEmpty(current)) break;
+                var devCandidates = new[]
+                {
+                    System.IO.Path.Combine(current, "build", "bin", "Release", "OpenMediaServer.exe"),
+                    System.IO.Path.Combine(current, "build", "bin", "Debug", "OpenMediaServer.exe"),
+                    System.IO.Path.Combine(current, "build-production", "bin", "Release", "OpenMediaServer.exe"),
+                    System.IO.Path.Combine(current, "build-demo", "bin", "Release", "OpenMediaServer.exe"),
+                    System.IO.Path.Combine(current, "build-demo", "bin", "Debug", "OpenMediaServer.exe"),
+                    System.IO.Path.Combine(current, "dist", "sdk", "bin", "OpenMediaServer.exe"),
+                    System.IO.Path.Combine(current, "dist", "sdk_staging", "bin", "OpenMediaServer.exe"),
+                    System.IO.Path.Combine(current, "dist", "production", "bin", "OpenMediaServer.exe")
+                };
+                foreach (var dc in devCandidates)
+                {
+                    if (System.IO.File.Exists(dc)) return dc;
+                }
+                var parent = System.IO.Directory.GetParent(current);
+                if (parent == null) break;
+                current = parent.FullName;
+            }
+
+            return null;
+        }
+
+        #endregion
 
         #endregion
     }

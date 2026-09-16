@@ -304,8 +304,8 @@ namespace SRT_DECODE
             {
                 _camLevels[i] = new ChannelAudioLevels();
                 _camMeters[i] = new AudioMeterService();
-                _camRingBuffers[i] = new AudioRingBuffer(capacityBytes: 96000, preRollMs: 80); // 500ms buffer capacity with 80ms jitter pre-roll
-                _channelMuted[i] = true; // Mặc định các preview màn hình ingest đều được Mute
+                _camRingBuffers[i] = new AudioRingBuffer(capacityBytes: 96000, preRollMs: 50); // 500ms buffer capacity with 50ms jitter pre-roll
+                _channelMuted[i] = true; // Mặc định tất cả các kênh camera đều MUTE, chỉ unmute khi click
                 _channelGainDb[i] = 0.0; // Mặc định 0 dB (Unity gain)
                 _channelPan[i] = 0.0;    // Mặc định Center
                 _currentGain[i] = 1.0f;
@@ -377,7 +377,7 @@ namespace SRT_DECODE
                 }
                 else
                 {
-                    chShouldPlay = (i == _currentProgramIndex || !_channelMuted[i]);
+                    chShouldPlay = !_channelMuted[i];
                 }
 
                 bool streamAlive = (now - _lastPcmReceivedTicks[i]) < 1000;

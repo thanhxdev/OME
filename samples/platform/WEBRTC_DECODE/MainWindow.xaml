@@ -394,13 +394,13 @@
             <!-- ────────────────────────────────────────────────────────────── -->
             <Grid Grid.Column="0">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="5.8*"/> <!-- Video Multiviewer Grid -->
-                    <RowDefinition Height="Auto"/> <!-- Vision Switcher & Audio Bar -->
-                    <RowDefinition Height="3.2*"/> <!-- Console Log Table -->
+                    <RowDefinition Height="5.8*" MinHeight="160"/> <!-- Video Multiviewer Grid (Khung Layout Preview) -->
+                    <RowDefinition Height="6"/>                     <!-- Splitter co kéo chiều dọc -->
+                    <RowDefinition Height="3.2*" MinHeight="120"/> <!-- Bảng điều khiển Switcher & Console Log -->
                 </Grid.RowDefinitions>
 
-                <!-- MULTIVIEWER CONTAINER (SCROLLABLE DYNAMIC 2-COLUMN MULTIVIEW & PGM TOP VIEW) -->
-                <Border Grid.Row="0" Background="#0C0C0E" BorderBrush="#25252A" BorderThickness="1" CornerRadius="6" Padding="6" Margin="0,0,0,6">
+                <!-- MULTIVIEWER CONTAINER (SCROLLABLE DYNAMIC MULTIVIEW & PGM TOP VIEW) -->
+                <Border Grid.Row="0" Background="#0C0C0E" BorderBrush="#25252A" BorderThickness="1" CornerRadius="6" Padding="6" Margin="0,0,0,2">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel>
                             <!-- ══ PGM MASTER PROMINENT TOP CELL (VISIBLE ONLY IN PGM+VIEW MODE) ══ -->
@@ -1113,117 +1113,145 @@
                     </ScrollViewer>
                 </Border>
 
-                <!-- ══ VISION SWITCHER & AUDIO MONITOR BAR ════════════ -->
-                <Border Grid.Row="1" Background="#1A1A1E" BorderBrush="#2D2D33" BorderThickness="1" CornerRadius="6" Padding="10,6" Margin="0,0,0,6">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <!-- Program Select Bus Buttons (CAM 1..10) -->
-                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="PROGRAM BUS:" FontWeight="Bold" FontSize="11" Foreground="#9E9E9E" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            
-                            <!-- Panel for dynamic PGM buttons -->
-                            <StackPanel x:Name="PanelPgmButtons" Orientation="Horizontal" VerticalAlignment="Center">
-                                <Button x:Name="BtnPgmCam1" Content="CAM 1" Click="BtnPgmSelect_Click" Tag="0" Background="#DC2626" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11" Padding="10,5" Margin="0,0,4,0" Cursor="Hand" Visibility="Visible"/>
-                                <Button x:Name="BtnPgmCam2" Content="CAM 2" Click="BtnPgmSelect_Click" Tag="1" Background="#28282E" Foreground="#CCCCCC" FontWeight="Bold" FontSize="11" Padding="10,5" Margin="0,0,4,0" Cursor="Hand" Visibility="Collapsed"/>
-                                <Button x:Name="BtnPgmCam3" Content="CAM 3" Click="BtnPgmSelect_Click" Tag="2" Background="#28282E" Foreground="#CCCCCC" FontWeight="Bold" FontSize="11" Padding="10,5" Margin="0,0,4,0" Cursor="Hand" Visibility="Collapsed"/>
-                                <Button x:Name="BtnPgmCam4" Content="CAM 4" Click="BtnPgmSelect_Click" Tag="3" Background="#28282E" Foreground="#CCCCCC" FontWeight="Bold" FontSize="11" Padding="10,5" Margin="0,0,4,0" Cursor="Hand" Visibility="Collapsed"/>
-                                <Button x:Name="BtnPgmCam5" Content="CAM 5" Click="BtnPgmSelect_Click" Tag="4" Background="#28282E" Foreground="#CCCCCC" FontWeight="Bold" FontSize="11" Padding="10,5" Margin="0,0,4,0" Cursor="Hand" Visibility="Collapsed"/>
-                                <Button x:Name="BtnPgmCam6" Content="CAM 6" Click="BtnPgmSelect_Click" Tag="5" Background="#28282E" Foreground="#CCCCCC" FontWeight="Bold" FontSize="11" Padding="10,5" Margin="0,0,4,0" Cursor="Hand" Visibility="Collapsed"/>
-                                <Button x:Name="BtnPgmCam7" Content="CAM 7" Click="BtnPgmSelect_Click" Tag="6" Background="#28282E" Foreground="#CCCCCC" FontWeight="Bold" FontSize="11" Padding="10,5" Margin="0,0,4,0" Cursor="Hand" Visibility="Collapsed"/>
-                                <Button x:Name="BtnPgmCam8" Content="CAM 8" Click="BtnPgmSelect_Click" Tag="7" Background="#28282E" Foreground="#CCCCCC" FontWeight="Bold" FontSize="11" Padding="10,5" Margin="0,0,4,0" Cursor="Hand" Visibility="Collapsed"/>
-                                <Button x:Name="BtnPgmCam9" Content="CAM 9" Click="BtnPgmSelect_Click" Tag="8" Background="#28282E" Foreground="#CCCCCC" FontWeight="Bold" FontSize="11" Padding="10,5" Margin="0,0,4,0" Cursor="Hand" Visibility="Collapsed"/>
-                                <Button x:Name="BtnPgmCam10" Content="CAM 10" Click="BtnPgmSelect_Click" Tag="9" Background="#28282E" Foreground="#CCCCCC" FontWeight="Bold" FontSize="11" Padding="10,5" Margin="0,0,4,0" Cursor="Hand" Visibility="Collapsed"/>
-                            </StackPanel>
-
-                            <!-- Transition Controls -->
-                            <Button x:Name="BtnCutTransition" Content="CUT" Click="BtnCutTransition_Click" Background="#3B82F6" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11" Padding="10,5" Margin="4,0,4,0" Cursor="Hand"/>
-                            <Button x:Name="BtnDissolveTransition" Content="DISSOLVE (1.0s)" Click="BtnDissolveTransition_Click" Background="#25252A" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="10.5" Padding="8,5" Cursor="Hand"/>
-                        </StackPanel>
-
-                        <!-- Audio Monitoring & Master Multi-Channel VU Meter -->
-                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                            <!-- Channel Configuration Selector (Stereo / 4CH / 5.1 / 7.1 / 16CH) -->
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
-                                <TextBlock Text="CH:" FontSize="10.5" Foreground="#8E8E93" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                <ComboBox x:Name="CmbAudioChannels" Width="130" Height="26" SelectionChanged="CmbAudioChannels_SelectionChanged" ToolTip="Cấu hình kênh âm thanh giám sát (Stereo, 5.1, 7.1, 16CH SDI)">
-                                    <ComboBoxItem Content="Stereo (2CH)" IsSelected="True"/>
-                                    <ComboBoxItem Content="4-Channel (4CH)"/>
-                                    <ComboBoxItem Content="5.1 Surround (6CH)"/>
-                                    <ComboBoxItem Content="7.1 Surround (8CH)"/>
-                                    <ComboBoxItem Content="16-Ch SDI Embedded"/>
-                                </ComboBox>
-                            </StackPanel>
-
-                            <!-- Solo Audio Label -->
-                            <Border Background="#141418" BorderBrush="#2C2C34" BorderThickness="1" CornerRadius="3" Padding="6,3" Margin="0,0,8,0">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="🎧 SOLO:" FontSize="10" Foreground="#8E8E93" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                    <TextBlock x:Name="TxtCurrentSolo" Text="PGM MASTER" FontWeight="Bold" FontSize="10.5" Foreground="#00FFCC" VerticalAlignment="Center"/>
-                                </StackPanel>
+                <!-- ══ SPLITTER CO KÉO CHIỀU DỌC CHO KHUNG LAYOUT PREVIEW ══════ -->
+                <GridSplitter Grid.Row="1" Height="6" HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                              Background="Transparent" Cursor="SizeNS" ToolTip="Kéo chuột để điều chỉnh độ cao khung Multiviewer / Preview">
+                    <GridSplitter.Template>
+                        <ControlTemplate TargetType="{x:Type GridSplitter}">
+                            <Border Background="#25252E" Height="3" CornerRadius="1.5" Margin="0,1" HorizontalAlignment="Stretch">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#3B82F6"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
                             </Border>
+                        </ControlTemplate>
+                    </GridSplitter.Template>
+                </GridSplitter>
 
-                            <!-- Master Multi-Channel VU Bars (16 Channels) -->
-                            <Border Background="#111114" BorderBrush="#2A2A30" BorderThickness="1" CornerRadius="3" Padding="4,2" Margin="0,0,8,0">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,4,0">
-                                        <ProgressBar x:Name="VuMasterL" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0"/>
-                                        <ProgressBar x:Name="VuMasterR" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0"/>
-                                        <ProgressBar x:Name="VuMaster3" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
-                                        <ProgressBar x:Name="VuMaster4" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
-                                        <ProgressBar x:Name="VuMaster5" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
-                                        <ProgressBar x:Name="VuMaster6" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
-                                        <ProgressBar x:Name="VuMaster7" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
-                                        <ProgressBar x:Name="VuMaster8" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
-                                        <ProgressBar x:Name="VuMaster9" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
-                                        <ProgressBar x:Name="VuMaster10" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
-                                        <ProgressBar x:Name="VuMaster11" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
-                                        <ProgressBar x:Name="VuMaster12" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
-                                        <ProgressBar x:Name="VuMaster13" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
-                                        <ProgressBar x:Name="VuMaster14" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
-                                        <ProgressBar x:Name="VuMaster15" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
-                                        <ProgressBar x:Name="VuMaster16" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Visibility="Collapsed"/>
+                <!-- ══ BẢNG ĐIỀU KHIỂN DƯỚI: VISION SWITCHER & CONSOLE LOG ══════ -->
+                <Grid Grid.Row="2" Margin="0,2,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/> <!-- Vision Switcher & Audio Bar -->
+                        <RowDefinition Height="*"/>    <!-- Console Log Table -->
+                    </Grid.RowDefinitions>
+
+                    <!-- ══ VISION SWITCHER & AUDIO MONITOR BAR ════════════ -->
+                    <Border Grid.Row="0" Background="#1A1A1E" BorderBrush="#2D2D33" BorderThickness="1" CornerRadius="6" Padding="10,6" Margin="0,0,0,6">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Program Select Bus Buttons (CAM 1..10) -->
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="PROGRAM BUS:" ToolTip="Chuột trái: Chọn PGM (On-Air - Đỏ) | Chuột phải: Chọn PVW (Standby - Xanh lá)" FontWeight="Bold" FontSize="11" Foreground="#9E9E9E" VerticalAlignment="Center" Margin="0,0,8,0" Cursor="Help"/>
+                                
+                                <!-- Panel for dynamic PGM buttons -->
+                                <StackPanel x:Name="PanelPgmButtons" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button x:Name="BtnPgmCam1" Content="CAM 1" Click="BtnPgmSelect_Click" PreviewMouseRightButtonUp="BtnPgmSelect_PreviewMouseRightButtonUp" Tag="0" Background="#DC2626" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11" Padding="10,5" Margin="0,0,4,0" Cursor="Hand" Visibility="Visible" ToolTip="Chuột trái: Chọn PGM (On-Air) | Chuột phải: Chọn PVW (Standby)"/>
+                                    <Button x:Name="BtnPgmCam2" Content="CAM 2" Click="BtnPgmSelect_Click" PreviewMouseRightButtonUp="BtnPgmSelect_PreviewMouseRightButtonUp" Tag="1" Background="#28282E" Foreground="#CCCCCC" FontWeight="Bold" FontSize="11" Padding="10,5" Margin="0,0,4,0" Cursor="Hand" Visibility="Collapsed" ToolTip="Chuột trái: Chọn PGM (On-Air) | Chuột phải: Chọn PVW (Standby)"/>
+                                    <Button x:Name="BtnPgmCam3" Content="CAM 3" Click="BtnPgmSelect_Click" PreviewMouseRightButtonUp="BtnPgmSelect_PreviewMouseRightButtonUp" Tag="2" Background="#28282E" Foreground="#CCCCCC" FontWeight="Bold" FontSize="11" Padding="10,5" Margin="0,0,4,0" Cursor="Hand" Visibility="Collapsed" ToolTip="Chuột trái: Chọn PGM (On-Air) | Chuột phải: Chọn PVW (Standby)"/>
+                                    <Button x:Name="BtnPgmCam4" Content="CAM 4" Click="BtnPgmSelect_Click" PreviewMouseRightButtonUp="BtnPgmSelect_PreviewMouseRightButtonUp" Tag="3" Background="#28282E" Foreground="#CCCCCC" FontWeight="Bold" FontSize="11" Padding="10,5" Margin="0,0,4,0" Cursor="Hand" Visibility="Collapsed" ToolTip="Chuột trái: Chọn PGM (On-Air) | Chuột phải: Chọn PVW (Standby)"/>
+                                    <Button x:Name="BtnPgmCam5" Content="CAM 5" Click="BtnPgmSelect_Click" PreviewMouseRightButtonUp="BtnPgmSelect_PreviewMouseRightButtonUp" Tag="4" Background="#28282E" Foreground="#CCCCCC" FontWeight="Bold" FontSize="11" Padding="10,5" Margin="0,0,4,0" Cursor="Hand" Visibility="Collapsed" ToolTip="Chuột trái: Chọn PGM (On-Air) | Chuột phải: Chọn PVW (Standby)"/>
+                                    <Button x:Name="BtnPgmCam6" Content="CAM 6" Click="BtnPgmSelect_Click" PreviewMouseRightButtonUp="BtnPgmSelect_PreviewMouseRightButtonUp" Tag="5" Background="#28282E" Foreground="#CCCCCC" FontWeight="Bold" FontSize="11" Padding="10,5" Margin="0,0,4,0" Cursor="Hand" Visibility="Collapsed" ToolTip="Chuột trái: Chọn PGM (On-Air) | Chuột phải: Chọn PVW (Standby)"/>
+                                    <Button x:Name="BtnPgmCam7" Content="CAM 7" Click="BtnPgmSelect_Click" PreviewMouseRightButtonUp="BtnPgmSelect_PreviewMouseRightButtonUp" Tag="6" Background="#28282E" Foreground="#CCCCCC" FontWeight="Bold" FontSize="11" Padding="10,5" Margin="0,0,4,0" Cursor="Hand" Visibility="Collapsed" ToolTip="Chuột trái: Chọn PGM (On-Air) | Chuột phải: Chọn PVW (Standby)"/>
+                                    <Button x:Name="BtnPgmCam8" Content="CAM 8" Click="BtnPgmSelect_Click" PreviewMouseRightButtonUp="BtnPgmSelect_PreviewMouseRightButtonUp" Tag="7" Background="#28282E" Foreground="#CCCCCC" FontWeight="Bold" FontSize="11" Padding="10,5" Margin="0,0,4,0" Cursor="Hand" Visibility="Collapsed" ToolTip="Chuột trái: Chọn PGM (On-Air) | Chuột phải: Chọn PVW (Standby)"/>
+                                    <Button x:Name="BtnPgmCam9" Content="CAM 9" Click="BtnPgmSelect_Click" PreviewMouseRightButtonUp="BtnPgmSelect_PreviewMouseRightButtonUp" Tag="8" Background="#28282E" Foreground="#CCCCCC" FontWeight="Bold" FontSize="11" Padding="10,5" Margin="0,0,4,0" Cursor="Hand" Visibility="Collapsed" ToolTip="Chuột trái: Chọn PGM (On-Air) | Chuột phải: Chọn PVW (Standby)"/>
+                                    <Button x:Name="BtnPgmCam10" Content="CAM 10" Click="BtnPgmSelect_Click" PreviewMouseRightButtonUp="BtnPgmSelect_PreviewMouseRightButtonUp" Tag="9" Background="#28282E" Foreground="#CCCCCC" FontWeight="Bold" FontSize="11" Padding="10,5" Margin="0,0,4,0" Cursor="Hand" Visibility="Collapsed" ToolTip="Chuột trái: Chọn PGM (On-Air) | Chuột phải: Chọn PVW (Standby)"/>
+                                </StackPanel>
+
+                                <!-- Transition Controls -->
+                                <Button x:Name="BtnCutTransition" Content="CUT" Click="BtnCutTransition_Click" Background="#3B82F6" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11" Padding="10,5" Margin="4,0,4,0" Cursor="Hand" ToolTip="Chuyển cảnh ngay lập tức giữa PGM (Đỏ) và PVW (Xanh lá)"/>
+                                <Button x:Name="BtnDissolveTransition" Content="DISSOLVE (1.0s)" Click="BtnDissolveTransition_Click" Background="#25252A" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="10.5" Padding="8,5" Cursor="Hand" ToolTip="Hòa trộn 1 giây giữa PGM (Đỏ) và PVW (Xanh lá)"/>
+                            </StackPanel>
+
+                            <!-- Audio Monitoring & Master Multi-Channel VU Meter -->
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <!-- Channel Configuration Selector (Stereo / 4CH / 5.1 / 7.1 / 16CH) -->
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                                    <TextBlock Text="CH:" FontSize="10.5" Foreground="#8E8E93" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                    <ComboBox x:Name="CmbAudioChannels" Width="130" Height="26" SelectionChanged="CmbAudioChannels_SelectionChanged" ToolTip="Cấu hình kênh âm thanh giám sát (Stereo, 5.1, 7.1, 16CH SDI)">
+                                        <ComboBoxItem Content="Stereo (2CH)" IsSelected="True"/>
+                                        <ComboBoxItem Content="4-Channel (4CH)"/>
+                                        <ComboBoxItem Content="5.1 Surround (6CH)"/>
+                                        <ComboBoxItem Content="7.1 Surround (8CH)"/>
+                                        <ComboBoxItem Content="16-Ch SDI Embedded"/>
+                                    </ComboBox>
+                                </StackPanel>
+
+                                <!-- Solo Audio Label -->
+                                <Border Background="#141418" BorderBrush="#2C2C34" BorderThickness="1" CornerRadius="3" Padding="6,3" Margin="0,0,8,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="🎧 SOLO:" FontSize="10" Foreground="#8E8E93" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                        <TextBlock x:Name="TxtCurrentSolo" Text="PGM MASTER" FontWeight="Bold" FontSize="10.5" Foreground="#00FFCC" VerticalAlignment="Center"/>
                                     </StackPanel>
-                                    <TextBlock x:Name="TxtMasterPeakDb" Text="-18.0 dB" FontFamily="Consolas" FontWeight="Bold" FontSize="10" Foreground="#22C55E" VerticalAlignment="Center" Margin="2,0,0,0" Visibility="Collapsed"/>
-                                </StackPanel>
-                            </Border>
+                                </Border>
 
-                            <!-- Button Mute Preview Audio (Muted by default) -->
-                            <Button x:Name="BtnMutePreview" Content="🔇 PREVIEW MUTED" Click="BtnMutePreview_Click" Background="#EF4444" BorderBrush="#DC2626" BorderThickness="1" Foreground="#FFFFFF" FontWeight="Bold" FontSize="10" Padding="8,5" Cursor="Hand" ToolTip="Đang MUTE loa kiểm âm tại chỗ (âm thanh trong luồng Stream/NDI vẫn phát 100%)"/>
-                        </StackPanel>
-                    </Grid>
-                </Border>
+                                <!-- Master Multi-Channel VU Bars (16 Channels) -->
+                                <Border Background="#111114" BorderBrush="#2A2A30" BorderThickness="1" CornerRadius="3" Padding="4,2" Margin="0,0,8,0">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,4,0">
+                                            <ProgressBar x:Name="VuMasterL" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0"/>
+                                            <ProgressBar x:Name="VuMasterR" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0"/>
+                                            <ProgressBar x:Name="VuMaster3" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                            <ProgressBar x:Name="VuMaster4" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                            <ProgressBar x:Name="VuMaster5" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                            <ProgressBar x:Name="VuMaster6" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                            <ProgressBar x:Name="VuMaster7" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                            <ProgressBar x:Name="VuMaster8" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                            <ProgressBar x:Name="VuMaster9" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                            <ProgressBar x:Name="VuMaster10" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                            <ProgressBar x:Name="VuMaster11" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                            <ProgressBar x:Name="VuMaster12" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                            <ProgressBar x:Name="VuMaster13" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                            <ProgressBar x:Name="VuMaster14" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                            <ProgressBar x:Name="VuMaster15" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Margin="0,0,1,0" Visibility="Collapsed"/>
+                                            <ProgressBar x:Name="VuMaster16" Width="3" Height="24" Style="{StaticResource VuMeterBarStyle}" Visibility="Collapsed"/>
+                                        </StackPanel>
+                                        <TextBlock x:Name="TxtMasterPeakDb" Text="-18.0 dB" FontFamily="Consolas" FontWeight="Bold" FontSize="10" Foreground="#22C55E" VerticalAlignment="Center" Margin="2,0,0,0" Visibility="Collapsed"/>
+                                    </StackPanel>
+                                </Border>
 
-                <!-- ══ BOTTOM LOG CONSOLE & SYSTEM STATUS ═════════════ -->
-                <Border Grid.Row="2" Background="#18181C" BorderBrush="#28282E" BorderThickness="1" CornerRadius="6" Padding="8">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
-
-                        <!-- Log Toolbar -->
-                        <Grid Grid.Row="0" Margin="0,0,0,6">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="📋 BROADCAST EVENT &amp; SYNC LOG" FontWeight="Bold" FontSize="11" Foreground="#CCCCCC" Margin="0,0,10,0"/>
-                                <CheckBox x:Name="ChkAutoScroll" Content="Auto Scroll" IsChecked="True" Foreground="#888888" FontSize="10.5" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                <Button Content="Clear Logs" Click="BtnClearLogs_Click" Background="#26262B" Foreground="#AAAAAA" FontSize="10" Padding="6,2" Margin="0,0,4,0" Cursor="Hand"/>
-                                <Button Content="Copy" Click="BtnCopyLogs_Click" Background="#26262B" Foreground="#AAAAAA" FontSize="10" Padding="6,2" Cursor="Hand"/>
+                                <!-- Button Mute Preview Audio (Muted by default) -->
+                                <Button x:Name="BtnMutePreview" Content="🔇 PREVIEW MUTED" Click="BtnMutePreview_Click" Background="#EF4444" BorderBrush="#DC2626" BorderThickness="1" Foreground="#FFFFFF" FontWeight="Bold" FontSize="10" Padding="8,5" Cursor="Hand" ToolTip="Đang MUTE loa kiểm âm tại chỗ (âm thanh trong luồng Stream/NDI vẫn phát 100%)"/>
                             </StackPanel>
                         </Grid>
+                    </Border>
 
-                        <!-- Console Log Text View -->
-                        <ScrollViewer x:Name="ScrollerLogs" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Background="#101012">
-                            <TextBox x:Name="TxtLogConsole" Background="Transparent" Foreground="#D0D0D0" FontFamily="Consolas" FontSize="11" BorderThickness="0" IsReadOnly="True" TextWrapping="Wrap" Padding="4"/>
-                        </ScrollViewer>
-                    </Grid>
-                </Border>
+                    <!-- ══ BOTTOM LOG CONSOLE & SYSTEM STATUS ═════════════ -->
+                    <Border Grid.Row="1" Background="#18181C" BorderBrush="#28282E" BorderThickness="1" CornerRadius="6" Padding="8">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Log Toolbar -->
+                            <Grid Grid.Row="0" Margin="0,0,0,6">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="📋 BROADCAST EVENT &amp; SYNC LOG" FontWeight="Bold" FontSize="11" Foreground="#CCCCCC" Margin="0,0,10,0"/>
+                                    <CheckBox x:Name="ChkAutoScroll" Content="Auto Scroll" IsChecked="True" Foreground="#888888" FontSize="10.5" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button Content="Clear Logs" Click="BtnClearLogs_Click" Background="#26262B" Foreground="#AAAAAA" FontSize="10" Padding="6,2" Margin="0,0,4,0" Cursor="Hand"/>
+                                    <Button Content="Copy" Click="BtnCopyLogs_Click" Background="#26262B" Foreground="#AAAAAA" FontSize="10" Padding="6,2" Cursor="Hand"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Console Log Text View -->
+                            <ScrollViewer x:Name="ScrollerLogs" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Background="#101012">
+                                <TextBox x:Name="TxtLogConsole" Background="Transparent" Foreground="#D0D0D0" FontFamily="Consolas" FontSize="11" BorderThickness="0" IsReadOnly="True" TextWrapping="Wrap" Padding="4"/>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+                </Grid>
             </Grid>
 
             <!-- ────────────────────────────────────────────────────────────── -->
@@ -4966,6 +4994,26 @@
                                                 </StackPanel>
                                             </Border>
 
+                                            <!-- ─── STRIP A/V LIP-SYNC OFFSET (±200ms) ─────────── -->
+                                            <Border x:Name="StripLipSync" Width="52" Background="#161522" BorderBrush="#7C3AED" BorderThickness="1.5" CornerRadius="4" Margin="0,0,4,0" Padding="2,4" Visibility="Visible">
+                                                <StackPanel>
+                                                    <Border Background="#6D28D9" CornerRadius="2" Padding="2,1" Margin="0,0,0,1">
+                                                        <TextBlock Text="LIP-SYNC" FontWeight="Bold" FontSize="7.5" Foreground="#FFFFFF" HorizontalAlignment="Center"/>
+                                                    </Border>
+                                                    <TextBlock Text="A/V OFFSET" FontWeight="Bold" FontSize="8" Foreground="#C4B5FD" HorizontalAlignment="Center" Margin="0,0,0,2"/>
+                                                    <Grid Height="112">
+                                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <TextBlock x:Name="TxtLipSyncVal" Text="0 ms" FontSize="8" FontFamily="Consolas" FontWeight="Bold" Foreground="#FFFFFF" HorizontalAlignment="Center" Margin="0,0,0,1"/>
+                                                            <Slider x:Name="SliderLipSync" Orientation="Vertical" Height="96" Width="20" Minimum="-200" Maximum="200" Value="0" SmallChange="5" LargeChange="20" ValueChanged="SliderLipSync_ValueChanged" MouseDoubleClick="SliderLipSync_MouseDoubleClick" ToolTip="Kéo để bù trễ (-200ms đến +200ms). Ở giữa là 0ms. Kéo lên: làm chậm âm thanh; Kéo xuống: làm chậm hình ảnh. Nhấp đúp để reset 0ms" Cursor="Hand"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <StackPanel Margin="0,2,0,0">
+                                                        <Button x:Name="BtnResetLipSync" Content="0 ms" Width="44" Height="16" Background="#2C2C38" Foreground="#FFFFFF" BorderBrush="#4C4C58" BorderThickness="1" Click="BtnResetLipSync_Click" FontSize="7.5" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="Reset Lip-Sync về 0 ms"/>
+                                                        <TextBlock Text="±200ms" FontSize="7" Foreground="#8E8E93" HorizontalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+
                                             <!-- ─── STRIP DIRECTOR MIC (TALKBACK) ─────────── -->
                                             <Border x:Name="StripMixerDirector" Width="52" Background="#141824" BorderBrush="#2C2C36" BorderThickness="1.5" CornerRadius="4" Margin="0,0,4,0" Padding="2,4" Visibility="Visible" IsEnabled="False" Opacity="0.38">
                                                 <StackPanel>
@@ -5054,23 +5102,13 @@
                                 <!-- ══════════════════════════════════════════════════════════════════ -->
                                 <Border x:Name="PnlIntercomConsole" Style="{StaticResource CardBorderStyle}" BorderBrush="#3B82F6" Background="#141824" Margin="0,10,0,6" Padding="12,10">
                                     <StackPanel>
-                                        <!-- Hàng 1: Header Console & Incoming Field Speaker Indicator -->
-                                        <WrapPanel Margin="0,0,0,6" VerticalAlignment="Center">
-                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,2">
-                                                <TextBlock Text="🎙️ INTERCOM MATRIX CONSOLE" FontWeight="ExtraBold" FontSize="12.5" Foreground="#60A5FA"/>
-                                                <Border Background="#1E3A8A" CornerRadius="3" Padding="5,1" Margin="8,0,0,0">
-                                                    <TextBlock x:Name="TxtIntercomTargetBadge" Text="TARGET: ALL CAMERAS (PARTYLINE)" FontSize="8.5" FontWeight="Bold" Foreground="#93C5FD"/>
-                                                </Border>
-                                            </StackPanel>
-
-                                            <!-- Incoming Field Speaker Indicator -->
-                                            <Border x:Name="PnlIntercomIncoming" Background="#7F1D1D" BorderBrush="#EF4444" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,0,0,2" VerticalAlignment="Center" Visibility="Collapsed">
-                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                    <TextBlock Text="📢" FontSize="10" Margin="0,0,4,0"/>
-                                                    <TextBlock x:Name="TxtIntercomIncomingSpeaker" Text="CAM-01 IS TALKING..." FontSize="9.5" FontWeight="Bold" Foreground="#FCA5A5"/>
-                                                </StackPanel>
+                                        <!-- Hàng 1: Header Console -->
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,6">
+                                            <TextBlock Text="🎙️ INTERCOM MATRIX CONSOLE" FontWeight="ExtraBold" FontSize="12.5" Foreground="#60A5FA"/>
+                                            <Border Background="#1E3A8A" CornerRadius="3" Padding="5,1" Margin="8,0,0,0">
+                                                <TextBlock x:Name="TxtIntercomTargetBadge" Text="TARGET: ALL CAMERAS (PARTYLINE)" FontSize="8.5" FontWeight="Bold" Foreground="#93C5FD"/>
                                             </Border>
-                                        </WrapPanel>
+                                        </StackPanel>
 
                                         <!-- Hàng 2: Mode Selectors (Latch vs Momentary PTT) xuống dòng riêng biệt -->
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,6">
@@ -5112,6 +5150,14 @@
                                                 <TextBlock Text="🔊 RETURN:" FontSize="9.5" FontWeight="Bold" Foreground="#9CA3AF" VerticalAlignment="Center" Margin="0,0,8,0"/>
                                                 <Slider x:Name="SldIntercomVolume" Width="100" Minimum="0" Maximum="150" Value="75" ValueChanged="SldIntercomVolume_ValueChanged" VerticalAlignment="Center"/>
                                                 <TextBlock x:Name="TxtIntercomVolumeVal" Text="75%" FontSize="9.5" FontFamily="Consolas" FontWeight="Bold" Foreground="#38BDF8" Width="35" TextAlignment="Right" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Hàng 5: Incoming Field Speaker Indicator (Thông báo máy TALK ở hàng cuối cùng) -->
+                                        <Border x:Name="PnlIntercomIncoming" Background="#7F1D1D" BorderBrush="#EF4444" BorderThickness="1" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="0,4,0,2" Visibility="Collapsed">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="📢" FontSize="10" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="TxtIntercomIncomingSpeaker" Text="CAM-01 IS TALKING..." FontSize="9.5" FontWeight="Bold" Foreground="#FCA5A5" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>

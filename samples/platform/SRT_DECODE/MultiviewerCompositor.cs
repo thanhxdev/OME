@@ -32,9 +32,14 @@ namespace SRT_DECODE
             public int Width;
             public int Height;
             public long LastUpdateTicks;
+            public long FrameSequenceId; // Đếm số frame thực sự nhận được
         }
 
         private readonly ChannelSlot[] _slots = new ChannelSlot[MaxChannels];
+        private readonly long[] _lastComposedSequenceId = new long[MaxChannels];
+        private int _lastLayoutCols = -1;
+        private int _lastLayoutRows = -1;
+        private int _lastActiveCount = -1;
 
         // Pre-rendered OSD badges (Width: 160, Height: 28)
         private const int BadgeWidth = 160;
@@ -65,6 +70,7 @@ namespace SRT_DECODE
 
         public MultiviewerCompositor()
         {
+            Array.Fill(_lastComposedSequenceId, -1L);
             for (int i = 0; i < MaxChannels; i++)
             {
                 _slots[i] = new ChannelSlot();
@@ -229,7 +235,7 @@ namespace SRT_DECODE
         /// </summary>
         public void UpdateChannelFrame(int channelIndex, byte[] bgraBytes, int width, int height)
         {
-            if (channelIndex < 0 || channelIndex >= MaxChannels || bgraBytes == null || bgraBytes.Length == 0) return;
+            if (!_isRunning || channelIndex < 0 || channelIndex >= MaxChannels || bgraBytes == null || bgraBytes.Length == 0) return;
 
             var slot = _slots[channelIndex];
             lock (slot.Lock)
@@ -244,6 +250,7 @@ namespace SRT_DECODE
                 slot.Width = width;
                 slot.Height = height;
                 slot.LastUpdateTicks = Stopwatch.GetTimestamp();
+                slot.FrameSequenceId++;
             }
         }
 
@@ -402,10 +409,22 @@ namespace SRT_DECODE
             int cellH = OutputHeight / rows;
             int totalSlots = cols * rows;
 
+            bool layoutChanged = (cols != _lastLayoutCols || rows != _lastLayoutRows || activeCount != _lastActiveCount);
+            if (layoutChanged)
+            {
+                _lastLayoutCols = cols;
+                _lastLayoutRows = rows;
+                _lastActiveCount = activeCount;
+                Array.Fill(_lastComposedSequenceId, -1L);
+            }
+
             fixed (byte* pDst = _canvas)
             {
-                // 1. Fill base canvas with matte black (#070709)
-                FillRect(pDst, OutputWidth, OutputHeight, OutputStride, 0, 0, OutputWidth, OutputHeight, 0xFF070709);
+                // Chỉ xóa toàn bộ canvas thành đen khi layout thay đổi hoặc khởi động
+                if (layoutChanged)
+                {
+                    FillRect(pDst, OutputWidth, OutputHeight, OutputStride, 0, 0, OutputWidth, OutputHeight, 0xFF070709);
+                }
 
                 for (int slot = 0; slot < totalSlots; slot++)
                 {
@@ -431,6 +450,7 @@ namespace SRT_DECODE
                         byte[]? frameBuf = null;
                         int srcW = 0;
                         int srcH = 0;
+                        long currentSeqId = 0;
 
                         lock (chSlot.Lock)
                         {
@@ -444,19 +464,26 @@ namespace SRT_DECODE
                                     frameBuf = chSlot.Buffer;
                                     srcW = chSlot.Width;
                                     srcH = chSlot.Height;
+                                    currentSeqId = chSlot.FrameSequenceId;
                                 }
                             }
                         }
 
+                        // Chỉ re-blit khi frame thực sự mới (giảm judder khi nguồn 25fps)
                         if (hasLiveFrame && frameBuf != null)
                         {
-                            fixed (byte* pSrc = frameBuf)
+                            if (currentSeqId != _lastComposedSequenceId[chIdx])
                             {
-                                ScaleBlit(pSrc, srcW, srcH, srcW * 4, pDst, OutputWidth, OutputHeight, OutputStride, boxX, boxY, boxW, boxH);
+                                _lastComposedSequenceId[chIdx] = currentSeqId;
+                                fixed (byte* pSrc = frameBuf)
+                                {
+                                    ScaleBlit(pSrc, srcW, srcH, srcW * 4, pDst, OutputWidth, OutputHeight, OutputStride, boxX, boxY, boxW, boxH);
+                                }
                             }
                         }
                         else
                         {
+                            _lastComposedSequenceId[chIdx] = -1L;
                             // Blit standby placeholder tile
                             var standby = _standbyTiles[chIdx];
                             if (standby != null)

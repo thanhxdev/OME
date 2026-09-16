@@ -112,6 +112,7 @@ OME_API void ome_srt_output_destroy(ome_output_t output);
 OME_API bool ome_srt_output_open(ome_output_t output, const char* uri);
 OME_API void ome_srt_output_close(ome_output_t output);
 OME_API bool ome_srt_output_send(ome_output_t output, const uint8_t* data, int size);
+OME_API bool ome_srt_output_send_msg(ome_output_t output, const uint8_t* data, int size, int ttl_ms, bool in_order);
 OME_API bool ome_srt_output_is_connected(ome_output_t output);
 OME_API bool ome_srt_output_get_stats(ome_output_t output, ome_srt_stats_t* stats);
 

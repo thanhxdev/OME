@@ -226,7 +226,7 @@ namespace SRT_DECODE
             }
         }
 
-        public void UpdateChannelSyncMetrics(int channelIndex, DateTime originUtc, double actualLatency, double drift, double bufferFill)
+        public void UpdateChannelSyncMetrics(int channelIndex, DateTime originUtc, double actualLatency, double drift, double bufferFill, long pts = 0)
         {
             if (channelIndex < 0 || channelIndex >= MaxChannels) return;
 
@@ -237,6 +237,10 @@ namespace SRT_DECODE
                 ch.LastNtpTimestamp = originUtc;
                 ch.DriftMs = drift;
                 ch.BufferFillPercent = Math.Clamp(bufferFill, 10.0, 100.0);
+                if (pts > 0)
+                {
+                    ch.LastPts = pts;
+                }
 
                 if (!_masterSyncEnabled)
                 {
@@ -259,6 +263,21 @@ namespace SRT_DECODE
             }
 
             SyncMetricsUpdated?.Invoke(GetSnapshot());
+        }
+
+        /// <summary>
+        /// Tính toán độ lệch pha giữa 2 camera dựa trên mốc thời gian PTS 90kHz gốc (Độ trễ = delta / 90ms).
+        /// </summary>
+        public double GetCameraPtsDriftMs(int camIndexA, int camIndexB)
+        {
+            if (camIndexA < 0 || camIndexA >= MaxChannels || camIndexB < 0 || camIndexB >= MaxChannels) return 0.0;
+            lock (_lock)
+            {
+                var a = _channels[camIndexA];
+                var b = _channels[camIndexB];
+                if (!a.IsActive || !b.IsActive || a.LastPts == 0 || b.LastPts == 0) return 0.0;
+                return ((a.LastPts - b.LastPts) * 1000.0) / 90000.0;
+            }
         }
 
         public void SetChannelActive(int channelIndex, bool active)

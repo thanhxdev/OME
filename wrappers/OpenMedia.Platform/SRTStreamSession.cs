@@ -333,12 +333,18 @@ namespace OpenMedia.Platform
 
         /// <summary>
         /// Sends raw video/audio transport packet bytes directly over the active SRT connection.
+        /// Supports optional buffer length, TTL (Time-To-Live packet drop) and in-order delivery flags.
         /// </summary>
-        public bool SendData(byte[] data)
+        public bool SendData(byte[] data, int length = -1, int ttlMs = 0, bool inOrder = true)
         {
             if (_nativeOutput != null && _nativeOutput.IsOpen)
             {
-                return _nativeOutput.Send(data);
+                if (ttlMs > 0 || !inOrder)
+                {
+                    bool sent = _nativeOutput.SendMsg(data, length, ttlMs, inOrder);
+                    if (sent) return true;
+                }
+                return _nativeOutput.Send(data, length);
             }
             return false;
         }
@@ -414,6 +420,7 @@ namespace OpenMedia.Platform
                     }
                 }
 
+                bool wasConnected = _statistics.IsConnected;
                 if (gotNativeStats)
                 {
                     ulong deltaBytes = _statistics.TotalBytesTransferred >= _lastTotalBytes
@@ -431,6 +438,11 @@ namespace OpenMedia.Platform
                     _statistics.PacketLossPercent = 0.0;
                     _statistics.BandwidthMbps = 0.0;
                     _statistics.CurrentFps = 0;
+                }
+
+                if (wasConnected != _statistics.IsConnected)
+                {
+                    StatusChanged?.Invoke(_statistics.IsConnected, _statistics.IsConnected ? "SRT Receiver CONNECTED" : "SRT Receiver DISCONNECTED");
                 }
 
                 if (_config.AutoLatency && _statistics.RttMs > 0)

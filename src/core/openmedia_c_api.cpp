@@ -323,6 +323,12 @@ OME_API bool ome_srt_output_send(ome_output_t output, const uint8_t* data, int s
     return o->Send(data, (size_t)size);
 }
 
+OME_API bool ome_srt_output_send_msg(ome_output_t output, const uint8_t* data, int size, int ttl_ms, bool in_order) {
+    if (!output || !data || size <= 0) return false;
+    auto* o = reinterpret_cast<openmedia::srt::SRTOutput*>(output);
+    return o->SendMsg(data, (size_t)size, ttl_ms, in_order);
+}
+
 OME_API bool ome_srt_output_is_connected(ome_output_t output) {
     if (!output) return false;
     auto* o = reinterpret_cast<openmedia::srt::SRTOutput*>(output);

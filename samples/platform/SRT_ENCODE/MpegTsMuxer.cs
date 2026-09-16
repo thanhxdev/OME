@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace SRT_ENCODE
 {
@@ -32,6 +33,9 @@ namespace SRT_ENCODE
         private long _frameIndex = 0;
         private long _audioFrameCounter = 0;
         private long _audioPts = 0;
+        private int _frameRateNum = 60000;
+        private int _frameRateDen = 1001;
+        private long _basePcr = -1;
         private readonly VideoCodecType _codecType;
 
         public ColorbarPatternType CurrentPattern { get; set; } = ColorbarPatternType.SmpteRp219;
@@ -136,6 +140,15 @@ namespace SRT_ENCODE
             CurrentTone = tone;
         }
 
+        public void SetFrameRate(int num, int den)
+        {
+            if (num > 0 && den > 0)
+            {
+                _frameRateNum = num;
+                _frameRateDen = den;
+            }
+        }
+
         /// <summary>
         /// Lấy một khối truyền dẫn SRT hoàn chỉnh (7 gói MPEG-TS = 1316 bytes).
         /// Tự động tạo và nạp khung hình hoàn chỉnh vào hàng đợi khi cần.
@@ -159,10 +172,19 @@ namespace SRT_ENCODE
 
         private void EnqueueCompleteBroadcastFrame()
         {
-            long nowTicks = DateTime.UtcNow.Ticks;
-            long pcrBase = (nowTicks / 10) % 0x1FFFFFFFFL; // 33-bit PCR Base @ 90kHz
-            int pcrExt = (int)((nowTicks % 10) * 30);      // 9-bit PCR Ext @ 27MHz
-            long pts = pcrBase + 4500;                     // 50ms PTS offset
+            // Sử dụng monotonic clock (Stopwatch) thay vì DateTime.UtcNow.Ticks để không bao giờ bị nhảy pha khi NTP sync
+            long nowUs = (Stopwatch.GetTimestamp() * 1_000_000L) / Stopwatch.Frequency;
+            long pcrBase = (nowUs * 90 / 1000) % 0x1FFFFFFFFL; // 33-bit PCR Base @ 90kHz
+            int pcrExt = (int)((nowUs * 27) % 300);            // 9-bit PCR Ext @ 27MHz (0..299)
+
+            if (_basePcr < 0)
+            {
+                _basePcr = pcrBase;
+            }
+
+            // Frame-Rate Aware PTS: increment chính xác theo nhịp frame duration 90kHz
+            long frameDuration90k = (90000L * _frameRateDen) / _frameRateNum;
+            long pts = (_basePcr + (_frameIndex * frameDuration90k)) % 0x1FFFFFFFFL;
 
             if (_audioPts == 0)
             {

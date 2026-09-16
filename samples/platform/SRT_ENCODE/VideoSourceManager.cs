@@ -1,6 +1,8 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -43,8 +45,7 @@ namespace SRT_ENCODE
     /// <summary>
     /// Quản lý tập trung toàn bộ nguồn video đầu vào (SDI, NDI, File, Colorbar),
     /// điều khiển MediaPlayer giải mã phát lại trên Preview (ReviewView),
-    /// điều khiển NDI Receiver & SDI Capture loop thời gian thực,
-    /// đồng bộ hóa âm thanh kiểm âm (Audio Monitor) và cập nhật thông số nguồn thật.
+    /// và cung cấp dữ liệu hình ảnh âm thanh chuẩn cho luồng SRT Stream Output.
     /// </summary>
     public sealed class VideoSourceManager : IDisposable
     {
@@ -56,7 +57,22 @@ namespace SRT_ENCODE
         private SdiDeviceCapture? _sdiCapture;
         private WriteableBitmap? _previewBitmap;
         private byte[]? _latestMasterFrame;
+        private readonly byte[][] _masterFramePool = new byte[][] { new byte[1920 * 1080 * 4], new byte[1920 * 1080 * 4] };
+        private int _masterFramePoolIndex = 0;
         private readonly object _masterFrameLock = new();
+
+        // Direct Audio Output Device
+        private readonly AudioOutputDevice _audioOutputDevice = new();
+
+        // Direct File Preview Engine (FFmpeg Raw Video & Audio Pipes)
+        private CancellationTokenSource? _fileEngineCts;
+        private Process? _fileVideoProcess;
+        private Process? _fileAudioProcess;
+        private Thread? _fileVideoThread;
+        private Thread? _fileAudioThread;
+        private Stopwatch? _filePlaybackStopwatch;
+        private TimeSpan _fileDuration = TimeSpan.Zero;
+        private readonly object _fileEngineLock = new();
 
         // UI references
         private OpenMediaVideoView? _reviewView;
@@ -69,8 +85,8 @@ namespace SRT_ENCODE
         private InputSourceType _currentSource = InputSourceType.File;
         private string _currentSourcePath = string.Empty;
         private bool _isPreviewEnabled = true;
-        private bool _isAudioMonitorEnabled = false;
-        private double _monitorVolume = 0.4;
+        private bool _isAudioMonitorEnabled = true;
+        private double _monitorVolume = 0.7;
         private bool _isLoopPlayback = true;
         private Stretch _currentStretch = Stretch.Uniform;
         private readonly VideoSourceTelemetry _currentTelemetry = new();
@@ -84,16 +100,52 @@ namespace SRT_ENCODE
             get => _isLoopPlayback;
             set
             {
+                if (_isLoopPlayback == value) return;
                 _isLoopPlayback = value;
                 if (_player != null)
                 {
                     _player.IsLooping = value;
                 }
+                if (_currentSource == InputSourceType.File && !string.IsNullOrEmpty(_currentSourcePath))
+                {
+                    _ = HandleFileSourceAsync(_currentSourcePath);
+                }
             }
         }
 
         public PlatformMediaPlayer? Player => _player;
-        public TimeSpan CurrentPosition => _player?.Position ?? TimeSpan.Zero;
+
+        public TimeSpan CurrentPosition
+        {
+            get
+            {
+                if (_filePlaybackStopwatch != null && _filePlaybackStopwatch.IsRunning)
+                {
+                    double elapsed = _filePlaybackStopwatch.Elapsed.TotalSeconds;
+                    if (_fileDuration.TotalSeconds > 0.05)
+                    {
+                        if (_isLoopPlayback)
+                        {
+                            return TimeSpan.FromSeconds(elapsed % _fileDuration.TotalSeconds);
+                        }
+                        return TimeSpan.FromSeconds(Math.Min(elapsed, _fileDuration.TotalSeconds));
+                    }
+                    return TimeSpan.FromSeconds(elapsed);
+                }
+                return _player?.Position ?? TimeSpan.Zero;
+            }
+        }
+
+        public TimeSpan CurrentDuration
+        {
+            get
+            {
+                if (_fileDuration > TimeSpan.Zero) return _fileDuration;
+                return _player?.Duration ?? TimeSpan.Zero;
+            }
+        }
+
+        public bool IsDirectFilePlaybackRunning => _fileVideoProcess != null && !_fileVideoProcess.HasExited;
         public ColorbarEngine ColorbarEngine => _colorbarEngine;
         public SRTStreamSession? SrtStreamSource => _srtStreamSource;
         public InputSourceType CurrentSource => _currentSource;
@@ -208,10 +260,12 @@ namespace SRT_ENCODE
             switch (sourceType)
             {
                 case InputSourceType.SDI:
+                    StopFilePlaybackEngine();
                     await HandleSdiSourceAsync(sourceParam ?? "Default SDI Capture Card", videoMode, audioCh);
                     break;
 
                 case InputSourceType.NDI:
+                    StopFilePlaybackEngine();
                     await HandleNdiSourceAsync(sourceParam ?? "");
                     break;
 
@@ -222,17 +276,451 @@ namespace SRT_ENCODE
 
                 case InputSourceType.Colorbar:
                     StopLiveCaptures();
+                    StopFilePlaybackEngine();
                     HandleColorbarSource();
                     break;
 
                 case InputSourceType.SRT:
                     StopLiveCaptures();
+                    StopFilePlaybackEngine();
                     await HandleSrtSourceAsync(sourceParam ?? "srt://127.0.0.1:9000?mode=caller");
                     break;
             }
 
             SourceChanged?.Invoke(_currentSource, _currentSourcePath);
         }
+
+        #region Direct File Playback Engine (FFmpeg Raw Video & Audio Pipes)
+
+        public static string? FindFfmpegExecutable()
+        {
+            // 1. Direct App domain directory
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            var localCandidates = new[]
+            {
+                Path.Combine(baseDir, "ffmpeg.exe"),
+                Path.Combine(baseDir, "bin", "ffmpeg.exe")
+            };
+            foreach (var c in localCandidates)
+            {
+                if (File.Exists(c)) return c;
+            }
+
+            // 2. Tra cứu từ vị trí OpenMediaServer (thông qua ServerDiscovery)
+            try
+            {
+                string? srv = OpenMedia.Platform.Internal.ServerDiscovery.Discover();
+                if (!string.IsNullOrEmpty(srv))
+                {
+                    string? srvDir = Path.GetDirectoryName(srv);
+                    if (!string.IsNullOrEmpty(srvDir))
+                    {
+                        string ffCandidate = Path.Combine(srvDir, "ffmpeg.exe");
+                        if (File.Exists(ffCandidate)) return ffCandidate;
+                    }
+                }
+            }
+            catch { }
+
+            // 3. Biến môi trường OPENMEDIA_SDK_DIR
+            string? sdkDir = Environment.GetEnvironmentVariable("OPENMEDIA_SDK_DIR");
+            if (!string.IsNullOrEmpty(sdkDir))
+            {
+                string p1 = Path.Combine(sdkDir, "bin", "ffmpeg.exe");
+                if (File.Exists(p1)) return p1;
+                string p2 = Path.Combine(sdkDir, "ffmpeg.exe");
+                if (File.Exists(p2)) return p2;
+            }
+
+            // 4. Windows Registry HKLM\Software\OpenMedia\SDK (Path)
+            try
+            {
+                using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"Software\OpenMedia\SDK");
+                if (key != null)
+                {
+                    string? regPath = key.GetValue("Path") as string;
+                    if (!string.IsNullOrEmpty(regPath))
+                    {
+                        string p1 = Path.Combine(regPath, "bin", "ffmpeg.exe");
+                        if (File.Exists(p1)) return p1;
+                        string p2 = Path.Combine(regPath, "ffmpeg.exe");
+                        if (File.Exists(p2)) return p2;
+                    }
+                }
+            }
+            catch { }
+
+            // 5. Thư mục cài đặt chuẩn Program Files
+            string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            var progCandidates = new[]
+            {
+                Path.Combine(programFiles, "OpenMedia", "SDK", "bin", "ffmpeg.exe"),
+                Path.Combine(programFiles, "OpenMedia", "bin", "ffmpeg.exe"),
+                Path.Combine(programFiles, "OpenMedia", "ffmpeg.exe")
+            };
+            foreach (var pc in progCandidates)
+            {
+                if (File.Exists(pc)) return pc;
+            }
+
+            // 6. Dev environment fallback: third_party\ffmpeg\bin\ffmpeg.exe
+            string current = baseDir;
+            for (int i = 0; i < 6; i++)
+            {
+                if (string.IsNullOrEmpty(current)) break;
+                var devCandidates = new[]
+                {
+                    Path.Combine(current, "third_party", "ffmpeg", "bin", "ffmpeg.exe"),
+                    Path.Combine(current, "dist", "sdk_staging", "bin", "ffmpeg.exe"),
+                    Path.Combine(current, "dist", "sdk", "bin", "ffmpeg.exe")
+                };
+                foreach (var dc in devCandidates)
+                {
+                    if (File.Exists(dc)) return dc;
+                }
+                var parent = Directory.GetParent(current);
+                if (parent == null) break;
+                current = parent.FullName;
+            }
+
+            return null;
+        }
+
+        public static string? FindFfprobeExecutable()
+        {
+            string? ffmpeg = FindFfmpegExecutable();
+            if (!string.IsNullOrEmpty(ffmpeg))
+            {
+                string dir = Path.GetDirectoryName(ffmpeg) ?? "";
+                string probe = Path.Combine(dir, "ffprobe.exe");
+                if (File.Exists(probe)) return probe;
+            }
+            return null;
+        }
+
+        private TimeSpan ProbeMediaDuration(string filePath)
+        {
+            try
+            {
+                string? probePath = FindFfprobeExecutable();
+                if (!string.IsNullOrEmpty(probePath) && File.Exists(probePath))
+                {
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = probePath,
+                        Arguments = $"-v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 \"{filePath}\"",
+                        RedirectStandardOutput = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+                    using var proc = Process.Start(psi);
+                    if (proc != null)
+                    {
+                        string output = proc.StandardOutput.ReadToEnd();
+                        proc.WaitForExit(2000);
+                        if (double.TryParse(output.Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double sec) && sec > 0)
+                        {
+                            return TimeSpan.FromSeconds(sec);
+                        }
+                    }
+                }
+            }
+            catch { }
+            return TimeSpan.Zero;
+        }
+
+        private double ProbeMediaFps(string filePath)
+        {
+            try
+            {
+                string? probePath = FindFfprobeExecutable();
+                if (!string.IsNullOrEmpty(probePath) && File.Exists(probePath))
+                {
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = probePath,
+                        Arguments = $"-v error -select_streams v:0 -show_entries stream=r_frame_rate,avg_frame_rate -of default=noprint_wrappers=1:nokey=1 \"{filePath}\"",
+                        RedirectStandardOutput = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+                    using var proc = Process.Start(psi);
+                    if (proc != null)
+                    {
+                        string output = proc.StandardOutput.ReadToEnd();
+                        proc.WaitForExit(2000);
+                        string[] lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                        foreach (string line in lines)
+                        {
+                            string trimLine = line.Trim();
+                            if (trimLine.Contains('/'))
+                            {
+                                string[] parts = trimLine.Split('/');
+                                if (double.TryParse(parts[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double num) &&
+                                    double.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double den) &&
+                                    den > 0)
+                                {
+                                    double fps = num / den;
+                                    if (fps >= 10.0 && fps <= 240.0) return fps;
+                                }
+                            }
+                            else if (double.TryParse(trimLine, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double directFps) && directFps >= 10.0)
+                            {
+                                return directFps;
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+            return 30.0;
+        }
+
+        private void StopFilePlaybackEngine()
+        {
+            lock (_fileEngineLock)
+            {
+                try
+                {
+                    _fileEngineCts?.Cancel();
+                }
+                catch { }
+
+                try
+                {
+                    if (_fileVideoProcess != null && !_fileVideoProcess.HasExited)
+                    {
+                        _fileVideoProcess.Kill(entireProcessTree: true);
+                    }
+                }
+                catch { }
+                try { _fileVideoProcess?.Dispose(); } catch { }
+                _fileVideoProcess = null;
+
+                try
+                {
+                    if (_fileAudioProcess != null && !_fileAudioProcess.HasExited)
+                    {
+                        _fileAudioProcess.Kill(entireProcessTree: true);
+                    }
+                }
+                catch { }
+                try { _fileAudioProcess?.Dispose(); } catch { }
+                _fileAudioProcess = null;
+
+                _fileVideoThread = null;
+                _fileAudioThread = null;
+
+                _filePlaybackStopwatch?.Stop();
+                _filePlaybackStopwatch = null;
+                _fileDuration = TimeSpan.Zero;
+
+                try { _fileEngineCts?.Dispose(); } catch { }
+                _fileEngineCts = null;
+
+                _audioOutputDevice?.ClearQueue();
+            }
+        }
+
+        private static bool ReadExact(Stream stream, byte[] buffer, int offset, int count, CancellationToken token)
+        {
+            int totalRead = 0;
+            while (totalRead < count)
+            {
+                if (token.IsCancellationRequested) return false;
+                int read = stream.Read(buffer, offset + totalRead, count - totalRead);
+                if (read <= 0) return false;
+                totalRead += read;
+            }
+            return true;
+        }
+
+        private bool StartDirectFilePlayback(string ffmpegPath, string filePath, string fileName)
+        {
+            try
+            {
+                StopFilePlaybackEngine();
+
+                // Thăm dò thời lượng và tốc độ khung hình gốc của file
+                _fileDuration = ProbeMediaDuration(filePath);
+                double fileFps = ProbeMediaFps(filePath);
+                string fpsParam = fileFps.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+                var cts = new CancellationTokenSource();
+                _fileEngineCts = cts;
+                var token = cts.Token;
+
+                string loopArg = _isLoopPlayback ? "-stream_loop -1" : "-stream_loop 0";
+
+                // 1. Process giải mã video: 1920x1080 BGRA rawvideo -> pipe:1
+                var videoPsi = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    Arguments = $"-re {loopArg} -i \"{filePath}\" -an -f rawvideo -pix_fmt bgra -s 1920x1080 -r {fpsParam} -v error pipe:1",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                };
+
+                // 2. Process giải mã audio: 48000Hz 2 channels 16-bit PCM -> pipe:1
+                var audioPsi = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    Arguments = $"-re {loopArg} -i \"{filePath}\" -vn -f s16le -ar 48000 -ac 2 -v error pipe:1",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                };
+
+                _fileVideoProcess = Process.Start(videoPsi);
+                _fileAudioProcess = Process.Start(audioPsi);
+
+                if (_fileVideoProcess == null || _fileAudioProcess == null)
+                {
+                    StopFilePlaybackEngine();
+                    return false;
+                }
+
+                // Video Reader Thread
+                _fileVideoThread = new Thread(() =>
+                {
+                    const int width = 1920;
+                    const int height = 1080;
+                    const int frameSize = width * height * 4; // 8,294,400 bytes
+                    byte[] frameBuffer = new byte[frameSize];
+
+                    try
+                    {
+                        using var vStream = _fileVideoProcess.StandardOutput.BaseStream;
+                        while (!token.IsCancellationRequested)
+                        {
+                            if (!ReadExact(vStream, frameBuffer, 0, frameSize, token))
+                            {
+                                break; // EOF or cancelled
+                            }
+
+                            // Copy to master frame buffer using Zero-Allocation Double Buffer Pool
+                            byte[] frameCopy = _masterFramePool[_masterFramePoolIndex];
+                            _masterFramePoolIndex = (_masterFramePoolIndex + 1) % _masterFramePool.Length;
+                            Buffer.BlockCopy(frameBuffer, 0, frameCopy, 0, frameSize);
+
+                            lock (_masterFrameLock)
+                            {
+                                _latestMasterFrame = frameCopy;
+                            }
+
+                            // Present to Preview
+                            if (_reviewView != null && _currentSource == InputSourceType.File && _isPreviewEnabled)
+                            {
+                                _reviewView.Dispatcher.InvokeAsync(() =>
+                                {
+                                    if (_reviewView == null || _currentSource != InputSourceType.File) return;
+
+                                    if (_previewBitmap == null || _previewBitmap.PixelWidth != width || _previewBitmap.PixelHeight != height)
+                                    {
+                                        _previewBitmap = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgra32, null);
+                                        _reviewView.PresentBitmap(_previewBitmap);
+                                    }
+
+                                    _previewBitmap.Lock();
+                                    try
+                                    {
+                                        unsafe
+                                        {
+                                            int copyBytes = Math.Min(frameCopy.Length, _previewBitmap.BackBufferStride * height);
+                                            fixed (byte* pSrc = frameCopy)
+                                            {
+                                                Buffer.MemoryCopy(pSrc, (void*)_previewBitmap.BackBuffer, copyBytes, copyBytes);
+                                            }
+                                        }
+                                        _previewBitmap.AddDirtyRect(new Int32Rect(0, 0, width, height));
+                                    }
+                                    finally
+                                    {
+                                        _previewBitmap.Unlock();
+                                    }
+                                }, System.Windows.Threading.DispatcherPriority.Render);
+                            }
+                        }
+                    }
+                    catch { }
+                })
+                {
+                    Name = "SRT_FileVideoReaderThread",
+                    IsBackground = true,
+                    Priority = ThreadPriority.AboveNormal
+                };
+                _fileVideoThread.Start();
+
+                // Audio Reader Thread
+                _fileAudioThread = new Thread(() =>
+                {
+                    const int chunkSize = 3840; // 20ms at 48kHz stereo 16-bit PCM
+                    byte[] audioChunk = new byte[chunkSize];
+
+                    try
+                    {
+                        using var aStream = _fileAudioProcess.StandardOutput.BaseStream;
+                        while (!token.IsCancellationRequested)
+                        {
+                            int read = aStream.Read(audioChunk, 0, chunkSize);
+                            if (read <= 0) break;
+
+                            // 1. Send to WinMM AudioOutputDevice for local speaker monitor
+                            double vol = _isAudioMonitorEnabled ? _monitorVolume : 0.0;
+                            _audioOutputDevice.PlayPcm(audioChunk, 0, read, vol);
+
+                            // 2. Feed AudioMeterService VU Meter
+                            int sampleCount = read / 2;
+                            float[] floatSamples = new float[sampleCount];
+                            for (int i = 0; i < sampleCount; i++)
+                            {
+                                short val = BitConverter.ToInt16(audioChunk, i * 2);
+                                floatSamples[i] = val / 32768.0f;
+                            }
+                            AudioSamplesArrived?.Invoke(floatSamples, 2, 48000);
+                        }
+                    }
+                    catch { }
+                })
+                {
+                    Name = "SRT_FileAudioReaderThread",
+                    IsBackground = true,
+                    Priority = ThreadPriority.AboveNormal
+                };
+                _fileAudioThread.Start();
+
+                _filePlaybackStopwatch = Stopwatch.StartNew();
+
+                // Update Telemetry
+                string ext = Path.GetExtension(filePath).ToUpperInvariant();
+                _currentTelemetry.SourceName = fileName;
+                _currentTelemetry.SourceType = $"FILE ({ext})";
+                _currentTelemetry.Status = "● ACTIVE (PLAYING)";
+                _currentTelemetry.IsLocked = true;
+                _currentTelemetry.Resolution = "1920 x 1080 (1080p FHD)";
+                _currentTelemetry.FrameRate = $"{fileFps:F2} FPS";
+                _currentTelemetry.VideoCodec = "FFmpeg Direct Surface (BGRA Raw)";
+                _currentTelemetry.Bitrate = "Dynamic Bitrate";
+                _currentTelemetry.AudioFormat = "Stereo (2 Ch) @ 48.0 kHz 16-bit PCM";
+                _currentTelemetry.ColorSpace = "ITU-R BT.709 / RGB 32-bit";
+                _currentTelemetry.PipelineDetails = "FFmpeg Direct Pipe Decoded Surface • WinMM Zero-Latency Audio";
+                TelemetryUpdated?.Invoke(_currentTelemetry);
+
+                Log("[INFO]", $"✅ [SUCCESS] Đã khởi chạy Direct File Preview Engine (FFmpeg): {fileName} [1920x1080 @ {fileFps:F2} FPS, Stereo 48kHz]");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log("[WARN]", $"Direct File Engine thất bại: {ex.Message}");
+                StopFilePlaybackEngine();
+                return false;
+            }
+        }
+
+        #endregion
 
         #region File Input Handler
 
@@ -257,6 +745,8 @@ namespace SRT_ENCODE
 
             // Dừng phát âm thanh Colorbar nếu đang bật
             _colorbarEngine.StopAudioTone();
+            StopLiveCaptures();
+            StopFilePlaybackEngine();
 
             if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
             {
@@ -269,6 +759,14 @@ namespace SRT_ENCODE
             {
                 Log("[INFO]", $"Đang nạp và phân tích thông số video file: {fileName}...");
 
+                string? ffmpegPath = FindFfmpegExecutable();
+                if (!string.IsNullOrEmpty(ffmpegPath) && StartDirectFilePlayback(ffmpegPath, filePath, fileName))
+                {
+                    return;
+                }
+
+                // Fallback sang PlatformMediaPlayer nếu không chạy được FFmpeg
+                Log("[WARN]", "Không tìm thấy FFmpeg, fallback sang MediaPlayer...");
                 if (_player == null)
                 {
                     await RecreatePlayerAsync();
@@ -917,6 +1415,11 @@ namespace SRT_ENCODE
             _isAudioMonitorEnabled = isMonitorEnabled;
             _monitorVolume = Math.Clamp(volume, 0.0, 1.0);
 
+            if (!_isAudioMonitorEnabled)
+            {
+                _audioOutputDevice?.ClearQueue();
+            }
+
             if (_player != null)
             {
                 _player.IsMuted = !_isAudioMonitorEnabled;
@@ -984,6 +1487,8 @@ namespace SRT_ENCODE
         public void Dispose()
         {
             try { StopLiveCaptures(); } catch { }
+            try { StopFilePlaybackEngine(); } catch { }
+            try { _audioOutputDevice?.Dispose(); } catch { }
             try { _colorbarEngine?.Dispose(); } catch { }
             try { _srtStreamSource?.Dispose(); } catch { }
             _srtStreamSource = null;

@@ -124,6 +124,7 @@ namespace WEBRTC_ENCODE
         public event Action<VideoSourceTelemetry>? TelemetryUpdated;
         public event Action<float[], int, int>? AudioSamplesArrived;
         public event Action<byte[], double>? AudioPcmChunkArrived;
+        public event Action? PlaybackLooped;
 
         public VideoSourceManager(ColorbarEngine colorbarEngine)
         {
@@ -509,6 +510,9 @@ namespace WEBRTC_ENCODE
                         {
                             break;
                         }
+
+                        // Báo hiệu vòng lặp phát file để reset buffer âm thanh tránh tích tụ lệch pha AV
+                        PlaybackLooped?.Invoke();
                     }
                     catch (OperationCanceledException) { break; }
                     catch (Exception ex)

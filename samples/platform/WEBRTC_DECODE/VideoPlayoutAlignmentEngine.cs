@@ -65,6 +65,21 @@ namespace WEBRTC_DECODE
             }
         }
 
+        private int _videoLipSyncDelayMs = 0;
+        public int VideoLipSyncDelayMs
+        {
+            get => _videoLipSyncDelayMs;
+            set
+            {
+                if (_videoLipSyncDelayMs == value) return;
+                _videoLipSyncDelayMs = Math.Clamp(value, 0, 300);
+                if (_videoLipSyncDelayMs == 0 && !_isEnabled)
+                {
+                    FlushAllQueues();
+                }
+            }
+        }
+
         public int TargetSyncWindowMs
         {
             get => _targetSyncWindowMs;
@@ -102,8 +117,8 @@ namespace WEBRTC_DECODE
         {
             if (_isDisposed || channelIndex < 0 || channelIndex >= MaxChannels || frameBytes == null) return;
 
-            // Nếu không bật Master Sync: Xuất hình trực tiếp (Free-Run Passthrough)
-            if (!_isEnabled)
+            // Nếu không bật Master Sync và không có Video Lip-Sync Delay: Xuất hình trực tiếp (Free-Run Passthrough)
+            if (!_isEnabled && _videoLipSyncDelayMs == 0)
             {
                 FrameReadyForPlayout?.Invoke(channelIndex, frameBytes, width, height);
                 return;
@@ -111,12 +126,22 @@ namespace WEBRTC_DECODE
 
             DateTime nowUtc = _masterClock.CurrentUtcTime;
 
-            // Ước lượng độ trễ truyền dẫn mạng từ SRT RTT (1 chiều = RTT / 2, tối thiểu 30ms)
-            double transitLatencyMs = Math.Max(30.0, rttMs / 2.0);
-            DateTime originUtc = nowUtc.AddMilliseconds(-transitLatencyMs);
+            DateTime originUtc;
+            DateTime scheduledPlayoutUtc;
 
-            // Thời điểm xuất hình = Thời điểm quay gốc + Cửa sổ trễ TargetSyncWindowMs
-            DateTime scheduledPlayoutUtc = originUtc.AddMilliseconds(_targetSyncWindowMs);
+            if (_isEnabled)
+            {
+                // Ước lượng độ trễ truyền dẫn mạng từ SRT RTT (1 chiều = RTT / 2, tối thiểu 30ms)
+                double transitLatencyMs = Math.Max(30.0, rttMs / 2.0);
+                originUtc = nowUtc.AddMilliseconds(-transitLatencyMs);
+                scheduledPlayoutUtc = originUtc.AddMilliseconds(_targetSyncWindowMs);
+            }
+            else
+            {
+                // Bù trễ video cho Lip-Sync khi Audio chạy chậm hơn
+                originUtc = nowUtc;
+                scheduledPlayoutUtc = nowUtc.AddMilliseconds(_videoLipSyncDelayMs);
+            }
 
             var packet = new SynchronizedVideoFrame
             {
@@ -152,7 +177,7 @@ namespace WEBRTC_DECODE
             {
                 try
                 {
-                    if (!_isEnabled)
+                    if (!_isEnabled && _videoLipSyncDelayMs == 0)
                     {
                         Thread.Sleep(10);
                         continue;
@@ -193,13 +218,16 @@ namespace WEBRTC_DECODE
                                 {
                                     _lastDispatchedFrames[ch] = frameToDispatch;
 
-                                    // Tính độ trễ thực tế và độ lệch pha drift
-                                    double actualLatency = (nowUtc - frameToDispatch.OriginUtcTime).TotalMilliseconds;
-                                    double drift = actualLatency - _targetSyncWindowMs;
+                                    if (_isEnabled)
+                                    {
+                                        // Tính độ trễ thực tế và độ lệch pha drift
+                                        double actualLatency = (nowUtc - frameToDispatch.OriginUtcTime).TotalMilliseconds;
+                                        double drift = actualLatency - _targetSyncWindowMs;
 
-                                    // Cập nhật số liệu đồng bộ vào NtpSyncEngine
-                                    double bufferFill = Math.Clamp((queue.Count / (double)Math.Max(1, _targetSyncWindowMs / 16.6)) * 100.0, 0.0, 150.0);
-                                    _syncEngine.UpdateChannelSyncMetrics(ch, frameToDispatch.OriginUtcTime, actualLatency, drift, bufferFill);
+                                        // Cập nhật số liệu đồng bộ vào NtpSyncEngine
+                                        double bufferFill = Math.Clamp((queue.Count / (double)Math.Max(1, _targetSyncWindowMs / 16.6)) * 100.0, 0.0, 150.0);
+                                        _syncEngine.UpdateChannelSyncMetrics(ch, frameToDispatch.OriginUtcTime, actualLatency, drift, bufferFill);
+                                    }
 
                                     // Bắn tín hiệu xuất hình đồng bộ
                                     FrameReadyForPlayout?.Invoke(ch, frameToDispatch.FrameBytes, frameToDispatch.Width, frameToDispatch.Height);

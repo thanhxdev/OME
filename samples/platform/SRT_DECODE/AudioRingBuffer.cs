@@ -60,14 +60,14 @@ namespace SRT_DECODE
             }
         }
 
-        public AudioRingBuffer(int capacityBytes = 96000, int preRollMs = 80)
+        public AudioRingBuffer(int capacityBytes = 96000, int preRollMs = 50)
         {
             // Ensure capacity is aligned to 4 bytes
             _capacity = capacityBytes - (capacityBytes % FrameAlignment);
             if (_capacity <= 0) _capacity = 96000;
             _buffer = new byte[_capacity];
 
-            // 80ms default low-latency jitter pre-roll threshold (48000 * 4 * 0.08 = 15360 bytes, ~3.2 output frames)
+            // 50ms default low-latency jitter pre-roll threshold (48000 * 4 * 0.05 = 9600 bytes = 2 full 25ms output buffers)
             int preRoll = (preRollMs * 48000 * FrameAlignment) / 1000;
             preRoll -= (preRoll % FrameAlignment);
             _preRollBytes = Math.Clamp(preRoll, 9600, _capacity / 2); // Minimum 9600 bytes (~50ms) to ensure at least 2 full output buffers
@@ -169,9 +169,9 @@ namespace SRT_DECODE
                     else
                     {
                         _consecutiveStarvations++;
-                        // Only re-enter buffering mode if starved for at least 4 consecutive reads (~100ms stall)
-                        // This prevents temporary 1ms packet jitter from shutting down playback
-                        if (_consecutiveStarvations >= 4)
+                        // Only re-enter buffering mode if starved for at least 8 consecutive reads (~160-200ms stall)
+                        // This prevents temporary packet jitter from triggering cyclic audio dropouts / stuttering
+                        if (_consecutiveStarvations >= 8)
                         {
                             _isBuffering = true;
                         }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace SRT_DECODE
@@ -18,6 +19,13 @@ namespace SRT_DECODE
         public DateTime IngestUtcTime { get; set; }
         public DateTime ScheduledPlayoutUtc { get; set; }
         public double RttMs { get; set; }
+
+        // ─── Media PTS & Duration Metadata (Medialooks-Grade) ─────────────
+        public long MediaPts { get; set; }
+        public long MediaDuration { get; set; }
+        public int TimebaseDen { get; set; } = 90000;
+        public double MediaPtsSeconds => TimebaseDen > 0 ? (double)MediaPts / TimebaseDen : 0.0;
+        public double FrameDurationMs => TimebaseDen > 0 && MediaDuration > 0 ? (MediaDuration * 1000.0) / TimebaseDen : 16.68;
     }
 
     /// <summary>
@@ -33,6 +41,16 @@ namespace SRT_DECODE
         private readonly ConcurrentQueue<SynchronizedVideoFrame>[] _channelQueues = new ConcurrentQueue<SynchronizedVideoFrame>[MaxChannels];
         private readonly NtpSyncEngine _syncEngine;
         private readonly MasterClockProvider _masterClock = MasterClockProvider.Instance;
+
+        [DllImport("winmm.dll")]
+        private static extern uint timeBeginPeriod(uint uMilliseconds);
+
+        [DllImport("winmm.dll")]
+        private static extern uint timeEndPeriod(uint uMilliseconds);
+
+        private readonly double[] _channelNextPlayoutMs = new double[MaxChannels];
+        private readonly double[] _channelNominalDurationMs = new double[MaxChannels];
+        private readonly Stopwatch _playoutClock = Stopwatch.StartNew();
 
         private bool _isEnabled = false;
         private int _targetSyncWindowMs = 350;
@@ -57,11 +75,7 @@ namespace SRT_DECODE
             {
                 if (_isEnabled == value) return;
                 _isEnabled = value;
-                if (!_isEnabled)
-                {
-                    // Khi tắt sync, giải phóng ngay toàn bộ frame đang đệm để xuất tức thì
-                    FlushAllQueues();
-                }
+                FlushAllQueues();
             }
         }
 
@@ -77,6 +91,7 @@ namespace SRT_DECODE
             for (int i = 0; i < MaxChannels; i++)
             {
                 _channelQueues[i] = new ConcurrentQueue<SynchronizedVideoFrame>();
+                _channelNominalDurationMs[i] = 40.0; // Mặc định chuẩn 25 FPS
             }
 
             StartPlayoutLoop();
@@ -84,6 +99,7 @@ namespace SRT_DECODE
 
         private void StartPlayoutLoop()
         {
+            try { timeBeginPeriod(1); } catch { }
             _cts = new CancellationTokenSource();
             _isRunning = true;
             _playoutThread = new Thread(PlayoutWorkerLoop)
@@ -96,27 +112,26 @@ namespace SRT_DECODE
         }
 
         /// <summary>
-        /// Nạp khung hình video giải mã mới vào bộ đệm đồng bộ.
+        /// Nạp khung hình video giải mã mới kèm mốc thời gian PTS 90kHz vào bộ đệm đồng bộ.
         /// </summary>
-        public void EnqueueFrame(int channelIndex, byte[] frameBytes, int width, int height, double rttMs)
+        public void EnqueueFrameWithPts(int channelIndex, byte[] frameBytes, int width, int height, long pts, long duration, double rttMs)
         {
             if (_isDisposed || channelIndex < 0 || channelIndex >= MaxChannels || frameBytes == null) return;
 
-            // Nếu không bật Master Sync: Xuất hình trực tiếp (Free-Run Passthrough)
-            if (!_isEnabled)
-            {
-                FrameReadyForPlayout?.Invoke(channelIndex, frameBytes, width, height);
-                return;
-            }
-
             DateTime nowUtc = _masterClock.CurrentUtcTime;
 
-            // Ước lượng độ trễ truyền dẫn mạng từ SRT RTT (1 chiều = RTT / 2, tối thiểu 30ms)
-            double transitLatencyMs = Math.Max(30.0, rttMs / 2.0);
-            DateTime originUtc = nowUtc.AddMilliseconds(-transitLatencyMs);
+            // Tính toán thời lượng khung hình danh định (default 40.0ms cho 25 FPS)
+            double frameDurationMs = (duration > 0 && duration <= 90000)
+                ? (duration * 1000.0) / 90000.0
+                : 40.0;
+            if (frameDurationMs < 5.0 || frameDurationMs > 100.0) frameDurationMs = 40.0;
 
-            // Thời điểm xuất hình = Thời điểm quay gốc + Cửa sổ trễ TargetSyncWindowMs
-            DateTime scheduledPlayoutUtc = originUtc.AddMilliseconds(_targetSyncWindowMs);
+            _channelNominalDurationMs[channelIndex] = frameDurationMs;
+
+            // ═══ SỬA: Dùng PTS delta thay vì RTT estimation ═══
+            // Giữ originUtc = nowUtc (thời điểm nhận frame thực tế)
+            // Scheduled playout = dựa trên PTS spacing, KHÔNG dựa trên RTT biến động
+            DateTime originUtc = nowUtc;
 
             var packet = new SynchronizedVideoFrame
             {
@@ -126,13 +141,29 @@ namespace SRT_DECODE
                 Height = height,
                 OriginUtcTime = originUtc,
                 IngestUtcTime = nowUtc,
-                ScheduledPlayoutUtc = scheduledPlayoutUtc,
-                RttMs = rttMs
+                ScheduledPlayoutUtc = originUtc, // Không dùng nữa, playout clock quyết định
+                RttMs = rttMs,
+                MediaPts = pts,
+                MediaDuration = duration > 0 ? duration : (long)(frameDurationMs * 90),
+                TimebaseDen = 90000
             };
 
             var queue = _channelQueues[channelIndex];
 
-            // Nếu hàng đợi bị dồn ứ quá giới hạn cho phép (camera bị lag dồn nén), bỏ bớt frame cũ
+            // Khởi tạo mốc xuất xưởng nếu chưa có mốc phát (cold start) hoặc bị nghẽn gián đoạn mạng thực sự (> 2.5 frames).
+            // TUYỆT ĐỐI KHÔNG dùng queue.IsEmpty: trong nhịp 25fps bình thường hàng đợi thường xuyên về 0 giữa 2 frame,
+            // nếu reset mốc phát mỗi khi queue rỗng sẽ làm hình ảnh bị phạt hoãn +80ms lặp đi lặp lại (chạy-dừng chu kỳ).
+            double currentClockMs = _playoutClock.Elapsed.TotalMilliseconds;
+            bool isStarved = _channelNextPlayoutMs[channelIndex] <= 0 ||
+                             (currentClockMs - _channelNextPlayoutMs[channelIndex] > frameDurationMs * 2.5);
+
+            if (isStarved)
+            {
+                double targetBufferMs = _isEnabled ? _targetSyncWindowMs : Math.Max(60.0, frameDurationMs * 2.0);
+                _channelNextPlayoutMs[channelIndex] = currentClockMs + targetBufferMs;
+            }
+
+            // Nếu hàng đợi bị dồn ứ quá giới hạn cho phép, loại bỏ bớt frame cũ nhất
             while (queue.Count >= MaxQueuePerChannel && queue.TryDequeue(out _))
             {
                 _syncEngine.RegisterDroppedFrame(channelIndex);
@@ -142,7 +173,15 @@ namespace SRT_DECODE
         }
 
         /// <summary>
-        /// Vòng lặp xuất hình độ chính xác cao điều phối thời gian phát của 10 camera.
+        /// Nạp khung hình video giải mã mới vào bộ đệm đồng bộ (Tương thích ngược).
+        /// </summary>
+        public void EnqueueFrame(int channelIndex, byte[] frameBytes, int width, int height, double rttMs)
+        {
+            EnqueueFrameWithPts(channelIndex, frameBytes, width, height, 0, 3600, rttMs);
+        }
+
+        /// <summary>
+        /// Vòng lặp xuất hình độ chính xác cao điều phối thời gian phát của 10 camera (Isochronous Playout Clock).
         /// </summary>
         private void PlayoutWorkerLoop()
         {
@@ -152,12 +191,7 @@ namespace SRT_DECODE
             {
                 try
                 {
-                    if (!_isEnabled)
-                    {
-                        Thread.Sleep(10);
-                        continue;
-                    }
-
+                    double currentMs = _playoutClock.Elapsed.TotalMilliseconds;
                     DateTime nowUtc = _masterClock.CurrentUtcTime;
 
                     for (int ch = 0; ch < MaxChannels; ch++)
@@ -165,56 +199,85 @@ namespace SRT_DECODE
                         var queue = _channelQueues[ch];
                         if (queue.IsEmpty) continue;
 
-                        if (queue.TryPeek(out var headFrame))
+                        double nextDueMs = _channelNextPlayoutMs[ch];
+                        if (nextDueMs <= 0)
                         {
-                            // Kiểm tra xem đã đến mốc thời gian xuất hình của frame này chưa
-                            if (headFrame.ScheduledPlayoutUtc <= nowUtc)
+                            _channelNextPlayoutMs[ch] = currentMs;
+                            nextDueMs = currentMs;
+                        }
+
+                        // Kiểm tra xem đã đến thời điểm phát khung hình tiếp theo chưa
+                        if (currentMs >= nextDueMs)
+                        {
+                            if (queue.TryDequeue(out var frameToDispatch))
                             {
-                                SynchronizedVideoFrame? frameToDispatch = null;
-
-                                // Lấy frame ra
-                                if (queue.TryDequeue(out var dequeuedFrame))
+                                double frameDur = frameToDispatch.FrameDurationMs;
+                                if (frameDur < 5.0 || frameDur > 100.0)
                                 {
-                                    frameToDispatch = dequeuedFrame;
-
-                                    // Smooth Catch-up: Nếu có nhiều frame quá hạn nằm phía sau (trễ > 60ms),
-                                    // drop các frame trung gian cũ để bắt kịp thời gian thực
-                                    while (queue.TryPeek(out var nextFrame) && nextFrame.ScheduledPlayoutUtc <= nowUtc.AddMilliseconds(-40))
-                                    {
-                                        if (queue.TryDequeue(out var staleFrame))
-                                        {
-                                            _syncEngine.RegisterDroppedFrame(ch);
-                                            frameToDispatch = staleFrame; // Chọn frame mới nhất
-                                        }
-                                    }
+                                    frameDur = _channelNominalDurationMs[ch] > 5.0 ? _channelNominalDurationMs[ch] : 40.0;
                                 }
 
-                                if (frameToDispatch != null)
-                                {
-                                    _lastDispatchedFrames[ch] = frameToDispatch;
+                                // Bước tới nhịp tiếp theo đúng chu kỳ đẳng thời
+                                _channelNextPlayoutMs[ch] += frameDur;
 
-                                    // Tính độ trễ thực tế và độ lệch pha drift
+                                // Nếu đồng hồ bị trễ quá xa (ví dụ máy bị sleep hoặc lag luồng), căn chỉnh lại mốc hiện tại
+                                if (currentMs - _channelNextPlayoutMs[ch] > 150.0)
+                                {
+                                    _channelNextPlayoutMs[ch] = currentMs;
+                                }
+
+                                // ═══ SỬA: Smooth progressive drop ═══
+                                int targetFrames = _isEnabled ? Math.Max(2, (int)Math.Round(_targetSyncWindowMs / frameDur)) : 2;
+                                int queueDepth = queue.Count;
+
+                                if (queueDepth > targetFrames + 6)
+                                {
+                                    // Queue overflow nghiêm trọng: drop 1 frame + tăng tốc mạnh
+                                    if (queue.TryDequeue(out var staleFrame))
+                                    {
+                                        _syncEngine.RegisterDroppedFrame(ch);
+                                        frameToDispatch = staleFrame; // Hiển thị frame mới nhất bị drop
+                                    }
+                                    _channelNextPlayoutMs[ch] -= frameDur * 0.3; // Tăng tốc 30%
+                                }
+                                else if (queueDepth > targetFrames + 3)
+                                {
+                                    // Queue dồn ứ nhẹ: tăng tốc 15%
+                                    _channelNextPlayoutMs[ch] -= frameDur * 0.15;
+                                }
+                                else if (queueDepth > targetFrames)
+                                {
+                                    // Hơi nhanh: tăng tốc nhẹ 1ms
+                                    _channelNextPlayoutMs[ch] -= 1.0;
+                                }
+                                else if (queueDepth < targetFrames - 1)
+                                {
+                                    // Hơi chậm: giảm tốc nhẹ 1ms
+                                    _channelNextPlayoutMs[ch] += 1.0;
+                                }
+
+                                _lastDispatchedFrames[ch] = frameToDispatch;
+
+                                if (_isEnabled)
+                                {
                                     double actualLatency = (nowUtc - frameToDispatch.OriginUtcTime).TotalMilliseconds;
                                     double drift = actualLatency - _targetSyncWindowMs;
-
-                                    // Cập nhật số liệu đồng bộ vào NtpSyncEngine
-                                    double bufferFill = Math.Clamp((queue.Count / (double)Math.Max(1, _targetSyncWindowMs / 16.6)) * 100.0, 0.0, 150.0);
-                                    _syncEngine.UpdateChannelSyncMetrics(ch, frameToDispatch.OriginUtcTime, actualLatency, drift, bufferFill);
-
-                                    // Bắn tín hiệu xuất hình đồng bộ
-                                    FrameReadyForPlayout?.Invoke(ch, frameToDispatch.FrameBytes, frameToDispatch.Width, frameToDispatch.Height);
+                                    double bufferFill = Math.Clamp((queue.Count / (double)targetFrames) * 100.0, 0.0, 150.0);
+                                    _syncEngine.UpdateChannelSyncMetrics(ch, frameToDispatch.OriginUtcTime, actualLatency, drift, bufferFill, frameToDispatch.MediaPts);
                                 }
+
+                                FrameReadyForPlayout?.Invoke(ch, frameToDispatch.FrameBytes, frameToDispatch.Width, frameToDispatch.Height);
                             }
                         }
                     }
 
-                    // Tần số kiểm tra ~200Hz (5ms) để đáp ứng xuất hình 60fps mượt mà
-                    Thread.Sleep(5);
+                    // Tần số kiểm tra độ phân giải cao 1ms (timeBeginPeriod(1))
+                    Thread.Sleep(1);
                 }
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"[PlayoutSyncEngine] Loop Error: {ex.Message}");
-                    Thread.Sleep(10);
+                    Thread.Sleep(5);
                 }
             }
         }
@@ -223,9 +286,9 @@ namespace SRT_DECODE
         {
             for (int i = 0; i < MaxChannels; i++)
             {
+                _channelNextPlayoutMs[i] = 0;
                 while (_channelQueues[i].TryDequeue(out var frame))
                 {
-                    // Phát ngay các frame đang đọng ra màn hình khi tắt sync
                     FrameReadyForPlayout?.Invoke(frame.ChannelIndex, frame.FrameBytes, frame.Width, frame.Height);
                 }
             }
@@ -248,6 +311,7 @@ namespace SRT_DECODE
                 _cts?.Cancel();
                 _playoutThread?.Join(200);
                 _cts?.Dispose();
+                timeEndPeriod(1);
             }
             catch { }
 

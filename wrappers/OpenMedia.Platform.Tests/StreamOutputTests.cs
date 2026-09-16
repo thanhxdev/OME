@@ -132,6 +132,54 @@ namespace OpenMedia.Platform.Tests
             Assert.False(session.Statistics.IsConnected);
         }
 
+        [Fact]
+        public async Task SRT_Transmission_SenderToReceiver_Roundtrip()
+        {
+            var recvConfig = new SRTStreamConfig
+            {
+                Host = "127.0.0.1",
+                Port = 9876,
+                Mode = SRTMode.Listener,
+                LatencyMs = 120
+            };
+            var sendConfig = new SRTStreamConfig
+            {
+                Host = "127.0.0.1",
+                Port = 9876,
+                Mode = SRTMode.Caller,
+                LatencyMs = 120
+            };
+
+            using var recvSession = new SRTStreamSession(recvConfig);
+            bool recvStarted = await recvSession.ConnectReceiverAsync();
+            Assert.True(recvStarted);
+
+            using var sendSession = new SRTStreamSession(sendConfig);
+            bool sendStarted = await sendSession.StartTransmissionAsync();
+            Assert.True(sendStarted);
+
+            byte[] testData = new byte[1316];
+            testData[0] = 0x47;
+            testData[188] = 0x47;
+            bool sent = sendSession.SendData(testData, testData.Length, 120, true);
+            Assert.True(sent);
+
+            byte[] recvBuffer = new byte[2048];
+            int received = -1;
+            for (int i = 0; i < 50; i++)
+            {
+                received = recvSession.ReceiveData(recvBuffer);
+                if (received > 0) break;
+                await Task.Delay(20);
+            }
+
+            Assert.Equal(1316, received);
+            Assert.Equal(0x47, recvBuffer[0]);
+
+            await sendSession.StopAsync();
+            await recvSession.StopAsync();
+        }
+
 
         [Fact]
         public void NDI_CreatesCorrectConfiguration()
@@ -182,6 +230,57 @@ namespace OpenMedia.Platform.Tests
             Assert.NotNull(StreamOutput.NDI("name"));
             Assert.NotNull(StreamOutput.File("path"));
             Assert.NotNull(StreamOutput.WebRTC("uri"));
+        }
+
+        [Fact]
+        public async Task SRT_NativeSourceAndOutput_LoopbackTest()
+        {
+            var serverConfig = new SRTStreamConfig
+            {
+                Host = "127.0.0.1",
+                Port = 9876,
+                Mode = SRTMode.Listener,
+                LatencyMs = 50
+            };
+
+            var clientConfig = new SRTStreamConfig
+            {
+                Host = "127.0.0.1",
+                Port = 9876,
+                Mode = SRTMode.Caller,
+                LatencyMs = 50
+            };
+
+            using var serverSession = new SRTStreamSession(serverConfig);
+            bool serverStarted = await serverSession.ConnectReceiverAsync();
+            Assert.True(serverStarted, "Server listener failed to start");
+
+            using var clientSession = new SRTStreamSession(clientConfig);
+            bool clientStarted = await clientSession.StartTransmissionAsync();
+            Assert.True(clientStarted, "Client caller failed to connect");
+
+            // Wait for handshake
+            await Task.Delay(200);
+
+            byte[] sendData = new byte[1316];
+            sendData[0] = 0x47; // MPEG-TS sync byte
+            sendData[1315] = 0xAA;
+
+            bool sent = clientSession.SendData(sendData, sendData.Length);
+            Assert.True(sent, "Client SendData failed");
+
+            byte[] recvBuffer = new byte[1316];
+            int received = -1;
+            for (int i = 0; i < 20; i++)
+            {
+                received = serverSession.ReceiveData(recvBuffer);
+                if (received > 0) break;
+                await Task.Delay(50);
+            }
+
+            Assert.Equal(1316, received);
+            Assert.Equal(0x47, recvBuffer[0]);
+            Assert.Equal(0xAA, recvBuffer[1315]);
         }
     }
 }

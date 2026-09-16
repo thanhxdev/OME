@@ -7,6 +7,7 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/rotating_file_sink.h>
 
+#include <cstdlib>
 #include <filesystem>
 #include <mutex>
 #include <unordered_map>
@@ -66,12 +67,49 @@ void Logger::Initialize(LogLevel logLevel, bool logToConsole, bool logToFile, st
     }
 
     if (logToFile) {
+        auto tryCreateFileSink = [](const std::string& dir) -> std::shared_ptr<spdlog::sinks::rotating_file_sink_mt> {
+            try {
+                std::error_code ec;
+                std::filesystem::create_directories(dir, ec);
+                if (ec) return nullptr;
+                auto filePath = dir + "/openmedia.log";
+                return std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
+                    filePath, 50 * 1024 * 1024, 10);
+            } catch (...) {
+                return nullptr;
+            }
+        };
+
         auto dir = std::string(logDir);
-        std::filesystem::create_directories(dir);
-        auto filePath = dir + "/openmedia.log";
-        auto fileSink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
-            filePath, 50 * 1024 * 1024, 10);
-        s_sinks.push_back(fileSink);
+        auto fileSink = tryCreateFileSink(dir);
+        if (!fileSink) {
+            // Fallback 1: %LOCALAPPDATA%\OpenMedia\logs
+            const char* localAppData = std::getenv("LOCALAPPDATA");
+            if (localAppData) {
+                fileSink = tryCreateFileSink(std::string(localAppData) + "/OpenMedia/logs");
+            }
+        }
+        if (!fileSink) {
+            // Fallback 2: %TEMP%\OpenMedia\logs
+            const char* tempDir = std::getenv("TEMP");
+            if (tempDir) {
+                fileSink = tryCreateFileSink(std::string(tempDir) + "/OpenMedia/logs");
+            }
+        }
+        if (!fileSink) {
+            // Fallback 3: std::filesystem::temp_directory_path()
+            try {
+                std::error_code ec;
+                auto tempPath = (std::filesystem::temp_directory_path(ec) / "OpenMedia" / "logs").string();
+                if (!ec) {
+                    fileSink = tryCreateFileSink(tempPath);
+                }
+            } catch (...) {}
+        }
+
+        if (fileSink) {
+            s_sinks.push_back(fileSink);
+        }
     }
 
     // Set default level

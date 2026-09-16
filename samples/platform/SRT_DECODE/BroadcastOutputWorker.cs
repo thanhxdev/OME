@@ -120,7 +120,8 @@ namespace SRT_DECODE
                 try
                 {
                     _sdiCts = new CancellationTokenSource();
-                    int intFps = (int)Math.Round(fps > 0 ? fps : 59.94);
+                    var rational = BroadcastFrameRates.SnapToRational(fps > 0 ? fps : 59.94);
+                    string fpsArg = BroadcastFrameRates.FormatFfmpeg(rational);
 
                     // Clean device name
                     string cleanDevice = sdiDevice;
@@ -129,7 +130,7 @@ namespace SRT_DECODE
 
                     // FFmpeg command to DeckLink sink or DirectShow video renderer
                     // -f decklink -pix_fmt uyvy422 "DeckLink Port"
-                    string args = $"-hide_banner -loglevel warning -f rawvideo -pix_fmt bgra -s {width}x{height} -r {intFps} -i pipe:0 -pix_fmt uyvy422 -f decklink \"{cleanDevice}\"";
+                    string args = $"-hide_banner -loglevel warning -f rawvideo -pix_fmt bgra -s {width}x{height} -r {fpsArg} -i pipe:0 -pix_fmt uyvy422 -f decklink \"{cleanDevice}\"";
 
                     var psi = new ProcessStartInfo
                     {
@@ -171,7 +172,7 @@ namespace SRT_DECODE
                         catch { }
                     }, token);
 
-                    Log("[SDI]", $"✅ Đã mở cổng phát SDI: {cleanDevice} ({width}x{height} @ {intFps} fps)");
+                    Log("[SDI]", $"✅ Đã mở cổng phát SDI: {cleanDevice} ({width}x{height} @ {fpsArg} fps)");
                     return true;
                 }
                 catch (Exception ex)
@@ -224,7 +225,9 @@ namespace SRT_DECODE
                     _srtCts = new CancellationTokenSource();
                     var token = _srtCts.Token;
 
-                    int intFps = (int)Math.Round(fps > 0 ? fps : 59.94);
+                    var rational = BroadcastFrameRates.SnapToRational(fps > 0 ? fps : 59.94);
+                    string fpsArg = BroadcastFrameRates.FormatFfmpeg(rational);
+                    int gop = (int)Math.Round((rational.num / (double)rational.den) * 2.0);
                     string pipeGuid = Guid.NewGuid().ToString("N").Substring(0, 8);
                     string audioPipeName = $"ome_srt_a_{_channelIndex}_{pipeGuid}";
 
@@ -249,9 +252,9 @@ namespace SRT_DECODE
 
                     // FFmpeg command reading video from pipe:0 and audio from named pipe
                     string args = $"-hide_banner -loglevel warning -y " +
-                                  $"-f rawvideo -pix_fmt bgra -s {width}x{height} -r {intFps} -i pipe:0 " +
+                                  $"-f rawvideo -pix_fmt bgra -s {width}x{height} -r {fpsArg} -i pipe:0 " +
                                   $"-f s16le -ar 48000 -ac 2 -i \\\\.\\pipe\\{audioPipeName} " +
-                                  $"-c:v {vcodec} -b:v {b}k -maxrate {b}k -bufsize {b * 2}k -pix_fmt yuv420p -g {intFps * 2} " +
+                                  $"-c:v {vcodec} -b:v {b}k -maxrate {b}k -bufsize {b * 2}k -pix_fmt yuv420p -g {gop} " +
                                   $"-c:a aac -b:a 192k -ar 48000 " +
                                   $"-f mpegts \"{srtUri}\"";
 
@@ -384,7 +387,8 @@ namespace SRT_DECODE
                     _recStartTime = DateTime.UtcNow;
                     _recBytes = 0;
 
-                    int intFps = (int)Math.Round(fps > 0 ? fps : 59.94);
+                    var rational = BroadcastFrameRates.SnapToRational(fps > 0 ? fps : 59.94);
+                    string fpsArg = BroadcastFrameRates.FormatFfmpeg(rational);
                     string pipeGuid = Guid.NewGuid().ToString("N").Substring(0, 8);
                     string audioPipeName = $"ome_rec_a_{_channelIndex}_{pipeGuid}";
 
@@ -420,7 +424,7 @@ namespace SRT_DECODE
                     _recAudioPipe = new NamedPipeServerStream(audioPipeName, PipeDirection.Out, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
 
                     string args = $"-hide_banner -loglevel warning -y " +
-                                  $"-f rawvideo -pix_fmt bgra -s {width}x{height} -r {intFps} -i pipe:0 " +
+                                  $"-f rawvideo -pix_fmt bgra -s {width}x{height} -r {fpsArg} -i pipe:0 " +
                                   $"-f s16le -ar 48000 -ac 2 -i \\\\.\\pipe\\{audioPipeName} " +
                                   $"{vArgs} {aArgs} \"{_currentRecFilePath}\"";
 

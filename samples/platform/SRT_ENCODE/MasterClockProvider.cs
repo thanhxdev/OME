@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -141,11 +142,63 @@ namespace SRT_ENCODE
             return $"{time:HH\\:mm\\:ss}:{frame:D2}";
         }
 
+        [DllImport("winmm.dll", EntryPoint = "timeBeginPeriod", SetLastError = true)]
+        private static extern uint TimeBeginPeriod(uint uMilliseconds);
+
+        [DllImport("winmm.dll", EntryPoint = "timeEndPeriod", SetLastError = true)]
+        private static extern uint TimeEndPeriod(uint uMilliseconds);
+
+        static MasterClockProvider()
+        {
+            try
+            {
+                // Kích hoạt độ phân giải hẹn giờ 1ms cho toàn bộ hệ thống Windows
+                TimeBeginPeriod(1);
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// Chờ đến đúng mốc thời gian đích với độ chính xác cao (Sub-millisecond Broadcast Precision),
+        /// kết hợp giữa Task.Delay thô (1ms OS quantum) và Thread.SpinWait tinh vi nhằm triệt tiêu micro-jitter.
+        /// </summary>
+        public static async Task PreciseWaitUntilAsync(Stopwatch stopwatch, double targetTimeMs, CancellationToken token = default)
+        {
+            while (!token.IsCancellationRequested)
+            {
+                double remainingMs = targetTimeMs - stopwatch.Elapsed.TotalMilliseconds;
+                if (remainingMs <= 0.05)
+                {
+                    break;
+                }
+
+                if (remainingMs > 2.0)
+                {
+                    // Với timeBeginPeriod(1), Task.Delay(1) thức dậy trong khoảng 1-2ms
+                    await Task.Delay(1, token).ConfigureAwait(false);
+                }
+                else if (remainingMs > 0.5)
+                {
+                    Thread.Yield();
+                }
+                else
+                {
+                    // Đạt độ chính xác vi mô trong 0.5ms cuối
+                    Thread.SpinWait(100);
+                }
+            }
+        }
+
         public void Dispose()
         {
             if (_disposed) return;
             _disposed = true;
             _autoSyncTimer?.Dispose();
+            try
+            {
+                TimeEndPeriod(1);
+            }
+            catch { }
         }
     }
 }

@@ -13,6 +13,7 @@ public:
     bool Start(const std::string& uri);
     void Stop();
     bool Send(const uint8_t* data, size_t size);
+    bool SendMsg(const uint8_t* data, size_t size, int ttlMs = 0, bool inOrder = true);
     bool IsConnected() const;
 
     struct SRTStatistics {

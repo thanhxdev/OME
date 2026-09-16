@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using OpenMedia.Platform;
 using OpenMedia.SDK;
+using OpenMedia.SDK.SafeHandles;
 
 namespace WEBRTC_DECODE
 {
@@ -32,7 +33,7 @@ namespace WEBRTC_DECODE
         private int _activeChannelCount = 2;
 
         // Native C++ AudioMeter Handle (if OpenMedia.Core native DLL is available)
-        private IntPtr _nativeMeterHandle = IntPtr.Zero;
+        private SafeAudioMeterHandle? _nativeMeterHandle = null;
         private bool _isNativeAvailable = false;
 
         public int ActiveChannelCount
@@ -52,12 +53,12 @@ namespace WEBRTC_DECODE
             try
             {
                 _nativeMeterHandle = NativeBridge.ome_audio_meter_create();
-                _isNativeAvailable = (_nativeMeterHandle != IntPtr.Zero);
+                _isNativeAvailable = (_nativeMeterHandle != null && !_nativeMeterHandle.IsInvalid);
             }
             catch
             {
                 _isNativeAvailable = false;
-                _nativeMeterHandle = IntPtr.Zero;
+                _nativeMeterHandle = null;
             }
         }
 
@@ -75,7 +76,7 @@ namespace WEBRTC_DECODE
                 }
             }
 
-            if (_isNativeAvailable && _nativeMeterHandle != IntPtr.Zero)
+            if (_isNativeAvailable && _nativeMeterHandle != null && !_nativeMeterHandle.IsInvalid)
             {
                 try
                 {
@@ -320,14 +321,17 @@ namespace WEBRTC_DECODE
             if (_disposed) return;
             _disposed = true;
 
-            if (_nativeMeterHandle != IntPtr.Zero)
+            if (_nativeMeterHandle != null)
             {
                 try
                 {
-                    NativeBridge.ome_audio_meter_destroy(_nativeMeterHandle);
+                    if (!_nativeMeterHandle.IsInvalid && !_nativeMeterHandle.IsClosed)
+                    {
+                        _nativeMeterHandle.Dispose();
+                    }
                 }
                 catch { }
-                _nativeMeterHandle = IntPtr.Zero;
+                _nativeMeterHandle = null;
             }
 
             GC.SuppressFinalize(this);

@@ -60,6 +60,8 @@ namespace WEBRTC_DECODE
         private Action<int, ReceiverChannelState>? _channelUpdatedDelegate;
         private Action<int, byte[], int, int>? _frameReadyDelegate;
         private Action<int, byte[], int>? _audioPcmReadyDelegate;
+        private Action<int>? _audioResetDelegate;
+        private Action<int>? _audioAlignDelegate;
         private Action<ChannelAudioLevels[]>? _camLevelsUpdatedDelegate;
         private Action<ChannelAudioLevels>? _programLevelsUpdatedDelegate;
         private Action<ChannelAudioLevels>? _studioMicLevelsDelegate;
@@ -208,9 +210,22 @@ namespace WEBRTC_DECODE
             _outputManager.LogEmitted += _logDelegate;
 
             // Wire receiver updates
+            _audioResetDelegate = (chIdx) =>
+            {
+                if (_isShuttingDown) return;
+                _audioManager.ResetChannelBuffer(chIdx);
+            };
+            _audioAlignDelegate = (chIdx) =>
+            {
+                if (_isShuttingDown) return;
+                _audioManager.AlignChannelToLive(chIdx, 3840);
+            };
+
             _rtpReceiver.ChannelUpdated += _channelUpdatedDelegate;
             _rtpReceiver.FrameReady += _frameReadyDelegate;
             _rtpReceiver.AudioPcmReady += _audioPcmReadyDelegate;
+            _rtpReceiver.AudioResetRequested += _audioResetDelegate;
+            _rtpReceiver.AudioAlignmentRequested += _audioAlignDelegate;
             _rtpReceiver.CameraDisplayNameReceived += (chIdx, displayName) =>
             {
                 if (_isShuttingDown || Dispatcher.HasShutdownStarted) return;
@@ -607,6 +622,10 @@ namespace WEBRTC_DECODE
                     _rtpReceiver.FrameReady -= _frameReadyDelegate;
                 if (_audioPcmReadyDelegate != null)
                     _rtpReceiver.AudioPcmReady -= _audioPcmReadyDelegate;
+                if (_audioResetDelegate != null)
+                    _rtpReceiver.AudioResetRequested -= _audioResetDelegate;
+                if (_audioAlignDelegate != null)
+                    _rtpReceiver.AudioAlignmentRequested -= _audioAlignDelegate;
                 if (_camLevelsUpdatedDelegate != null)
                     _audioManager.CamLevelsUpdated -= _camLevelsUpdatedDelegate;
                 if (_programLevelsUpdatedDelegate != null)
@@ -1443,29 +1462,32 @@ namespace WEBRTC_DECODE
             }
         }
 
+        private void BtnPgmSelect_PreviewMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is string tagStr && int.TryParse(tagStr, out int index))
+            {
+                e.Handled = true;
+                SelectPreviewChannel(index);
+            }
+        }
+
         private void SelectProgramChannel(int index)
         {
             if (index < 0 || index >= _activeChannelCount) return;
             int prevProgram = _currentProgramIndex;
             _currentProgramIndex = index;
+            if (_currentPreviewIndex == index && _activeChannelCount > 1)
+            {
+                // Nếu kênh được chọn làm PGM đang là PVW, chuyển PVW về kênh PGM trước đó
+                _currentPreviewIndex = prevProgram;
+            }
             _audioManager.CurrentProgramIndex = index;
             UpdateTallyIndicators();
             LogEvent("[SWITCHER]", $"Đã chọn {_channelNames[index]} làm tín hiệu PROGRAM (On-Air).");
 
-            if (_isTalkbackPressed && _intercomTarget == "all" && prevProgram != index)
-            {
-                // Luồng mới lên sóng PGM: Ngắt đàm thoại ngay để không lọt vào luồng truyền đi
-                _ = _signalingClient.SendIntercomStateAsync($"cam-{(index + 1):D2}", false, "Director");
-                // Luồng cũ rời khỏi sóng PGM: Mở lại đàm thoại
-                if (prevProgram >= 0 && prevProgram < _activeChannelCount)
-                {
-                    _ = _signalingClient.SendIntercomStateAsync($"cam-{(prevProgram + 1):D2}", true, "Director");
-                }
-            }
-
             if (TxtIntercomTargetBadge != null && _intercomTarget == "all")
             {
-                TxtIntercomTargetBadge.Text = $"TARGET: ALL CAMERAS (EXCEPT ON-AIR PGM #{_currentProgramIndex + 1})";
+                TxtIntercomTargetBadge.Text = "TARGET: ALL CAMERAS (PARTYLINE)";
             }
 
             // Update PGM Top screen
@@ -1478,6 +1500,30 @@ namespace WEBRTC_DECODE
                 VideoViewPgm.PresentBitmap(_camBitmaps[index]);
             }
             FallbackPgm.Visibility = _fallbacks[index].Visibility;
+        }
+
+        private void SelectPreviewChannel(int index)
+        {
+            if (index < 0 || index >= _activeChannelCount) return;
+            if (index == _currentProgramIndex)
+            {
+                LogEvent("[SWITCHER]", $"{_channelNames[index]} đang phát PROGRAM (On-Air), không thể chọn làm PREVIEW đồng thời.");
+                return;
+            }
+            _currentPreviewIndex = index;
+            UpdateTallyIndicators();
+            LogEvent("[SWITCHER]", $"Đã chọn {_channelNames[index]} làm tín hiệu PREVIEW (Standby - Chuẩn bị chuyển cảnh).");
+
+            _playoutWindow?.SetProgramChannel(_currentProgramIndex, _currentPreviewIndex);
+            _outputManager?.Compositor?.UpdateConfig(_activeChannelCount, _channelNames, _currentProgramIndex, _currentPreviewIndex);
+
+            // Broadcast Tally to Encoders via WebRTC Signaling Server
+            for (int ch = 0; ch < MaxChannels; ch++)
+            {
+                string camId = $"cam-{ch + 1:D2}";
+                string tallyState = (ch == _currentProgramIndex) ? "on-air" : (ch == _currentPreviewIndex ? "preview" : "off");
+                _ = _signalingClient.SendTallyUpdateAsync(camId, tallyState);
+            }
         }
 
         private void UpdateTallyIndicators()
@@ -1495,6 +1541,8 @@ namespace WEBRTC_DECODE
                     _tallyTexts[i].Text = "PGM";
                     _tallyTexts[i].Foreground = Brushes.White;
                     _pgmButtons[i].Background = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26));
+                    _pgmButtons[i].BorderBrush = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44));
+                    _pgmButtons[i].BorderThickness = new Thickness(1.5);
                     _pgmButtons[i].Foreground = Brushes.White;
                 }
                 else if (i == _currentPreviewIndex)
@@ -1505,8 +1553,10 @@ namespace WEBRTC_DECODE
                     _tallyBadges[i].Background = new SolidColorBrush(Color.FromRgb(0x16, 0xA3, 0x4A));
                     _tallyTexts[i].Text = "PVW";
                     _tallyTexts[i].Foreground = Brushes.White;
-                    _pgmButtons[i].Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x2E));
-                    _pgmButtons[i].Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
+                    _pgmButtons[i].Background = new SolidColorBrush(Color.FromRgb(0x15, 0x80, 0x3D));
+                    _pgmButtons[i].BorderBrush = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
+                    _pgmButtons[i].BorderThickness = new Thickness(1.5);
+                    _pgmButtons[i].Foreground = Brushes.White;
                 }
                 else
                 {
@@ -1517,6 +1567,8 @@ namespace WEBRTC_DECODE
                     _tallyTexts[i].Text = _channelNames[i];
                     _tallyTexts[i].Foreground = new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA));
                     _pgmButtons[i].Background = new SolidColorBrush(Color.FromRgb(0x28, 0x28, 0x2E));
+                    _pgmButtons[i].BorderBrush = new SolidColorBrush(Color.FromRgb(0x3F, 0x3F, 0x46));
+                    _pgmButtons[i].BorderThickness = new Thickness(1);
                     _pgmButtons[i].Foreground = new SolidColorBrush(Color.FromRgb(0xCC, 0xCC, 0xCC));
                 }
 
@@ -1910,6 +1962,50 @@ namespace WEBRTC_DECODE
                 BtnMutePreview.ToolTip = isMuted 
                     ? "Đang MUTE loa kiểm âm tại chỗ (âm thanh trong luồng Stream/NDI vẫn phát 100%)" 
                     : "Mute âm thanh loa kiểm âm tại chỗ (âm thanh trong luồng Stream/NDI vẫn phát bình thường)";
+            }
+        }
+
+        private void SliderLipSync_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (TxtLipSyncVal == null || _audioManager == null || _playoutAlignmentEngine == null) return;
+            int delayMs = (int)Math.Round(e.NewValue / 5.0) * 5; // Snap to 5ms steps
+
+            if (delayMs > 0)
+            {
+                TxtLipSyncVal.Text = $"+{delayMs} ms";
+                TxtLipSyncVal.Foreground = new SolidColorBrush(Color.FromRgb(0x00, 0xFF, 0xCC)); // Cyan = Âm thanh trễ lại
+                _audioManager.LipSyncDelayMs = delayMs;
+                _playoutAlignmentEngine.VideoLipSyncDelayMs = 0;
+            }
+            else if (delayMs < 0)
+            {
+                TxtLipSyncVal.Text = $"{delayMs} ms";
+                TxtLipSyncVal.Foreground = new SolidColorBrush(Color.FromRgb(0xFB, 0xBF, 0x24)); // Vàng cam = Hình ảnh trễ lại
+                _audioManager.LipSyncDelayMs = 0;
+                _playoutAlignmentEngine.VideoLipSyncDelayMs = -delayMs;
+            }
+            else
+            {
+                TxtLipSyncVal.Text = "0 ms";
+                TxtLipSyncVal.Foreground = Brushes.White;
+                _audioManager.LipSyncDelayMs = 0;
+                _playoutAlignmentEngine.VideoLipSyncDelayMs = 0;
+            }
+        }
+
+        private void SliderLipSync_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (SliderLipSync != null)
+            {
+                SliderLipSync.Value = 0;
+            }
+        }
+
+        private void BtnResetLipSync_Click(object sender, RoutedEventArgs e)
+        {
+            if (SliderLipSync != null)
+            {
+                SliderLipSync.Value = 0;
             }
         }
 
@@ -2416,13 +2512,8 @@ namespace WEBRTC_DECODE
             // Phát tín hiệu Toggle Enable / Disable rõ ràng tới Encoder
             if (_intercomTarget == "all")
             {
-                // Khi chọn ALL: Gửi tới các luồng, TRỪ luồng truyền đi (PGM)
-                for (int i = 0; i < _activeChannelCount; i++)
-                {
-                    if (i == _currentProgramIndex) continue;
-                    string camId = $"cam-{(i + 1):D2}";
-                    _ = _signalingClient.SendIntercomStateAsync(camId, active, "Director");
-                }
+                // Khi chọn ALL: Gửi broadcast tới toàn bộ các camera (Partyline)
+                _ = _signalingClient.SendIntercomStateAsync("all", active, "Director");
             }
             else
             {
@@ -2434,7 +2525,7 @@ namespace WEBRTC_DECODE
             {
                 StartIntercomTalkback();
                 string targetDesc = _intercomTarget == "all"
-                    ? $"TOÀN BỘ (TRỪ LUỒNG PGM #{_currentProgramIndex + 1})"
+                    ? "TOÀN BỘ CAMERA (PARTYLINE)"
                     : _intercomTarget.ToUpper();
                 LogEvent("[INTERCOM]", $"📢 [ON-AIR TALK] Đạo diễn đang đàm thoại tới {targetDesc}!");
             }
@@ -2464,21 +2555,14 @@ namespace WEBRTC_DECODE
                         string currentTarget = _intercomTarget;
                         if (currentTarget == "all")
                         {
-                            // Khi chọn ALL: Truyền đến các luồng, TRỪ luồng truyền đi (_currentProgramIndex)
-                            int pgmIndex = _currentProgramIndex;
+                            // Khi chọn ALL: Truyền broadcast tới toàn bộ các luồng qua kênh "all"
                             byte[] pcm = _audioManager.GenerateMixMinusPcm(-1, 960);
                             if (pcm != null && pcm.Length > 0 && _signalingClient.IsConnected)
                             {
                                 byte[] opusPacket = _intercomCodec.EncodePcm(pcm, 0, pcm.Length);
                                 if (opusPacket.Length > 0)
                                 {
-                                    int count = _activeChannelCount;
-                                    for (int i = 0; i < count; i++)
-                                    {
-                                        if (i == pgmIndex) continue; // Bỏ qua luồng truyền đi (PGM)
-                                        string targetCam = $"cam-{(i + 1):D2}";
-                                        await _signalingClient.SendIntercomAudioAsync(targetCam, opusPacket, "opus", token).ConfigureAwait(false);
-                                    }
+                                    await _signalingClient.SendIntercomAudioAsync("all", opusPacket, "opus", token).ConfigureAwait(false);
                                 }
                             }
                         }
@@ -2573,33 +2657,11 @@ namespace WEBRTC_DECODE
             // Nếu đang đàm thoại (ON-AIR TALK) mà chuyển đổi đích (Target C1/C2/All)
             if (_isTalkbackPressed && oldTarget != target)
             {
-                // Tắt trạng thái ở các luồng cũ
-                if (oldTarget == "all")
-                {
-                    for (int i = 0; i < _activeChannelCount; i++)
-                    {
-                        if (i == _currentProgramIndex) continue;
-                        _ = _signalingClient.SendIntercomStateAsync($"cam-{(i + 1):D2}", false, "Director");
-                    }
-                }
-                else
-                {
-                    _ = _signalingClient.SendIntercomStateAsync(oldTarget, false, "Director");
-                }
+                // Tắt trạng thái ở luồng cũ
+                _ = _signalingClient.SendIntercomStateAsync(oldTarget, false, "Director");
 
                 // Bật trạng thái ở luồng mới
-                if (target == "all")
-                {
-                    for (int i = 0; i < _activeChannelCount; i++)
-                    {
-                        if (i == _currentProgramIndex) continue;
-                        _ = _signalingClient.SendIntercomStateAsync($"cam-{(i + 1):D2}", true, "Director");
-                    }
-                }
-                else
-                {
-                    _ = _signalingClient.SendIntercomStateAsync(target, true, "Director");
-                }
+                _ = _signalingClient.SendIntercomStateAsync(target, true, "Director");
             }
 
             foreach (var b in _intercomTargetButtons)
@@ -2625,7 +2687,7 @@ namespace WEBRTC_DECODE
             if (TxtIntercomTargetBadge != null)
             {
                 TxtIntercomTargetBadge.Text = target == "all"
-                    ? $"TARGET: ALL CAMERAS (EXCEPT ON-AIR PGM #{_currentProgramIndex + 1})"
+                    ? "TARGET: ALL CAMERAS (PARTYLINE)"
                     : $"TARGET: {target.ToUpper()} (ISO DIRECT)";
             }
         }

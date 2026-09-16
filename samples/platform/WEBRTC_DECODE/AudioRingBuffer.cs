@@ -34,6 +34,10 @@ namespace WEBRTC_DECODE
         private readonly byte[] _buffer;
         private readonly int _capacity;
         private readonly int _preRollBytes;
+        private int _maxLatencyBytes;
+        private int _baseMaxLatencyMs = 80;
+        private int _delayMs = 0;
+        private int _delayBytes = 0;
         private int _readPos;
         private int _writePos;
         private int _count;
@@ -59,21 +63,81 @@ namespace WEBRTC_DECODE
             }
         }
 
-        public AudioRingBuffer(int capacityBytes = 96000, int preRollMs = 20)
+        /// <summary>
+        /// Gets or sets the intentional Lip-Sync delay in milliseconds (0 to 500 ms).
+        /// Holds audio in the ring buffer by the exact delay amount to match video presentation.
+        /// </summary>
+        public int DelayMs
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    return _delayMs;
+                }
+            }
+            set
+            {
+                lock (_lock)
+                {
+                    int clamped = Math.Clamp(value, 0, 500);
+                    if (_delayMs == clamped) return;
+                    _delayMs = clamped;
+                    int bytes = (_delayMs * 48000 * FrameAlignment) / 1000;
+                    _delayBytes = bytes - (bytes % FrameAlignment);
+                    UpdateWatermarks();
+                }
+            }
+        }
+
+        private void UpdateWatermarks()
+        {
+            int maxLat = ((_baseMaxLatencyMs + _delayMs) * 48000 * FrameAlignment) / 1000;
+            maxLat -= (maxLat % FrameAlignment);
+            _maxLatencyBytes = Math.Clamp(maxLat, Math.Max(_preRollBytes * 2, _delayBytes + _preRollBytes), _capacity);
+        }
+
+        public AudioRingBuffer(int capacityBytes = 96000, int preRollMs = 20, int maxLatencyMs = 80)
         {
             // Ensure capacity is aligned to 4 bytes
             _capacity = capacityBytes - (capacityBytes % FrameAlignment);
             if (_capacity <= 0) _capacity = 96000;
             _buffer = new byte[_capacity];
 
+            _baseMaxLatencyMs = Math.Clamp(maxLatencyMs, 40, 1000);
+
             // 20ms default low-latency pre-roll threshold (48000 * 4 * 0.02 = 3840 bytes)
             int preRoll = (preRollMs * 48000 * FrameAlignment) / 1000;
             preRoll -= (preRoll % FrameAlignment);
             _preRollBytes = Math.Clamp(preRoll, 960, _capacity / 2); // 5ms to 50% capacity
+
+            UpdateWatermarks();
         }
 
         /// <summary>
-        /// Writes PCM audio bytes into the ring buffer. If writing exceeds capacity,
+        /// Instantly trims any accumulated backlog down to keepBytes + current delay.
+        /// Used as an A/V Lip-Sync Anchor when the first video keyframe arrives or upon channel reconnection.
+        /// </summary>
+        public void AlignToLive(int keepBytes = 3840)
+        {
+            lock (_lock)
+            {
+                int target = Math.Min(keepBytes + _delayBytes, _capacity);
+                target -= (target % FrameAlignment);
+                if (_count > target)
+                {
+                    int toDrop = _count - target;
+                    toDrop += (FrameAlignment - (toDrop % FrameAlignment)) % FrameAlignment;
+                    _readPos = (_readPos + toDrop) % _capacity;
+                    _count -= toDrop;
+                    if (_count < 0) _count = 0;
+                }
+                _isBuffering = false;
+            }
+        }
+
+        /// <summary>
+        /// Writes PCM audio bytes into the ring buffer. If writing exceeds max latency ceiling,
         /// advances read position to discard oldest frames and prevent audio delay drift.
         /// </summary>
         public void Write(byte[] data, int offset, int count)
@@ -95,8 +159,8 @@ namespace WEBRTC_DECODE
                     _count = 0;
                 }
 
-                // If buffer would overflow, discard oldest frames
-                int overflow = (_count + alignedCount) - _capacity;
+                // If buffer would exceed MaxLatencyThreshold, drop oldest frames to maintain real-time A/V synchronization
+                int overflow = (_count + alignedCount) - _maxLatencyBytes;
                 if (overflow > 0)
                 {
                     overflow += (FrameAlignment - (overflow % FrameAlignment)) % FrameAlignment;
@@ -136,10 +200,11 @@ namespace WEBRTC_DECODE
 
             lock (_lock)
             {
-                // Jitter Pre-roll Hysteresis: If currently buffering, hold until healthy margin is reached
+                // Jitter Pre-roll Hysteresis: If currently buffering, hold until pre-roll + intentional delay is reached
+                int threshold = _preRollBytes + _delayBytes;
                 if (_isBuffering)
                 {
-                    if (_count >= _preRollBytes)
+                    if (_count >= threshold)
                     {
                         _isBuffering = false;
                     }
@@ -147,7 +212,9 @@ namespace WEBRTC_DECODE
 
                 if (!_isBuffering)
                 {
-                    toRead = Math.Min(alignedCount, _count);
+                    // Preserve intentional Lip-Sync delay offset in ring buffer
+                    int availableWithDelay = Math.Max(0, _count - _delayBytes);
+                    toRead = Math.Min(alignedCount, availableWithDelay);
                     if (toRead > 0)
                     {
                         toRead -= (toRead % FrameAlignment);
@@ -163,8 +230,8 @@ namespace WEBRTC_DECODE
                         _readPos = (_readPos + toRead) % _capacity;
                         _count -= toRead;
 
-                        // If reading drained the buffer completely, enter buffering mode to avoid ping-pong starvation
-                        if (_count == 0)
+                        // If reading drained the buffer down to the delay threshold, enter buffering mode to avoid ping-pong starvation
+                        if (_count <= _delayBytes)
                         {
                             _isBuffering = true;
                         }

@@ -162,13 +162,24 @@ bool SRTOutput::IsConnected() const {
 }
 
 bool SRTOutput::Send(const uint8_t* data, size_t size) {
+    return SendMsg(data, size, 0, true);
+}
+
+bool SRTOutput::SendMsg(const uint8_t* data, size_t size, int ttlMs, bool inOrder) {
     if (!data || size == 0) return false;
     int targetSocket = m_isListener ? m_clientSocket.load() : m_socket;
     if (targetSocket == -1 || targetSocket == SRT_INVALID_SOCK) {
         return false;
     }
 
-    int res = srt_send(targetSocket, (const char*)data, (int)size);
+    SRT_MSGCTRL mc = srt_msgctrl_default;
+    if (ttlMs > 0) {
+        mc.msgttl = ttlMs;
+    }
+    mc.inorder = inOrder ? 1 : 0;
+    mc.srctime = 0; // 0 instructs libsrt to timestamp at current microsecond
+
+    int res = srt_sendmsg2(targetSocket, (const char*)data, (int)size, &mc);
     return res != SRT_ERROR;
 }
 

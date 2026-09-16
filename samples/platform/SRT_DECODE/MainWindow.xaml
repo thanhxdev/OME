@@ -362,9 +362,9 @@
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
                         <TextBlock Text="Layout:" FontSize="11.5" Foreground="#9E9E9E" VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <ComboBox x:Name="CmbLayoutMode" Width="225" SelectionChanged="CmbLayoutMode_SelectionChanged">
-                            <ComboBoxItem Content="View (Multi-view 2 cột)" IsSelected="True"/>
-                            <ComboBoxItem Content="View (Multi-view 3 cột)"/>
-                            <ComboBoxItem Content="View (Multi-view 4 cột)"/>
+                            <ComboBoxItem Content="View (Multi-view 2x2)" IsSelected="True"/>
+                            <ComboBoxItem Content="View (Multi-view 3x3)"/>
+                            <ComboBoxItem Content="View (Multi-view 4x4)"/>
                             <ComboBoxItem Content="PGM+View (PGM trên + Multi-view)"/>
                         </ComboBox>
                     </StackPanel>
@@ -391,17 +391,33 @@
             <!-- ────────────────────────────────────────────────────────────── -->
             <Grid Grid.Column="0">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="5.8*"/> <!-- Video Multiviewer Grid -->
-                    <RowDefinition Height="Auto"/> <!-- Vision Switcher & Audio Bar -->
-                    <RowDefinition Height="3.2*"/> <!-- Console Log Table -->
+                    <RowDefinition Height="6*" MinHeight="220"/> <!-- Khung Layout (Multiviewer + Vision Switcher) -->
+                    <RowDefinition Height="7"/>                  <!-- Thanh phân cách dọc giữa layout và log -->
+                    <RowDefinition Height="3*" MinHeight="90"/>  <!-- Console Log Table -->
                 </Grid.RowDefinitions>
 
-                <!-- MULTIVIEWER CONTAINER (SCROLLABLE DYNAMIC 2-COLUMN MULTIVIEW & PGM TOP VIEW) -->
-                <Border Grid.Row="0" Background="#0C0C0E" BorderBrush="#25252A" BorderThickness="1" CornerRadius="6" Padding="6" Margin="0,0,0,6">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel>
-                            <!-- ══ PGM MASTER PROMINENT TOP CELL (VISIBLE ONLY IN PGM+VIEW MODE) ══ -->
-                            <Border x:Name="CellPgmMaster" Background="#161619" BorderBrush="#DC2626" BorderThickness="2" CornerRadius="4" Margin="3,3,3,6" Visibility="Collapsed">
+                <!-- ══ KHUNG LAYOUT (MULTIVIEWER & VISION SWITCHER) ════════════ -->
+                <Grid Grid.Row="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>    <!-- Video Multiviewer Grid (Auto Scrollbar on Overflow) -->
+                        <RowDefinition Height="Auto"/> <!-- Vision Switcher & Audio Bar -->
+                    </Grid.RowDefinitions>
+
+                    <!-- MULTIVIEWER CONTAINER (DYNAMIC MULTIVIEW & PGM TOP VIEW - AUTO SCROLLBAR ON OVERFLOW) -->
+                    <Border Grid.Row="0" Background="#0C0C0E" BorderBrush="#25252A" BorderThickness="1" CornerRadius="6" Padding="6" Margin="0,0,0,6">
+                        <ScrollViewer x:Name="ScrollerMultiviewer"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      CanContentScroll="False"
+                                      Focusable="False">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                        <!-- ══ PGM MASTER PROMINENT TOP CELL (VISIBLE ONLY IN PGM+VIEW MODE) ══ -->
+                        <Border x:Name="CellPgmMaster" Grid.Row="0" Background="#161619" BorderBrush="#DC2626" BorderThickness="2" CornerRadius="4" Margin="3,3,3,6" Visibility="Collapsed">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
@@ -451,8 +467,8 @@
                                 </Grid>
                             </Border>
 
-                            <!-- ══ 2-COLUMN MULTIVIEWER GRID (ALWAYS 2 COLUMNS, NEVER FULL-WIDTH STRETCH) ══ -->
-                            <Grid x:Name="MultiviewerContainer" MinHeight="250">
+                            <!-- ══ MULTIVIEWER GRID (SCALES & STRETCHES TO FILL MONITOR PREVIEW AREA) ══ -->
+                            <Grid x:Name="MultiviewerContainer" Grid.Row="1" HorizontalAlignment="Stretch" VerticalAlignment="Top">
                                 <!-- Dynamic RowDefinitions & 2 ColumnDefinitions generated in code -->
 
                                 <!-- ══ CAMERA 1 CELL ════════════════════════════════ -->
@@ -1106,7 +1122,7 @@
                                 </Border>
 
                             </Grid>
-                        </StackPanel>
+                        </Grid>
                     </ScrollViewer>
                 </Border>
 
@@ -1194,9 +1210,33 @@
                         </StackPanel>
                     </Grid>
                 </Border>
+            </Grid>
 
-                <!-- ══ BOTTOM LOG CONSOLE & SYSTEM STATUS ═════════════ -->
-                <Border Grid.Row="2" Background="#18181C" BorderBrush="#28282E" BorderThickness="1" CornerRadius="6" Padding="8">
+            <!-- ══ THANH PHÂN CÁCH DỌC GIỮA KHUNG LAYOUT VÀ LOG ════════════ -->
+            <GridSplitter Grid.Row="1" Height="7" HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                          ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
+                          Background="Transparent" Cursor="SizeNS" ShowsPreview="False" Margin="0,0,0,4">
+                <GridSplitter.Template>
+                    <ControlTemplate TargetType="{x:Type GridSplitter}">
+                        <Border Background="Transparent" Height="7" Padding="0,2">
+                            <Border Background="#2D2D35" CornerRadius="1.5" Height="3" HorizontalAlignment="Stretch">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#007ACC"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                            </Border>
+                        </Border>
+                    </ControlTemplate>
+                </GridSplitter.Template>
+            </GridSplitter>
+
+            <!-- ══ BOTTOM LOG CONSOLE & SYSTEM STATUS ═════════════ -->
+            <Border Grid.Row="2" Background="#18181C" BorderBrush="#28282E" BorderThickness="1" CornerRadius="6" Padding="8">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -1273,7 +1313,7 @@
                                                 </Border>
                                                 <TextBlock Text="SRT Receiver Ingest #1" FontWeight="Bold" FontSize="12" Foreground="#FFFFFF"/>
                                             </StackPanel>
-                                            <Button x:Name="BtnToggleCam1" Content="Start Cam 1" Click="BtnToggleCam_Click" Tag="0" Background="#007ACC" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="11" Padding="8,3" HorizontalAlignment="Right" Cursor="Hand"/>
+                                            <Button x:Name="BtnToggleCam1" Content="Start CAM 1" Click="BtnToggleCam_Click" Tag="0" Background="#007ACC" Foreground="#FFFFFF" FontWeight="SemiBold" FontSize="11" Padding="8,3" HorizontalAlignment="Right" Cursor="Hand"/>
                                         </Grid>
                                         
                                         <!-- Stream Name & Mode -->
@@ -1407,6 +1447,23 @@
                                             </StackPanel>
                                         </Grid>
                                         <CheckBox x:Name="ChkAutoLatencyCam2" Content="Auto Latency (3 x RTT)" IsChecked="False" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
+                                        <Border Style="{StaticResource SubCardBorderStyle}">
+                                            <StackPanel>
+                                                <CheckBox x:Name="ChkDecryptCam2" Content="Enable Decryption (AES)" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,4"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="2*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox x:Name="TxtPassphraseCam2" Text="" Grid.Column="0" Margin="0,0,4,0"/>
+                                                    <ComboBox x:Name="CmbKeyLenCam2" Grid.Column="1">
+                                                        <ComboBoxItem Content="256-bit" IsSelected="True"/>
+                                                        <ComboBoxItem Content="192-bit"/>
+                                                        <ComboBoxItem Content="128-bit"/>
+                                                    </ComboBox>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
                                     </StackPanel>
                                 </Border>
 
@@ -1469,6 +1526,23 @@
                                             </StackPanel>
                                         </Grid>
                                         <CheckBox x:Name="ChkAutoLatencyCam3" Content="Auto Latency (3 x RTT)" IsChecked="False" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
+                                        <Border Style="{StaticResource SubCardBorderStyle}">
+                                            <StackPanel>
+                                                <CheckBox x:Name="ChkDecryptCam3" Content="Enable Decryption (AES)" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,4"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="2*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox x:Name="TxtPassphraseCam3" Text="" Grid.Column="0" Margin="0,0,4,0"/>
+                                                    <ComboBox x:Name="CmbKeyLenCam3" Grid.Column="1">
+                                                        <ComboBoxItem Content="256-bit" IsSelected="True"/>
+                                                        <ComboBoxItem Content="192-bit"/>
+                                                        <ComboBoxItem Content="128-bit"/>
+                                                    </ComboBox>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
                                     </StackPanel>
                                 </Border>
 
@@ -1531,6 +1605,23 @@
                                             </StackPanel>
                                         </Grid>
                                         <CheckBox x:Name="ChkAutoLatencyCam4" Content="Auto Latency (3 x RTT)" IsChecked="False" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
+                                        <Border Style="{StaticResource SubCardBorderStyle}">
+                                            <StackPanel>
+                                                <CheckBox x:Name="ChkDecryptCam4" Content="Enable Decryption (AES)" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,4"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="2*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox x:Name="TxtPassphraseCam4" Text="" Grid.Column="0" Margin="0,0,4,0"/>
+                                                    <ComboBox x:Name="CmbKeyLenCam4" Grid.Column="1">
+                                                        <ComboBoxItem Content="256-bit" IsSelected="True"/>
+                                                        <ComboBoxItem Content="192-bit"/>
+                                                        <ComboBoxItem Content="128-bit"/>
+                                                    </ComboBox>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
                                     </StackPanel>
                                 </Border>
 
@@ -1593,6 +1684,23 @@
                                             </StackPanel>
                                         </Grid>
                                         <CheckBox x:Name="ChkAutoLatencyCam5" Content="Auto Latency (3 x RTT)" IsChecked="False" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
+                                        <Border Style="{StaticResource SubCardBorderStyle}">
+                                            <StackPanel>
+                                                <CheckBox x:Name="ChkDecryptCam5" Content="Enable Decryption (AES)" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,4"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="2*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox x:Name="TxtPassphraseCam5" Text="" Grid.Column="0" Margin="0,0,4,0"/>
+                                                    <ComboBox x:Name="CmbKeyLenCam5" Grid.Column="1">
+                                                        <ComboBoxItem Content="256-bit" IsSelected="True"/>
+                                                        <ComboBoxItem Content="192-bit"/>
+                                                        <ComboBoxItem Content="128-bit"/>
+                                                    </ComboBox>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
                                     </StackPanel>
                                 </Border>
 
@@ -1655,6 +1763,23 @@
                                             </StackPanel>
                                         </Grid>
                                         <CheckBox x:Name="ChkAutoLatencyCam6" Content="Auto Latency (3 x RTT)" IsChecked="False" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
+                                        <Border Style="{StaticResource SubCardBorderStyle}">
+                                            <StackPanel>
+                                                <CheckBox x:Name="ChkDecryptCam6" Content="Enable Decryption (AES)" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,4"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="2*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox x:Name="TxtPassphraseCam6" Text="" Grid.Column="0" Margin="0,0,4,0"/>
+                                                    <ComboBox x:Name="CmbKeyLenCam6" Grid.Column="1">
+                                                        <ComboBoxItem Content="256-bit" IsSelected="True"/>
+                                                        <ComboBoxItem Content="192-bit"/>
+                                                        <ComboBoxItem Content="128-bit"/>
+                                                    </ComboBox>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
                                     </StackPanel>
                                 </Border>
 
@@ -1717,6 +1842,23 @@
                                             </StackPanel>
                                         </Grid>
                                         <CheckBox x:Name="ChkAutoLatencyCam7" Content="Auto Latency (3 x RTT)" IsChecked="False" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
+                                        <Border Style="{StaticResource SubCardBorderStyle}">
+                                            <StackPanel>
+                                                <CheckBox x:Name="ChkDecryptCam7" Content="Enable Decryption (AES)" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,4"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="2*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox x:Name="TxtPassphraseCam7" Text="" Grid.Column="0" Margin="0,0,4,0"/>
+                                                    <ComboBox x:Name="CmbKeyLenCam7" Grid.Column="1">
+                                                        <ComboBoxItem Content="256-bit" IsSelected="True"/>
+                                                        <ComboBoxItem Content="192-bit"/>
+                                                        <ComboBoxItem Content="128-bit"/>
+                                                    </ComboBox>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
                                     </StackPanel>
                                 </Border>
 
@@ -1779,6 +1921,23 @@
                                             </StackPanel>
                                         </Grid>
                                         <CheckBox x:Name="ChkAutoLatencyCam8" Content="Auto Latency (3 x RTT)" IsChecked="False" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
+                                        <Border Style="{StaticResource SubCardBorderStyle}">
+                                            <StackPanel>
+                                                <CheckBox x:Name="ChkDecryptCam8" Content="Enable Decryption (AES)" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,4"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="2*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox x:Name="TxtPassphraseCam8" Text="" Grid.Column="0" Margin="0,0,4,0"/>
+                                                    <ComboBox x:Name="CmbKeyLenCam8" Grid.Column="1">
+                                                        <ComboBoxItem Content="256-bit" IsSelected="True"/>
+                                                        <ComboBoxItem Content="192-bit"/>
+                                                        <ComboBoxItem Content="128-bit"/>
+                                                    </ComboBox>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
                                     </StackPanel>
                                 </Border>
 
@@ -1841,6 +2000,23 @@
                                             </StackPanel>
                                         </Grid>
                                         <CheckBox x:Name="ChkAutoLatencyCam9" Content="Auto Latency (3 x RTT)" IsChecked="False" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
+                                        <Border Style="{StaticResource SubCardBorderStyle}">
+                                            <StackPanel>
+                                                <CheckBox x:Name="ChkDecryptCam9" Content="Enable Decryption (AES)" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,4"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="2*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox x:Name="TxtPassphraseCam9" Text="" Grid.Column="0" Margin="0,0,4,0"/>
+                                                    <ComboBox x:Name="CmbKeyLenCam9" Grid.Column="1">
+                                                        <ComboBoxItem Content="256-bit" IsSelected="True"/>
+                                                        <ComboBoxItem Content="192-bit"/>
+                                                        <ComboBoxItem Content="128-bit"/>
+                                                    </ComboBox>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
                                     </StackPanel>
                                 </Border>
 
@@ -1903,6 +2079,23 @@
                                             </StackPanel>
                                         </Grid>
                                         <CheckBox x:Name="ChkAutoLatencyCam10" Content="Auto Latency (3 x RTT)" IsChecked="False" Style="{StaticResource ToggleSwitchStyle}" Margin="0,4,0,4"/>
+                                        <Border Style="{StaticResource SubCardBorderStyle}">
+                                            <StackPanel>
+                                                <CheckBox x:Name="ChkDecryptCam10" Content="Enable Decryption (AES)" Style="{StaticResource ToggleSwitchStyle}" Margin="0,0,0,4"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="2*"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox x:Name="TxtPassphraseCam10" Text="" Grid.Column="0" Margin="0,0,4,0"/>
+                                                    <ComboBox x:Name="CmbKeyLenCam10" Grid.Column="1">
+                                                        <ComboBoxItem Content="256-bit" IsSelected="True"/>
+                                                        <ComboBoxItem Content="192-bit"/>
+                                                        <ComboBoxItem Content="128-bit"/>
+                                                    </ComboBox>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
                                     </StackPanel>
                                 </Border>
 
@@ -4265,7 +4458,7 @@
                                                         <TextBlock x:Name="TxtPanCam2" Text="C" FontSize="7.5" FontWeight="Bold" Foreground="#4EC9B0" HorizontalAlignment="Center"/>
                                                         <Slider x:Name="PanCam2" Width="40" Minimum="-1" Maximum="1" Value="0" Tag="1" ValueChanged="MixerPan_ValueChanged" MouseDoubleClick="MixerPan_MouseDoubleClick" ToolTip="Pan L/R (Nhấp đúp reset C)" Cursor="Hand"/>
                                                     </StackPanel>
-                                                    <Button x:Name="BtnMixerMuteCam2" Content="M" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="1" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
+                                                    <Button x:Name="BtnMixerMuteCam2" Content="M" Width="40" Height="16" Background="#EF4444" Foreground="#FFFFFF" Tag="1" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
                                                     <Button x:Name="BtnMixerSoloCam2" Content="S" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="2" Click="BtnMixerSolo_Click" FontSize="8" FontWeight="Bold" Padding="0" Cursor="Hand" ToolTip="SOLO"/>
                                                 </StackPanel>
                                             </Border>
@@ -4301,7 +4494,7 @@
                                                         <TextBlock x:Name="TxtPanCam3" Text="C" FontSize="7.5" FontWeight="Bold" Foreground="#4EC9B0" HorizontalAlignment="Center"/>
                                                         <Slider x:Name="PanCam3" Width="40" Minimum="-1" Maximum="1" Value="0" Tag="2" ValueChanged="MixerPan_ValueChanged" MouseDoubleClick="MixerPan_MouseDoubleClick" ToolTip="Pan L/R (Nhấp đúp reset C)" Cursor="Hand"/>
                                                     </StackPanel>
-                                                    <Button x:Name="BtnMixerMuteCam3" Content="M" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="2" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
+                                                    <Button x:Name="BtnMixerMuteCam3" Content="M" Width="40" Height="16" Background="#EF4444" Foreground="#FFFFFF" Tag="2" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
                                                     <Button x:Name="BtnMixerSoloCam3" Content="S" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="3" Click="BtnMixerSolo_Click" FontSize="8" FontWeight="Bold" Padding="0" Cursor="Hand" ToolTip="SOLO"/>
                                                 </StackPanel>
                                             </Border>
@@ -4337,7 +4530,7 @@
                                                         <TextBlock x:Name="TxtPanCam4" Text="C" FontSize="7.5" FontWeight="Bold" Foreground="#4EC9B0" HorizontalAlignment="Center"/>
                                                         <Slider x:Name="PanCam4" Width="40" Minimum="-1" Maximum="1" Value="0" Tag="3" ValueChanged="MixerPan_ValueChanged" MouseDoubleClick="MixerPan_MouseDoubleClick" ToolTip="Pan L/R (Nhấp đúp reset C)" Cursor="Hand"/>
                                                     </StackPanel>
-                                                    <Button x:Name="BtnMixerMuteCam4" Content="M" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="3" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
+                                                    <Button x:Name="BtnMixerMuteCam4" Content="M" Width="40" Height="16" Background="#EF4444" Foreground="#FFFFFF" Tag="3" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
                                                     <Button x:Name="BtnMixerSoloCam4" Content="S" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="4" Click="BtnMixerSolo_Click" FontSize="8" FontWeight="Bold" Padding="0" Cursor="Hand" ToolTip="SOLO"/>
                                                 </StackPanel>
                                             </Border>
@@ -4373,7 +4566,7 @@
                                                         <TextBlock x:Name="TxtPanCam5" Text="C" FontSize="7.5" FontWeight="Bold" Foreground="#4EC9B0" HorizontalAlignment="Center"/>
                                                         <Slider x:Name="PanCam5" Width="40" Minimum="-1" Maximum="1" Value="0" Tag="4" ValueChanged="MixerPan_ValueChanged" MouseDoubleClick="MixerPan_MouseDoubleClick" ToolTip="Pan L/R (Nhấp đúp reset C)" Cursor="Hand"/>
                                                     </StackPanel>
-                                                    <Button x:Name="BtnMixerMuteCam5" Content="M" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="4" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
+                                                    <Button x:Name="BtnMixerMuteCam5" Content="M" Width="40" Height="16" Background="#EF4444" Foreground="#FFFFFF" Tag="4" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
                                                     <Button x:Name="BtnMixerSoloCam5" Content="S" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="5" Click="BtnMixerSolo_Click" FontSize="8" FontWeight="Bold" Padding="0" Cursor="Hand" ToolTip="SOLO"/>
                                                 </StackPanel>
                                             </Border>
@@ -4409,7 +4602,7 @@
                                                         <TextBlock x:Name="TxtPanCam6" Text="C" FontSize="7.5" FontWeight="Bold" Foreground="#4EC9B0" HorizontalAlignment="Center"/>
                                                         <Slider x:Name="PanCam6" Width="40" Minimum="-1" Maximum="1" Value="0" Tag="5" ValueChanged="MixerPan_ValueChanged" MouseDoubleClick="MixerPan_MouseDoubleClick" ToolTip="Pan L/R (Nhấp đúp reset C)" Cursor="Hand"/>
                                                     </StackPanel>
-                                                    <Button x:Name="BtnMixerMuteCam6" Content="M" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="5" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
+                                                    <Button x:Name="BtnMixerMuteCam6" Content="M" Width="40" Height="16" Background="#EF4444" Foreground="#FFFFFF" Tag="5" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
                                                     <Button x:Name="BtnMixerSoloCam6" Content="S" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="6" Click="BtnMixerSolo_Click" FontSize="8" FontWeight="Bold" Padding="0" Cursor="Hand" ToolTip="SOLO"/>
                                                 </StackPanel>
                                             </Border>
@@ -4451,7 +4644,7 @@
                                                         <TextBlock x:Name="TxtPanCam7" Text="C" FontSize="7.5" FontWeight="Bold" Foreground="#4EC9B0" HorizontalAlignment="Center"/>
                                                         <Slider x:Name="PanCam7" Width="40" Minimum="-1" Maximum="1" Value="0" Tag="6" ValueChanged="MixerPan_ValueChanged" MouseDoubleClick="MixerPan_MouseDoubleClick" ToolTip="Pan L/R (Nhấp đúp reset C)" Cursor="Hand"/>
                                                     </StackPanel>
-                                                    <Button x:Name="BtnMixerMuteCam7" Content="M" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="6" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
+                                                    <Button x:Name="BtnMixerMuteCam7" Content="M" Width="40" Height="16" Background="#EF4444" Foreground="#FFFFFF" Tag="6" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
                                                     <Button x:Name="BtnMixerSoloCam7" Content="S" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="7" Click="BtnMixerSolo_Click" FontSize="8" FontWeight="Bold" Padding="0" Cursor="Hand" ToolTip="SOLO"/>
                                                 </StackPanel>
                                             </Border>
@@ -4487,7 +4680,7 @@
                                                         <TextBlock x:Name="TxtPanCam8" Text="C" FontSize="7.5" FontWeight="Bold" Foreground="#4EC9B0" HorizontalAlignment="Center"/>
                                                         <Slider x:Name="PanCam8" Width="40" Minimum="-1" Maximum="1" Value="0" Tag="7" ValueChanged="MixerPan_ValueChanged" MouseDoubleClick="MixerPan_MouseDoubleClick" ToolTip="Pan L/R (Nhấp đúp reset C)" Cursor="Hand"/>
                                                     </StackPanel>
-                                                    <Button x:Name="BtnMixerMuteCam8" Content="M" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="7" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
+                                                    <Button x:Name="BtnMixerMuteCam8" Content="M" Width="40" Height="16" Background="#EF4444" Foreground="#FFFFFF" Tag="7" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
                                                     <Button x:Name="BtnMixerSoloCam8" Content="S" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="8" Click="BtnMixerSolo_Click" FontSize="8" FontWeight="Bold" Padding="0" Cursor="Hand" ToolTip="SOLO"/>
                                                 </StackPanel>
                                             </Border>
@@ -4523,7 +4716,7 @@
                                                         <TextBlock x:Name="TxtPanCam9" Text="C" FontSize="7.5" FontWeight="Bold" Foreground="#4EC9B0" HorizontalAlignment="Center"/>
                                                         <Slider x:Name="PanCam9" Width="40" Minimum="-1" Maximum="1" Value="0" Tag="8" ValueChanged="MixerPan_ValueChanged" MouseDoubleClick="MixerPan_MouseDoubleClick" ToolTip="Pan L/R (Nhấp đúp reset C)" Cursor="Hand"/>
                                                     </StackPanel>
-                                                    <Button x:Name="BtnMixerMuteCam9" Content="M" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="8" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
+                                                    <Button x:Name="BtnMixerMuteCam9" Content="M" Width="40" Height="16" Background="#EF4444" Foreground="#FFFFFF" Tag="8" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
                                                     <Button x:Name="BtnMixerSoloCam9" Content="S" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="9" Click="BtnMixerSolo_Click" FontSize="8" FontWeight="Bold" Padding="0" Cursor="Hand" ToolTip="SOLO"/>
                                                 </StackPanel>
                                             </Border>
@@ -4559,7 +4752,7 @@
                                                         <TextBlock x:Name="TxtPanCam10" Text="C" FontSize="7.5" FontWeight="Bold" Foreground="#4EC9B0" HorizontalAlignment="Center"/>
                                                         <Slider x:Name="PanCam10" Width="40" Minimum="-1" Maximum="1" Value="0" Tag="9" ValueChanged="MixerPan_ValueChanged" MouseDoubleClick="MixerPan_MouseDoubleClick" ToolTip="Pan L/R (Nhấp đúp reset C)" Cursor="Hand"/>
                                                     </StackPanel>
-                                                    <Button x:Name="BtnMixerMuteCam10" Content="M" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="9" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
+                                                    <Button x:Name="BtnMixerMuteCam10" Content="M" Width="40" Height="16" Background="#EF4444" Foreground="#FFFFFF" Tag="9" Click="BtnMixerMute_Click" FontSize="8" FontWeight="Bold" Margin="0,0,0,2" Padding="0" Cursor="Hand" ToolTip="MUTE"/>
                                                     <Button x:Name="BtnMixerSoloCam10" Content="S" Width="40" Height="16" Background="#2C2C34" Foreground="#FFFFFF" Tag="10" Click="BtnMixerSolo_Click" FontSize="8" FontWeight="Bold" Padding="0" Cursor="Hand" ToolTip="SOLO"/>
                                                 </StackPanel>
                                             </Border>

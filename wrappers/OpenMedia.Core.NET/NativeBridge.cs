@@ -428,6 +428,14 @@ namespace OpenMedia.SDK
 
         [LibraryImport(DllName)]
         [return: MarshalAs(UnmanagedType.I1)]
+        public static partial bool ome_srt_output_send_msg(SafeSrtOutputHandle output, byte[] data, int size, int ttlMs, [MarshalAs(UnmanagedType.I1)] bool inOrder);
+
+        [LibraryImport(DllName, EntryPoint = "ome_srt_output_send_msg")]
+        [return: MarshalAs(UnmanagedType.I1)]
+        public static partial bool ome_srt_output_send_msg(IntPtr output, byte[] data, int size, int ttlMs, [MarshalAs(UnmanagedType.I1)] bool inOrder);
+
+        [LibraryImport(DllName)]
+        [return: MarshalAs(UnmanagedType.I1)]
         public static partial bool ome_srt_output_is_connected(SafeSrtOutputHandle output);
 
         [LibraryImport(DllName, EntryPoint = "ome_srt_output_is_connected")]

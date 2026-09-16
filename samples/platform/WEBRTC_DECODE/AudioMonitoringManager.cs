@@ -149,7 +149,22 @@ namespace WEBRTC_DECODE
                 }
             }
         }
-        public bool IsTalkbackActive { get; set; } = false; // Push-To-Talk or Latch state
+        private bool _isTalkbackActive = false;
+        public bool IsTalkbackActive
+        {
+            get => _isTalkbackActive;
+            set
+            {
+                if (_isTalkbackActive == value) return;
+                _isTalkbackActive = value;
+                if (!value)
+                {
+                    _studioMicRingBuffer.Clear();
+                    _studioMicSpeakerRingBuffer.Clear();
+                }
+                _audioOutput.Wake();
+            }
+        }
         public double StudioMicGainDb { get; set; } = 0.0; // Unity gain (0 dB)
         private bool _studioMicRouteToProgram = false;
         public bool StudioMicRouteToProgram
@@ -165,15 +180,32 @@ namespace WEBRTC_DECODE
                 _audioOutput.Wake();
             }
         }
-        private readonly AudioRingBuffer _studioMicRingBuffer = new(capacityBytes: 96000, preRollMs: 20);
-        private readonly AudioRingBuffer _studioMicSpeakerRingBuffer = new(capacityBytes: 96000, preRollMs: 20);
-        private readonly AudioRingBuffer _studioMicPgmRingBuffer = new(capacityBytes: 96000, preRollMs: 20);
+        private readonly AudioRingBuffer _studioMicRingBuffer = new(capacityBytes: 96000, preRollMs: 20, maxLatencyMs: 80);
+        private readonly AudioRingBuffer _studioMicSpeakerRingBuffer = new(capacityBytes: 96000, preRollMs: 20, maxLatencyMs: 80);
+        private readonly AudioRingBuffer _studioMicPgmRingBuffer = new(capacityBytes: 96000, preRollMs: 20, maxLatencyMs: 80);
         private readonly AudioMeterService _studioMicMeter = new();
         public ChannelAudioLevels StudioMicLevels { get; } = new();
 
         // ─── Intercom Incoming Audio Buffer (from Field Encoders) ───
-        private readonly AudioRingBuffer _intercomRingBuffer = new(capacityBytes: 960000, preRollMs: 20);
+        private readonly AudioRingBuffer _intercomRingBuffer = new(capacityBytes: 960000, preRollMs: 20, maxLatencyMs: 80);
         public double IntercomReceiveVolume { get; set; } = 0.75;
+
+        private int _lipSyncDelayMs = 0;
+        public int LipSyncDelayMs
+        {
+            get => _lipSyncDelayMs;
+            set
+            {
+                int clamped = Math.Clamp(value, 0, 300);
+                if (_lipSyncDelayMs == clamped) return;
+                _lipSyncDelayMs = clamped;
+                for (int i = 0; i < MaxCameras; i++)
+                {
+                    _camRingBuffers[i].DelayMs = _lipSyncDelayMs;
+                }
+                Log("[AUDIO]", $"⏱️ [LIP-SYNC] Đã cập nhật bù trễ âm thanh: +{_lipSyncDelayMs} ms");
+            }
+        }
 
         private readonly AudioOutputDevice _audioOutput = new();
         public bool SetOutputDevice(int deviceId) => _audioOutput.ChangeDevice(deviceId);
@@ -219,9 +251,15 @@ namespace WEBRTC_DECODE
         public void FeedStudioMicPcm(byte[] pcmData, int count)
         {
             if (!EnableStudioMic || pcmData == null || count <= 0) return;
+            // Always process VU levels so director can verify input before talking
             _studioMicMeter.ProcessPcmBytes(pcmData, 0, count, 16, 2, 48000, isFloat: false);
-            _studioMicRingBuffer.Write(pcmData, 0, count);
-            _studioMicSpeakerRingBuffer.Write(pcmData, 0, count);
+
+            // Only feed talkback and speaker buffers when Talkback is actively engaged
+            if (IsTalkbackActive)
+            {
+                _studioMicRingBuffer.Write(pcmData, 0, count);
+                _studioMicSpeakerRingBuffer.Write(pcmData, 0, count);
+            }
             if (StudioMicRouteToProgram)
             {
                 _studioMicPgmRingBuffer.Write(pcmData, 0, count);
@@ -339,7 +377,7 @@ namespace WEBRTC_DECODE
             {
                 _camLevels[i] = new ChannelAudioLevels();
                 _camMeters[i] = new AudioMeterService();
-                _camRingBuffers[i] = new AudioRingBuffer(capacityBytes: 96000, preRollMs: 20); // 500ms buffer capacity with 20ms ultra-low latency jitter pre-roll
+                _camRingBuffers[i] = new AudioRingBuffer(capacityBytes: 96000, preRollMs: 20, maxLatencyMs: 80); // 500ms buffer capacity with 20ms sweet-spot jitter pre-roll & 80ms ceiling
                 _channelMuted[i] = true; // Mặc định các preview màn hình ingest đều được Mute
                 _channelGainDb[i] = 0.0; // Mặc định 0 dB (Unity gain)
                 _channelPan[i] = 0.0;    // Mặc định Center
@@ -351,6 +389,33 @@ namespace WEBRTC_DECODE
 
             // Kết nối bộ trộn thời gian thực DSP vào phần cứng phát âm thanh
             _audioOutput.MixerReader = ReadMixedPcm;
+        }
+
+        /// <summary>
+        /// Resets the audio jitter ring buffer and metering state for a specific camera channel.
+        /// Invoked when a channel connects, disconnects, or restarts to eliminate stale audio backlog.
+        /// </summary>
+        public void ResetChannelBuffer(int camIndex)
+        {
+            if (camIndex < 0 || camIndex >= MaxCameras) return;
+            _camRingBuffers[camIndex].Clear();
+            _camLevels[camIndex].Reset();
+            _lastPcmReceivedTicks[camIndex] = 0;
+            _currentMuteRamp[camIndex] = 0.0f;
+            _targetMuteRamp[camIndex] = 0.0f;
+            Log("[AUDIO]", $"🔄 Reset buffer kiểm âm CAM {camIndex + 1} thành công.");
+        }
+
+        /// <summary>
+        /// Trims audio buffer backlog down to the live playout target (keepBytes, default 20ms = 3840 bytes).
+        /// Serves as the A/V Lip-Sync Anchor when the first video keyframe arrives.
+        /// </summary>
+        public void AlignChannelToLive(int camIndex, int keepBytes = 3840)
+        {
+            if (camIndex < 0 || camIndex >= MaxCameras) return;
+            _camRingBuffers[camIndex].AlignToLive(keepBytes);
+            _audioOutput.Wake();
+            Log("[AUDIO]", $"⏱️ [AV-SYNC] Đã neo đồng bộ âm thanh CAM {camIndex + 1} theo khung hình Video LiveStream đầu tiên (giữ {keepBytes} bytes).");
         }
 
         /// <summary>
@@ -418,11 +483,13 @@ namespace WEBRTC_DECODE
                 bool chShouldPlay = false;
                 if (_soloSource != SoloAudioSource.ProgramMaster)
                 {
+                    // Chế độ SOLO: Chỉ kênh đang được SOLO mới đi ra PGM (cô lập audio kênh SOLO)
                     chShouldPlay = (i == ((int)_soloSource - 1));
                 }
                 else
                 {
-                    chShouldPlay = (i == _currentProgramIndex || !_channelMuted[i]);
+                    // Chế độ Program Master: Trạng thái MUTE thì không đi ra PGM, chỉ UNMUTE mới ra PGM
+                    chShouldPlay = !_channelMuted[i];
                 }
 
                 bool streamAlive = (now - _lastPcmReceivedTicks[i]) < 1000;
@@ -592,8 +659,8 @@ namespace WEBRTC_DECODE
                 }
             }
 
-            // 4. Director Mic Stage: Luôn ra loa/tai nghe kiểm âm kể cả Audio PREVIEW MUTE
-            if (EnableStudioMic && _studioMicSpeakerRingBuffer.AvailableBytes >= 4)
+            // 4. Director Mic Stage: Chỉ ra loa/tai nghe kiểm âm khi đang nhấn Talkback
+            if (EnableStudioMic && IsTalkbackActive && _studioMicSpeakerRingBuffer.AvailableBytes >= 4)
             {
                 if (_studioMicSpeakerRingBuffer.AvailableBytes > 19200)
                 {
@@ -627,6 +694,10 @@ namespace WEBRTC_DECODE
                         destination[dIdx + 3] = (byte)((resR >> 8) & 0xFF);
                     }
                 }
+            }
+            else if (!IsTalkbackActive && _studioMicSpeakerRingBuffer.AvailableBytes > 0)
+            {
+                _studioMicSpeakerRingBuffer.Clear();
             }
 
             return count;
@@ -690,9 +761,13 @@ namespace WEBRTC_DECODE
             }
 
             // Blend Studio Mic / Director Talkback into Mix-Minus return audio
-            if (EnableStudioMic && IsTalkbackActive)
+            if (EnableStudioMic && IsTalkbackActive && _studioMicRingBuffer.AvailableBytes >= 4)
             {
-                int micBytes = _studioMicRingBuffer.Peek(tempChannelBuffer, 0, tempChannelBuffer.Length);
+                if (_studioMicRingBuffer.AvailableBytes > 19200)
+                {
+                    _studioMicRingBuffer.Clear();
+                }
+                int micBytes = _studioMicRingBuffer.Read(tempChannelBuffer, 0, tempChannelBuffer.Length);
                 if (micBytes > 0)
                 {
                     float micGain = (StudioMicGainDb <= -58.0) ? 0.0f : (float)Math.Pow(10.0, StudioMicGainDb / 20.0);
@@ -708,6 +783,10 @@ namespace WEBRTC_DECODE
                         mixR[n] += (micR / 32768.0f) * micGain;
                     }
                 }
+            }
+            else if (!IsTalkbackActive && _studioMicRingBuffer.AvailableBytes > 0)
+            {
+                _studioMicRingBuffer.Clear();
             }
 
             for (int n = 0; n < frameCount; n++)

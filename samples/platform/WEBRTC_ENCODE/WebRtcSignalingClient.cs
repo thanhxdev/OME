@@ -531,10 +531,28 @@ namespace WEBRTC_ENCODE
 
         private void HandleTallyUpdate(JsonElement root)
         {
-            string camId = root.TryGetProperty("cameraId", out var c) ? c.GetString() ?? "" : "";
+            string camId = "";
+            string state = "off";
+
+            if (root.TryGetProperty("cameraId", out var c))
+            {
+                camId = c.GetString() ?? "";
+            }
+            if (root.TryGetProperty("state", out var s))
+            {
+                state = s.GetString() ?? "off";
+            }
+
+            // Fallback for nested payload format: { payload: { cameraId, tally/state } }
+            if (string.IsNullOrEmpty(camId) && root.TryGetProperty("payload", out var p) && p.ValueKind == JsonValueKind.Object)
+            {
+                if (p.TryGetProperty("cameraId", out var pc)) camId = pc.GetString() ?? "";
+                if (p.TryGetProperty("state", out var ps)) state = ps.GetString() ?? "off";
+                else if (p.TryGetProperty("tally", out var pt)) state = pt.GetString() ?? "off";
+            }
+
             if (camId == CameraId || camId == "all")
             {
-                string state = root.TryGetProperty("state", out var s) ? s.GetString() ?? "off" : "off";
                 Log("[TALLY]", $"Cập nhật Tally cho {camId}: {state.ToUpper()}");
                 TallyStateChanged?.Invoke(camId, state);
             }
