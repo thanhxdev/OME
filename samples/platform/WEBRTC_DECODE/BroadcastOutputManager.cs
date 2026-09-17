@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using OpenMedia.Platform;
 using OpenMedia.Platform.Models;
 
+using OpenMedia.Platform.IPC;
+
 namespace WEBRTC_DECODE
 {
     public sealed class VideoCodecConfig
@@ -44,7 +46,7 @@ namespace WEBRTC_DECODE
         public bool SdiEnabled { get; set; } = false;
         public string SdiPort { get; set; } = "Blackmagic DeckLink (Port 1)";
         public bool NdiEnabled { get; set; } = false;
-        public string NdiName { get; set; } = "OME_CAM1_ISO";
+        public string NdiName { get; set; } = "OME ISO CAM 01";
         public bool SrtBridgeEnabled { get; set; } = false;
         public string SrtBridgeHost { get; set; } = "192.168.1.150";
         public int SrtBridgePort { get; set; } = 9101;
@@ -74,12 +76,63 @@ namespace WEBRTC_DECODE
 
     /// <summary>
     /// Master Broadcast Output Manager coordinating physical SDI card playout,
-    /// NDI network feeds, SRT Re-transmitter bridges, and File Recorders
-    /// for both Master Program and individual ISO camera channels (CAM 1..10).
+    /// NDI network feeds, SRT Re-transmitter bridges, File Recorders,
+    /// and the 11-Channel D3D11 Shared Texture Zero-Copy / IPC Audio Matrix Router.
     /// </summary>
     public sealed class BroadcastOutputManager : IDisposable
     {
         public const int MaxChannels = 10;
+
+        // ─── IP Video Matrix Router Publisher (On-Demand) ───────────────
+        private MatrixRouterPublisher? _matrixPublisher;
+        public MatrixRouterPublisher? MatrixPublisher => _matrixPublisher;
+        public bool IsMatrixIpcActive => _matrixPublisher?.IsInitialized == true;
+
+        public bool StartMatrixIpc(int width = 1920, int height = 1080)
+        {
+            try
+            {
+                if (_matrixPublisher == null || !_matrixPublisher.IsInitialized)
+                {
+                    _matrixPublisher?.Dispose();
+                    _matrixPublisher = new MatrixRouterPublisher { SlotBaseIndex = 11 };
+                    bool ok = _matrixPublisher.Initialize(width, height);
+                    if (ok)
+                    {
+                        Log("[MATRIX-ROUTER]", "✅ Đã mở IP Video Matrix Router liên tiến trình (Slots 11..20 dành cho WebRTC + Audio MMF).");
+                        return true;
+                    }
+                    else
+                    {
+                        Log("[MATRIX-ROUTER]", $"❌ Khởi tạo Matrix Router thất bại: {_matrixPublisher.LastError}");
+                        return false;
+                    }
+                }
+                return _matrixPublisher?.IsInitialized == true;
+            }
+            catch (Exception ex)
+            {
+                Log("[MATRIX-ROUTER]", $"❌ Lỗi khởi tạo IP Video Matrix Router: {ex.Message}");
+                return false;
+            }
+        }
+
+        public void StopMatrixIpc()
+        {
+            try
+            {
+                if (_matrixPublisher != null)
+                {
+                    _matrixPublisher.Dispose();
+                    _matrixPublisher = null;
+                    Log("[MATRIX-ROUTER]", "⏹ Đã dừng IP Video Matrix Router liên tiến trình.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log("[MATRIX-ROUTER]", $"Lỗi dừng Matrix Router: {ex.Message}");
+            }
+        }
 
         // ─── Master Video Codec Configuration ───────────────────────────
         public VideoCodecConfig MasterVideoCodec { get; } = new();
@@ -98,7 +151,7 @@ namespace WEBRTC_DECODE
 
         // ─── NDI Output ─────────────────────────────────────────────────
         public bool NdiEnabled { get; set; } = false;
-        public string NdiStreamName { get; set; } = "OME_STUDIO_PROGRAM";
+        public string NdiStreamName { get; set; } = "OME PGM MASTER";
         public bool NdiMultiviewerMode { get; set; } = false;
         public MultiviewerCompositor Compositor { get; } = new();
 
@@ -133,13 +186,15 @@ namespace WEBRTC_DECODE
                     ChannelIndex = i,
                     ChannelName = $"CAM {i + 1}",
                     SdiPort = $"Blackmagic DeckLink (Port {i + 1})",
-                    NdiName = $"OME_CAM{i + 1}_ISO"
+                    NdiName = $"OME ISO CAM {i + 1:D2}"
                 };
 
                 _isoWorkers[i] = new BroadcastOutputWorker(i, $"CAM {i + 1} ISO");
                 int idx = i;
                 _isoWorkers[i].LogEmitted += (tag, msg) => Log($"[CAM {idx + 1}]", msg);
             }
+
+            // IP Video Matrix Router is now on-demand (Click '▶ Start Matrix Output' on Tab 7 to start)
         }
 
         #region Master Program Output Control
@@ -354,6 +409,13 @@ namespace WEBRTC_DECODE
         public void FeedMasterVideo(byte[] bgraBytes, int width, int height, double fps = 59.94)
         {
             if (_isDisposed) return;
+
+            // Zero-copy local IPC: update D3D11 Shared Texture Port 0 (OME_TEX_PGM_MASTER) when active
+            if (_matrixPublisher?.IsInitialized == true)
+            {
+                _matrixPublisher.UpdateMasterVideo(bgraBytes, width, height, fps);
+            }
+
             // If NDI is in Multiviewer mode, NDI gets its frames from the Compositor engine.
             // SDI, SRT Bridge, and File Recording still receive clean Master Program.
             bool sendToNdi = !NdiMultiviewerMode;
@@ -363,6 +425,13 @@ namespace WEBRTC_DECODE
         public void FeedMasterAudio(byte[] pcmBytes, int count)
         {
             if (_isDisposed) return;
+
+            // IPC Audio Sync: update MMF ring buffer slot 0 when active
+            if (_matrixPublisher?.IsInitialized == true)
+            {
+                _matrixPublisher.UpdateMasterAudio(pcmBytes, count);
+            }
+
             _masterWorker.FeedAudioPcm(pcmBytes, count, 48000, 2);
         }
 
@@ -371,6 +440,14 @@ namespace WEBRTC_DECODE
             if (_isDisposed) return;
             if (camIndex >= 0 && camIndex < MaxChannels)
             {
+                // Zero-copy local IPC: update D3D11 Shared Texture with [WebRTC] label
+                if (_matrixPublisher?.IsInitialized == true)
+                {
+                    string label = ReceiverOutputs[camIndex]?.ChannelName ?? $"CAM {camIndex + 1}";
+                    if (!label.StartsWith("[WebRTC]")) label = $"[WebRTC] {label}";
+                    _matrixPublisher.UpdateIsoVideo(camIndex, label, bgraBytes, width, height, fps);
+                }
+
                 _isoWorkers[camIndex].FeedVideoFrame(bgraBytes, width, height, fps);
                 Compositor.UpdateChannelFrame(camIndex, bgraBytes, width, height);
             }
@@ -381,6 +458,12 @@ namespace WEBRTC_DECODE
             if (_isDisposed) return;
             if (camIndex >= 0 && camIndex < MaxChannels)
             {
+                // IPC Audio Sync: update MMF ring buffer slot 1..10 when active
+                if (_matrixPublisher?.IsInitialized == true)
+                {
+                    _matrixPublisher.UpdateIsoAudio(camIndex, pcmBytes, count);
+                }
+
                 _isoWorkers[camIndex].FeedAudioPcm(pcmBytes, count, 48000, 2);
             }
         }
@@ -398,6 +481,8 @@ namespace WEBRTC_DECODE
             if (_isDisposed) return;
             _isDisposed = true;
 
+            _matrixPublisher?.Dispose();
+            _matrixPublisher = null;
             Compositor.Dispose();
             _masterWorker.Dispose();
             for (int i = 0; i < MaxChannels; i++)

@@ -484,13 +484,16 @@ namespace WEBRTC_DECODE
                     }
                 }
 
-                // Initialize WriteableBitmaps for video rendering surfaces
-                for (int i = 0; i < MaxChannels; i++)
+                // Lazy-initialize WriteableBitmaps for active channels only (default: 1 channel; saves ~75MB RAM on startup)
+                for (int i = 0; i < _activeChannelCount; i++)
                 {
                     _camBitmaps[i] = new WriteableBitmap(1920, 1080, 96, 96, PixelFormats.Bgra32, null);
                     _videoViews[i].PresentBitmap(_camBitmaps[i]);
                 }
-                VideoViewPgm.PresentBitmap(_camBitmaps[0]);
+                if (_camBitmaps[0] != null)
+                {
+                    VideoViewPgm.PresentBitmap(_camBitmaps[0]);
+                }
 
                 // Initialize Multiviewer cell titles & metadata for all 10 cameras at launch
                 for (int i = 0; i < MaxChannels; i++)
@@ -499,9 +502,15 @@ namespace WEBRTC_DECODE
                 }
 
                 LogEvent("[INFO]", "Ứng dụng OME Broadcast Multi-Camera WebRTC Studio Multiviewer & Playout Decoder & Studio Sync đang khởi chạy...");
-                TxtEngineStatus.Text = "Engine: Initializing WebRTC Platform...";
+                TxtEngineStatus.Text = "Engine: Standalone / Host Mode";
                 _signalingClient.CameraStreamPublished += OnCameraStreamPublished;
                 _signalingClient.CameraMetaUpdated += OnCameraMetaUpdated;
+                _signalingClient.ConnectionStateChanged += OnSignalingConnectionStateChanged;
+                string signalingUrl = TxtSignalingUrl?.Text?.Trim() ?? "";
+                if (!string.IsNullOrEmpty(signalingUrl))
+                {
+                    _signalingClient.ServerUrl = signalingUrl;
+                }
                 _ = _signalingClient.ConnectAsync();
 
                 // Start High-precision Master UTC Clock immediately on startup
@@ -528,20 +537,30 @@ namespace WEBRTC_DECODE
                     }
                 }
 
-                // Initialize OpenMedia Runtime Engine
-                bool runtimeInit = await OpenMediaRuntime.InitializeAsync(new RuntimeOptions { AutoLaunch = true });
-                if (runtimeInit)
+                // Initialize OpenMedia Runtime Engine asynchronously in background to prevent UI freeze
+                _ = Task.Run(async () =>
                 {
-                    TxtEngineStatus.Text = "Engine: OpenMedia.Platform Active (DirectX 11 D3D11 Shared Textures)";
-                    TxtEngineStatus.Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
-                    LogEvent("[ENGINE]", "Khởi tạo OpenMedia.Platform thành công với GPU D3D11 Zero-Copy Pipeline.");
-                }
-                else
-                {
-                    TxtEngineStatus.Text = "Engine: Standalone / Host Mode";
-                    TxtEngineStatus.Foreground = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B));
-                    LogEvent("[WARN]", "OpenMedia Native Engine chưa phát hiện IPC server, chuyển sang chế độ Standalone Host.");
-                }
+                    try
+                    {
+                        bool runtimeInit = await OpenMediaRuntime.InitializeAsync(new RuntimeOptions { AutoLaunch = false, ConnectionTimeout = 1000 });
+                        _ = Dispatcher.InvokeAsync(() =>
+                        {
+                            if (_isShuttingDown || Dispatcher.HasShutdownStarted) return;
+                            if (runtimeInit)
+                            {
+                                TxtEngineStatus.Text = "Engine: OpenMedia.Platform Active (DirectX 11 D3D11 Shared Textures)";
+                                TxtEngineStatus.Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
+                                LogEvent("[ENGINE]", "Khởi tạo OpenMedia.Platform thành công với GPU D3D11 Zero-Copy Pipeline.");
+                            }
+                            else
+                            {
+                                TxtEngineStatus.Text = "Engine: Standalone / Host Mode";
+                                TxtEngineStatus.Foreground = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B));
+                            }
+                        });
+                    }
+                    catch { }
+                });
 
                 // Start Telemetry & VU Timers
                 StartTelemetryTimer();
@@ -634,6 +653,7 @@ namespace WEBRTC_DECODE
                     _audioManager.ProgramMixedPcmAvailable -= _programMixedPcmDelegate;
                 _signalingClient.CameraStreamPublished -= OnCameraStreamPublished;
                 _signalingClient.CameraMetaUpdated -= OnCameraMetaUpdated;
+                _signalingClient.ConnectionStateChanged -= OnSignalingConnectionStateChanged;
             }
             catch { }
         }
@@ -830,13 +850,26 @@ namespace WEBRTC_DECODE
                 }
 
                 _activeChannelCount--;
+                if (removeIdx < _camBitmaps.Length && _camBitmaps[removeIdx] != null)
+                {
+                    _camBitmaps[removeIdx] = null;
+                    if (removeIdx < _videoViews.Length && _videoViews[removeIdx] != null)
+                    {
+                        _videoViews[removeIdx].Detach();
+                    }
+                }
+                if (removeIdx < _fallbacks.Length && _fallbacks[removeIdx] != null)
+                {
+                    _fallbacks[removeIdx].Visibility = Visibility.Visible;
+                }
+
                 if (_currentProgramIndex >= _activeChannelCount)
                 {
                     _currentProgramIndex = 0;
                     UpdateTallyIndicators();
                 }
                 UpdateActiveStreamsUI();
-                LogEvent("[INGEST]", $"➖ Đã bớt luồng WebRTC Ingest #{removeIdx + 1}. Còn lại: {_activeChannelCount}/10 luồng.");
+                LogEvent("[INGEST]", $"➖ Đã bớt luồng WebRTC Ingest #{removeIdx + 1}. Đã thu hồi bộ nhớ bitmap. Còn lại: {_activeChannelCount}/10 luồng.");
             }
         }
 
@@ -1261,6 +1294,89 @@ namespace WEBRTC_DECODE
                 }
             });
         }
+
+        #region WebRTC Signaling & ICE NAT Traversal Handlers
+
+        private void OnSignalingConnectionStateChanged(bool isConnected)
+        {
+            if (_isShuttingDown || Dispatcher.HasShutdownStarted) return;
+
+            Dispatcher.Invoke(() =>
+            {
+                if (EllipseSignaling != null)
+                {
+                    EllipseSignaling.Fill = new SolidColorBrush(isConnected 
+                        ? Color.FromRgb(22, 163, 74) 
+                        : Color.FromRgb(220, 38, 38));
+                }
+
+                if (TxtSignalingStatusCard != null)
+                {
+                    TxtSignalingStatusCard.Text = isConnected 
+                        ? $"Signaling: Connected ({_signalingClient.SessionId})" 
+                        : "Signaling: Disconnected";
+                }
+
+                if (BtnToggleSignaling != null)
+                {
+                    BtnToggleSignaling.Content = isConnected ? "🔌 Disconnect" : "🔗 Connect Signaling";
+                }
+            });
+        }
+
+        private async void BtnToggleSignaling_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (_signalingClient.IsConnected)
+                {
+                    await _signalingClient.DisconnectAsync();
+                }
+                else
+                {
+                    string url = TxtSignalingUrl?.Text?.Trim() ?? "";
+                    if (string.IsNullOrEmpty(url)) url = "ws://127.0.0.1:3000/ws";
+                    _signalingClient.ServerUrl = url;
+                    _ = _signalingClient.ConnectAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                LogEvent("[SIGNALING]", $"Lỗi thao tác kết nối Signaling: {ex.Message}");
+            }
+        }
+
+        private void ChkEnableIce_Changed(object sender, RoutedEventArgs e)
+        {
+            if (PnlIceConfig != null)
+            {
+                PnlIceConfig.Visibility = (ChkEnableIce.IsChecked == true) ? Visibility.Visible : Visibility.Collapsed;
+            }
+        }
+
+        #region ICE / STUN / TURN Server Configuration
+
+        public bool IsIceEnabled => ChkEnableIce?.IsChecked == true;
+        public string StunServerUrl => TxtStunServer?.Text?.Trim() ?? string.Empty;
+        public string TurnServerUrl => TxtTurnServer?.Text?.Trim() ?? string.Empty;
+        public string TurnUsername => TxtTurnUsername?.Text?.Trim() ?? string.Empty;
+        public string TurnPassword => TxtTurnPassword?.Password ?? string.Empty;
+
+        public IceServerConfig GetIceServers()
+        {
+            return new IceServerConfig
+            {
+                Enabled = ChkEnableIce?.IsChecked == true,
+                StunUrl = TxtStunServer?.Text?.Trim() ?? string.Empty,
+                TurnUrl = TxtTurnServer?.Text?.Trim() ?? string.Empty,
+                TurnUsername = TxtTurnUsername?.Text?.Trim() ?? string.Empty,
+                TurnPassword = TxtTurnPassword?.Password ?? string.Empty
+            };
+        }
+
+        #endregion
+
+        #endregion
 
         private void OnFrameReady(int channelIndex, byte[] frameBytes, int width, int height)
         {
@@ -3368,5 +3484,111 @@ namespace WEBRTC_DECODE
             }
             catch { }
         }
+
+        #region IP Video Matrix Router NDI Event Handlers
+
+        private async void ChkNdiPgmMaster_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is CheckBox chk)
+            {
+                bool enable = chk.IsChecked == true;
+                await _outputManager.ToggleNdiAsync(enable);
+                LogEvent("[MATRIX-NDI]", $"NDI PGM Master (OME PGM MASTER): {(enable ? "ON AIR 🟢" : "STOPPED ⚪")}");
+            }
+        }
+
+        private async void ChkNdiIso_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is CheckBox chk && chk.Tag is string tagStr && int.TryParse(tagStr, out int camIndex))
+            {
+                bool enable = chk.IsChecked == true;
+                await _outputManager.ToggleIsoNdiAsync(camIndex, enable);
+                LogEvent("[MATRIX-NDI]", $"NDI ISO Cam {camIndex + 1} (OME ISO CAM {camIndex + 1:D2}): {(enable ? "ACTIVE 🟢" : "OFF ⚪")}");
+            }
+        }
+
+        private async void BtnEnableAllNdi_Click(object sender, RoutedEventArgs e)
+        {
+            ChkNdiPgmMaster.IsChecked = true;
+            await _outputManager.ToggleNdiAsync(true);
+
+            for (int i = 0; i < 10; i++)
+            {
+                if (FindName($"ChkNdiIso{i + 1}") is CheckBox chk)
+                {
+                    chk.IsChecked = true;
+                }
+                await _outputManager.ToggleIsoNdiAsync(i, true);
+            }
+            LogEvent("[MATRIX-NDI]", "✅ Đã bật tất cả 11 luồng NDI Matrix (1 PGM + 10 ISO).");
+        }
+
+        private async void BtnDisableAllNdi_Click(object sender, RoutedEventArgs e)
+        {
+            ChkNdiPgmMaster.IsChecked = false;
+            await _outputManager.ToggleNdiAsync(false);
+
+            for (int i = 0; i < 10; i++)
+            {
+                if (FindName($"ChkNdiIso{i + 1}") is CheckBox chk)
+                {
+                    chk.IsChecked = false;
+                }
+                await _outputManager.ToggleIsoNdiAsync(i, false);
+            }
+            LogEvent("[MATRIX-NDI]", "⚪ Đã tắt tất cả các luồng NDI Matrix để tiết kiệm băng thông.");
+        }
+
+        private async void BtnToggleMatrixOutput_Click(object sender, RoutedEventArgs e)
+        {
+            BtnToggleMatrixOutput.IsEnabled = false;
+            try
+            {
+                if (!_outputManager.IsMatrixIpcActive)
+                {
+                    bool ok = await Task.Run(() => _outputManager.StartMatrixIpc(1920, 1080));
+                    if (ok)
+                    {
+                        BtnToggleMatrixOutput.Content = "⏹ Stop Matrix Output";
+                        BtnToggleMatrixOutput.Background = new SolidColorBrush(Color.FromRgb(220, 38, 38));
+                        BrdMatrixIpcStatus.Background = new SolidColorBrush(Color.FromRgb(0x0F, 0x28, 0x1E));
+                        BrdMatrixIpcStatus.BorderBrush = new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76));
+                        TxtMatrixIpcStatus.Text = "D3D11 VRAM IPC 0ms: ACTIVE";
+                        TxtMatrixIpcStatus.Foreground = new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76));
+                        BrdPort0Status.Background = new SolidColorBrush(Color.FromRgb(0x0F, 0x2D, 0x1F));
+                        BrdPort0Status.BorderBrush = new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76));
+                        TxtPort0Status.Text = "ONLINE (0ms)";
+                        TxtPort0Status.Foreground = new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76));
+                        LogEvent("[MATRIX-ROUTER]", "🚀 Đã kích hoạt 11 cổng D3D11 Shared Texture IPC để kết nối với OME_PLAYOUT.");
+                    }
+                    else
+                    {
+                        string err = _outputManager.MatrixPublisher?.LastError ?? "Lỗi không xác định";
+                        LogEvent("[WARN]", $"Không thể mở Direct3D11 Matrix Router: {err}");
+                    }
+                }
+                else
+                {
+                    await Task.Run(() => _outputManager.StopMatrixIpc());
+                    BtnToggleMatrixOutput.Content = "▶ Start Matrix Output";
+                    BtnToggleMatrixOutput.Background = new SolidColorBrush(Color.FromRgb(0x00, 0x7A, 0xCC));
+                    BrdMatrixIpcStatus.Background = new SolidColorBrush(Color.FromRgb(0x26, 0x26, 0x2B));
+                    BrdMatrixIpcStatus.BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+                    TxtMatrixIpcStatus.Text = "STANDBY (Nhấn để bật)";
+                    TxtMatrixIpcStatus.Foreground = new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA));
+                    BrdPort0Status.Background = new SolidColorBrush(Color.FromRgb(0x26, 0x26, 0x2B));
+                    BrdPort0Status.BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+                    TxtPort0Status.Text = "STANDBY";
+                    TxtPort0Status.Foreground = new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA));
+                    LogEvent("[MATRIX-ROUTER]", "⏹ Đã dừng D3D11 Matrix Router liên tiến trình.");
+                }
+            }
+            finally
+            {
+                BtnToggleMatrixOutput.IsEnabled = true;
+            }
+        }
+
+        #endregion
     }
 }

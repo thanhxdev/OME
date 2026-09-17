@@ -1,9 +1,9 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("SRT_ENCODE", "SRT_DECODE", "WEBRTC_ENCODE", "WEBRTC_DECODE")]
+    [ValidateSet("SRT_ENCODE", "SRT_DECODE", "WEBRTC_ENCODE", "WEBRTC_DECODE", "OME_PLAYOUT")]
     [string]$AppName,
 
-    [string]$Version = "1.0.0",
+    [string]$Version = "1.1.0",
     [string]$OutputFolder = "dist",
     [string]$InnoSetupPath = "",
     [switch]$SkipPublish,
@@ -39,6 +39,10 @@ try {
         "WEBRTC_DECODE" = @{
             "Csproj"  = "samples\platform\WEBRTC_DECODE\WEBRTC_DECODE.csproj"
             "AppGuid" = "{{F8EA2481-9CC4-4F8E-A3D3-54EB4F678901}}"
+        }
+        "OME_PLAYOUT" = @{
+            "Csproj"  = "samples\platform\OME_PLAYOUT\OME_PLAYOUT.csproj"
+            "AppGuid" = "{{D4E5F6A1-B2C3-4D5E-8F9A-1B2C3D4E5F6A}}"
         }
     }
 
@@ -171,11 +175,19 @@ try {
         $fileSizeMB = [math]::Round($setupItem.Length / 1MB, 2)
         $hash = (Get-FileHash -Path $SetupExe -Algorithm SHA256).Hash
 
+        # Also mirror to dist\installers
+        $InstallersDir = Join-Path $DistDir "installers"
+        if (-not (Test-Path $InstallersDir)) {
+            New-Item -ItemType Directory -Force -Path $InstallersDir | Out-Null
+        }
+        Copy-Item -Path $SetupExe -Destination (Join-Path $InstallersDir "$SetupBaseFilename.exe") -Force
+
         Write-Host ""
         Write-Host "============================================================" -ForegroundColor Green
         Write-Host " [OK] $AppName INSTALLER CREATED SUCCESSFULLY!" -ForegroundColor Green
         Write-Host "============================================================" -ForegroundColor Green
         Write-Host " File:      $SetupExe" -ForegroundColor White
+        Write-Host " Mirror:    $(Join-Path $InstallersDir "$SetupBaseFilename.exe")" -ForegroundColor White
         Write-Host " Size:      $fileSizeMB MB" -ForegroundColor White
         Write-Host " SHA-256:   $hash" -ForegroundColor White
         Write-Host "============================================================" -ForegroundColor Green

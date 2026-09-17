@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "1.0.0",
+    [string]$Version = "1.1.0",
     [string]$OutputFolder = "dist",
     [string]$BuildDir = "",
     [string]$InnoSetupPath = "",
@@ -148,7 +148,7 @@ try {
         }
 
         # STEP 5: Build WEBRTC_DECODE Application Installer
-        Write-Host "`n>>> [5/5] Packaging WEBRTC_DECODE Application..." -ForegroundColor Magenta
+        Write-Host "`n>>> [5/6] Packaging WEBRTC_DECODE Application..." -ForegroundColor Magenta
         $webrtcDecodeParams = @{
             AppName      = "WEBRTC_DECODE"
             Version      = $Version
@@ -171,6 +171,34 @@ try {
                 File      = $item.Name
                 SizeMB    = [math]::Round($item.Length / 1MB, 2)
                 SHA256    = (Get-FileHash -Path $webrtcDecodeExe -Algorithm SHA256).Hash.Substring(0, 16) + "..."
+                Status    = "[OK]"
+            }
+        }
+
+        # STEP 6: Build OME_PLAYOUT Application Installer
+        Write-Host "`n>>> [6/6] Packaging OME_PLAYOUT Application..." -ForegroundColor Magenta
+        $omePlayoutParams = @{
+            AppName      = "OME_PLAYOUT"
+            Version      = $Version
+            OutputFolder = $OutputFolder
+        }
+        if (-not [string]::IsNullOrWhiteSpace($InnoSetupPath)) {
+            $omePlayoutParams["InnoSetupPath"] = $InnoSetupPath
+        }
+
+        & $appScript @omePlayoutParams
+        if ($LASTEXITCODE -ne 0) {
+            throw "package_app.ps1 (OME_PLAYOUT) failed with exit code $LASTEXITCODE"
+        }
+
+        $omePlayoutExe = Join-Path $DistDir "OME_PLAYOUT_Setup.exe"
+        if (Test-Path $omePlayoutExe) {
+            $item = Get-Item $omePlayoutExe
+            $results += [PSCustomObject]@{
+                Component = "OME_PLAYOUT App"
+                File      = $item.Name
+                SizeMB    = [math]::Round($item.Length / 1MB, 2)
+                SHA256    = (Get-FileHash -Path $omePlayoutExe -Algorithm SHA256).Hash.Substring(0, 16) + "..."
                 Status    = "[OK]"
             }
         }

@@ -64,6 +64,9 @@ bool SRTOutput::Start(const std::string& uri) {
     int tsbpdmode = 1; // Enable Timestamp-Based Packet Delivery
     srt_setsockopt(m_socket, 0, SRTO_TSBPDMODE, &tsbpdmode, sizeof(tsbpdmode));
 
+    linger ling = { 1, 0 }; // Zero linger: abortive close, frees port & multiplexer instantly
+    srt_setsockopt(m_socket, 0, SRTO_LINGER, &ling, sizeof(ling));
+
     if (!config.passphrase.empty()) {
         srt_setsockopt(m_socket, 0, SRTO_PASSPHRASE, config.passphrase.c_str(), (int)config.passphrase.length());
         int pbkeylen = config.pbkeylen;
@@ -81,7 +84,7 @@ bool SRTOutput::Start(const std::string& uri) {
 
     sockaddr_in sa = {};
     sa.sin_family = AF_INET;
-    sa.sin_port = htons(config.port);
+    sa.sin_port = htons((u_short)config.port);
     if (config.ip.empty() || config.ip == "0.0.0.0") {
         sa.sin_addr.s_addr = INADDR_ANY;
     } else {
@@ -95,6 +98,9 @@ bool SRTOutput::Start(const std::string& uri) {
         // Listener mode: set non-blocking accept to not freeze the thread
         int rcvSyn = 0; // non-blocking for accept polling
         srt_setsockopt(m_socket, 0, SRTO_RCVSYN, &rcvSyn, sizeof(rcvSyn));
+
+        int reuse = 1;
+        srt_setsockopt(m_socket, 0, SRTO_REUSEADDR, &reuse, sizeof(reuse));
 
         if (srt_bind(m_socket, (sockaddr*)&sa, sizeof(sa)) == SRT_ERROR) {
             spdlog::error("srt_bind failed: {}", srt_getlasterror_str());
@@ -125,12 +131,32 @@ bool SRTOutput::Start(const std::string& uri) {
 
 void SRTOutput::AcceptLoop() {
     while (m_running && m_socket != -1) {
+        SRT_SOCKSTATUS serverSt = srt_getsockstate(m_socket);
+        if (serverSt != SRTS_LISTENING) {
+            spdlog::warn("SRT output listener socket state changed to {} (not listening). Breaking accept loop.", (int)serverSt);
+            break;
+        }
+
+        int curClient = m_clientSocket.load();
+        if (curClient != -1 && curClient != SRT_INVALID_SOCK) {
+            SRT_SOCKSTATUS st = srt_getsockstate(curClient);
+            if (st != SRTS_CONNECTED && st != SRTS_CONNECTING) {
+                spdlog::warn("SRT output client socket state changed to {} (disconnected). Resetting listener client.", (int)st);
+                int oldClient = m_clientSocket.exchange(-1);
+                if (oldClient != -1 && oldClient != SRT_INVALID_SOCK) {
+                    srt_close(oldClient);
+                }
+            }
+        }
+
         if (m_clientSocket == -1) {
             sockaddr_in client_sa;
             int client_sa_len = sizeof(client_sa);
             int client = srt_accept(m_socket, (sockaddr*)&client_sa, &client_sa_len);
             if (client != SRT_INVALID_SOCK) {
                 spdlog::info("SRT client connected to output listener");
+                linger clientLing = { 1, 0 };
+                srt_setsockopt(client, 0, SRTO_LINGER, &clientLing, sizeof(clientLing));
                 m_clientSocket = client;
             }
         }
@@ -156,7 +182,8 @@ void SRTOutput::Stop() {
 
 bool SRTOutput::IsConnected() const {
     if (m_isListener) {
-        return m_clientSocket != -1;
+        int client = m_clientSocket.load();
+        return client != -1 && client != SRT_INVALID_SOCK && srt_getsockstate(client) == SRTS_CONNECTED;
     }
     return m_socket != -1 && srt_getsockstate(m_socket) == SRTS_CONNECTED;
 }
@@ -180,6 +207,15 @@ bool SRTOutput::SendMsg(const uint8_t* data, size_t size, int ttlMs, bool inOrde
     mc.srctime = 0; // 0 instructs libsrt to timestamp at current microsecond
 
     int res = srt_sendmsg2(targetSocket, (const char*)data, (int)size, &mc);
+    if (res == SRT_ERROR && m_isListener) {
+        SRT_SOCKSTATUS st = srt_getsockstate(targetSocket);
+        if (st != SRTS_CONNECTED && st != SRTS_CONNECTING) {
+            int oldClient = m_clientSocket.exchange(-1);
+            if (oldClient != -1 && oldClient != SRT_INVALID_SOCK) {
+                srt_close(oldClient);
+            }
+        }
+    }
     return res != SRT_ERROR;
 }
 

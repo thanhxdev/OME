@@ -120,11 +120,21 @@ namespace OpenMedia.Platform
                     else
                     {
                         Log("[WARN]", $"⚠️ Native SRTOutput chưa kết nối/lắng nghe được trên URI: {_config.ToSrtUri()} (Kiểm tra Mode, IP/Port hoặc Firewall)");
+                        try { _nativeOutput.Dispose(); } catch { }
+                        _nativeOutput = null;
+                        _isRunning = false;
+                        _statistics.IsConnected = false;
+                        StatusChanged?.Invoke(false, "SRT Output Open Failed");
+                        return false;
                     }
                 }
                 catch (Exception ex)
                 {
-                    Log("[WARN]", $"Direct native SRTOutput initialization note: {ex.Message}");
+                    Log("[ERROR]", $"Direct native SRTOutput initialization note: {ex.Message}");
+                    _isRunning = false;
+                    _statistics.IsConnected = false;
+                    StatusChanged?.Invoke(false, $"Error: {ex.Message}");
+                    return false;
                 }
 
                 _isRunning = true;
@@ -177,11 +187,21 @@ namespace OpenMedia.Platform
                     else
                     {
                         Log("[WARN]", $"⚠️ Native SRTSource chưa kết nối được tới: {_config.ToSrtUri()}");
+                        try { _nativeSource.Dispose(); } catch { }
+                        _nativeSource = null;
+                        _isRunning = false;
+                        _statistics.IsConnected = false;
+                        StatusChanged?.Invoke(false, "SRT Receiver Connect Failed");
+                        return false;
                     }
                 }
                 catch (Exception ex)
                 {
-                    Log("[WARN]", $"Direct native SRTSource initialization note: {ex.Message}");
+                    Log("[ERROR]", $"Direct native SRTSource initialization note: {ex.Message}");
+                    _isRunning = false;
+                    _statistics.IsConnected = false;
+                    StatusChanged?.Invoke(false, $"Error: {ex.Message}");
+                    return false;
                 }
 
                 _isRunning = true;
@@ -363,6 +383,21 @@ namespace OpenMedia.Platform
             return -1;
         }
 
+        /// <summary>
+        /// Proactively marks the session as disconnected (e.g. on socket error or timeout).
+        /// </summary>
+        public void MarkDisconnected(string reason = "Connection lost")
+        {
+            if (_statistics.IsConnected)
+            {
+                _statistics.IsConnected = false;
+                _statistics.CurrentBitrateKbps = 0;
+                _statistics.CurrentFps = 0;
+                StatusChanged?.Invoke(false, reason);
+                StatisticsUpdated?.Invoke(_statistics.Clone());
+            }
+        }
+
         private void StartStatisticsPolling()
         {
             _statsTimer?.Dispose();
@@ -386,6 +421,7 @@ namespace OpenMedia.Platform
                 if (elapsed.TotalSeconds < 0.1) return;
 
                 bool gotNativeStats = false;
+                bool wasConnected = _statistics.IsConnected;
 
                 if (_nativeOutput != null && _nativeOutput.IsOpen)
                 {
@@ -420,7 +456,6 @@ namespace OpenMedia.Platform
                     }
                 }
 
-                bool wasConnected = _statistics.IsConnected;
                 if (gotNativeStats)
                 {
                     ulong deltaBytes = _statistics.TotalBytesTransferred >= _lastTotalBytes
@@ -442,7 +477,10 @@ namespace OpenMedia.Platform
 
                 if (wasConnected != _statistics.IsConnected)
                 {
-                    StatusChanged?.Invoke(_statistics.IsConnected, _statistics.IsConnected ? "SRT Receiver CONNECTED" : "SRT Receiver DISCONNECTED");
+                    string statusMsg = _statistics.IsConnected
+                        ? (_nativeOutput != null ? "SRT Transmitting LIVE" : "SRT Receiver CONNECTED")
+                        : (_nativeOutput != null ? "SRT Output Disconnected / Client Dropped" : "SRT Receiver DISCONNECTED");
+                    StatusChanged?.Invoke(_statistics.IsConnected, statusMsg);
                 }
 
                 if (_config.AutoLatency && _statistics.RttMs > 0)

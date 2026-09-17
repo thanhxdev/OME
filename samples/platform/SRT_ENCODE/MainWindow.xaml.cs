@@ -1984,105 +1984,196 @@ namespace SRT_ENCODE
                 try
                 {
                     bool isListener = _activeSrtConfig?.Mode == SRTMode.Listener;
-                    bool isConnected = _srtStream != null && _srtStream.IsRunning && (_srtStream.Statistics.IsConnected || isListener);
 
-                    if (!isConnected)
+                    if (!isListener)
                     {
-                        _reconnectAttempt++;
+                        // ─── CALLER MODE ──────────────────────────────────────────────
+                        bool isConnected = _srtStream != null && _srtStream.IsRunning && _srtStream.Statistics.IsConnected;
 
-                        await Dispatcher.InvokeAsync(() =>
+                        if (!isConnected)
                         {
-                            LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(255, 179, 0)); // Amber
-                            TxtSrtStatus.Text = _reconnectAttempt <= 1
-                                ? "SRT: CONNECTING..."
-                                : $"SRT: RECONNECTING (#{_reconnectAttempt})...";
-                            TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(255, 179, 0));
-                        });
+                            _reconnectAttempt++;
 
-                        if (_reconnectAttempt == 1)
-                        {
-                            LogEvent("[SRT]", $"Khởi tạo kết nối SRT ({_activeSrtConfig?.Mode} -> {_activeSrtConfig?.Host}:{_activeSrtConfig?.Port})...");
-                        }
-                        else
-                        {
-                            LogEvent("[WARN]", $"⚠️ Mất kết nối / Handshake SRT chưa thành công. Tự động kết nối lại lần #{_reconnectAttempt}...");
-                        }
-
-                        // Thu hồi phiên SRT cũ trước khi tạo phiên mới
-                        await CleanupSrtSessionOnlyAsync();
-
-                        if (_activeSrtConfig != null)
-                        {
-                            var newSession = new SRTStreamSession(_activeSrtConfig);
-                            newSession.LogEmitted += (tag, msg) => LogEvent(tag, msg);
-                            newSession.ErrorOccurred += err => LogEvent("[ERROR]", err);
-                            newSession.StatisticsUpdated += stats =>
+                            await Dispatcher.InvokeAsync(() =>
                             {
-                                _currentRttMs = stats.RttMs;
-                                _currentPacketLoss = stats.PacketLossPercent;
-                                if (stats.CurrentBitrateKbps > 0)
-                                {
-                                    _currentBitrateKbps = stats.CurrentBitrateKbps;
-                                }
-                                if (stats.CurrentFps > 0)
-                                {
-                                    _currentFps = stats.CurrentFps;
-                                }
-                                _totalBytesTransferred = stats.TotalBytesTransferred;
-                            };
+                                LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(255, 179, 0)); // Amber
+                                TxtSrtStatus.Text = _reconnectAttempt <= 1
+                                    ? "SRT: CONNECTING..."
+                                    : $"SRT: RECONNECTING (#{_reconnectAttempt})...";
+                                TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(255, 179, 0));
+                            });
 
-                            bool started = await newSession.StartTransmissionAsync();
-                            if (started && (newSession.Statistics.IsConnected || isListener))
+                            if (_reconnectAttempt == 1)
                             {
-                                _srtStream = newSession;
-                                _isStreaming = true;
-                                _reconnectAttempt = 0;
-                                _streamStartTime = DateTime.UtcNow;
+                                LogEvent("[SRT]", $"Khởi tạo kết nối SRT ({_activeSrtConfig?.Mode} -> {_activeSrtConfig?.Host}:{_activeSrtConfig?.Port})...");
+                            }
+                            else
+                            {
+                                LogEvent("[WARN]", $"⚠️ Mất kết nối / Handshake SRT chưa thành công. Tự động kết nối lại lần #{_reconnectAttempt}...");
+                            }
 
-                                await Dispatcher.InvokeAsync(() =>
+                            // Thu hồi phiên SRT cũ trước khi tạo phiên mới
+                            await CleanupSrtSessionOnlyAsync();
+
+                            if (_activeSrtConfig != null)
+                            {
+                                var newSession = new SRTStreamSession(_activeSrtConfig);
+                                newSession.LogEmitted += (tag, msg) => LogEvent(tag, msg);
+                                newSession.ErrorOccurred += err => LogEvent("[ERROR]", err);
+                                newSession.StatisticsUpdated += stats =>
                                 {
-                                    if (isListener && !newSession.Statistics.IsConnected)
+                                    _currentRttMs = stats.RttMs;
+                                    _currentPacketLoss = stats.PacketLossPercent;
+                                    if (stats.CurrentBitrateKbps > 0)
                                     {
-                                        LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(255, 179, 0)); // Amber
-                                        TxtSrtStatus.Text = $"SRT: LISTENING (Port {_activeSrtConfig?.Port})...";
-                                        TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(255, 179, 0));
+                                        _currentBitrateKbps = stats.CurrentBitrateKbps;
                                     }
-                                    else
+                                    if (stats.CurrentFps > 0)
+                                    {
+                                        _currentFps = stats.CurrentFps;
+                                    }
+                                    _totalBytesTransferred = stats.TotalBytesTransferred;
+                                };
+
+                                bool started = await newSession.StartTransmissionAsync();
+                                if (started && newSession.Statistics.IsConnected)
+                                {
+                                    _srtStream = newSession;
+                                    _isStreaming = true;
+                                    _reconnectAttempt = 0;
+                                    _streamStartTime = DateTime.UtcNow;
+
+                                    await Dispatcher.InvokeAsync(() =>
                                     {
                                         LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(76, 175, 80)); // Green
                                         TxtSrtStatus.Text = "SRT: TRANSMITTING (LIVE)";
                                         TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(76, 175, 80));
-                                    }
-                                    UpdateTargetSummary();
-                                    EnsureStreamingWorkerRunning(token);
-                                });
+                                        UpdateTargetSummary();
+                                        EnsureStreamingWorkerRunning(token);
+                                    });
 
-                                LogEvent("[SRT]", isListener && !newSession.Statistics.IsConnected
-                                    ? $"✅ [INFO] SRT Output đang lắng nghe trên cổng {_activeSrtConfig?.Port}, sẵn sàng kết nối."
-                                    : $"✅ [INFO] SRT Connected thành công. Bắt đầu truyền dẫn luồng LIVE.");
+                                    LogEvent("[SRT]", "✅ [INFO] SRT Connected thành công. Bắt đầu truyền dẫn luồng LIVE.");
+                                }
+                                else
+                                {
+                                    try { await newSession.StopAsync(); } catch { }
+                                    newSession.Dispose();
+                                }
                             }
-                            else
+
+                            if (!token.IsCancellationRequested && _isTransmissionActive)
                             {
-                                try { await newSession.StopAsync(); } catch { }
-                                newSession.Dispose();
+                                // Delay 1.0 - 1.3 giây giữa các lần thử lại để tránh xung đột lockstep
+                                await Task.Delay(1000 + Random.Shared.Next(0, 300), token);
                             }
                         }
-
-                        if (!token.IsCancellationRequested && _isTransmissionActive)
+                        else
                         {
-                            // Delay 1.5 giây giữa các lần thử lại
-                            await Task.Delay(1500, token);
+                            // Đang kết nối ổn định: Kiểm tra nếu streaming worker FFmpeg chưa chạy thì kích hoạt
+                            if (_streamProcess == null || _streamProcess.HasExited)
+                            {
+                                await Dispatcher.InvokeAsync(() => EnsureStreamingWorkerRunning(token));
+                            }
+
+                            await Task.Delay(1000, token);
                         }
                     }
                     else
                     {
-                        // Đang kết nối ổn định: Kiểm tra nếu streaming worker FFmpeg chưa chạy thì kích hoạt
-                        if (_streamProcess == null || _streamProcess.HasExited)
-                        {
-                            await Dispatcher.InvokeAsync(() => EnsureStreamingWorkerRunning(token));
-                        }
+                        // ─── LISTENER MODE ────────────────────────────────────────────
+                        bool isListening = _srtStream != null && _srtStream.IsRunning && _srtStream.NativeOutput?.IsOpen == true;
 
-                        await Task.Delay(1000, token);
+                        if (!isListening)
+                        {
+                            _reconnectAttempt++;
+
+                            await Dispatcher.InvokeAsync(() =>
+                            {
+                                LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(255, 179, 0)); // Amber
+                                TxtSrtStatus.Text = $"SRT: BINDING (Port {_activeSrtConfig?.Port})...";
+                                TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(255, 179, 0));
+                            });
+
+                            await CleanupSrtSessionOnlyAsync();
+
+                            if (_activeSrtConfig != null)
+                            {
+                                var newSession = new SRTStreamSession(_activeSrtConfig);
+                                newSession.LogEmitted += (tag, msg) => LogEvent(tag, msg);
+                                newSession.ErrorOccurred += err => LogEvent("[ERROR]", err);
+                                newSession.StatisticsUpdated += stats =>
+                                {
+                                    _currentRttMs = stats.RttMs;
+                                    _currentPacketLoss = stats.PacketLossPercent;
+                                    if (stats.CurrentBitrateKbps > 0)
+                                    {
+                                        _currentBitrateKbps = stats.CurrentBitrateKbps;
+                                    }
+                                    if (stats.CurrentFps > 0)
+                                    {
+                                        _currentFps = stats.CurrentFps;
+                                    }
+                                    _totalBytesTransferred = stats.TotalBytesTransferred;
+                                };
+
+                                bool started = await newSession.StartTransmissionAsync();
+                                if (started && newSession.NativeOutput?.IsOpen == true)
+                                {
+                                    _srtStream = newSession;
+                                    _isStreaming = true;
+                                    _reconnectAttempt = 0;
+
+                                    await Dispatcher.InvokeAsync(() =>
+                                    {
+                                        LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(255, 179, 0)); // Amber
+                                        TxtSrtStatus.Text = $"SRT: LISTENING (Port {_activeSrtConfig?.Port})...";
+                                        TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(255, 179, 0));
+                                        UpdateTargetSummary();
+                                        EnsureStreamingWorkerRunning(token);
+                                    });
+
+                                    LogEvent("[SRT]", $"✅ [INFO] SRT Output đang lắng nghe trên cổng {_activeSrtConfig?.Port}, sẵn sàng kết nối.");
+                                }
+                                else
+                                {
+                                    try { await newSession.StopAsync(); } catch { }
+                                    newSession.Dispose();
+                                }
+                            }
+
+                            if (!token.IsCancellationRequested && _isTransmissionActive)
+                            {
+                                await Task.Delay(1500, token);
+                            }
+                        }
+                        else
+                        {
+                            // Listener đang mở, cập nhật trạng thái theo client kết nối
+                            bool clientConnected = _srtStream.Statistics.IsConnected;
+
+                            await Dispatcher.InvokeAsync(() =>
+                            {
+                                if (clientConnected)
+                                {
+                                    LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(76, 175, 80)); // Green
+                                    TxtSrtStatus.Text = "SRT: TRANSMITTING (LIVE)";
+                                    TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(76, 175, 80));
+                                }
+                                else
+                                {
+                                    LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(255, 179, 0)); // Amber
+                                    TxtSrtStatus.Text = $"SRT: LISTENING (Port {_activeSrtConfig?.Port})...";
+                                    TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(255, 179, 0));
+                                }
+                            });
+
+                            if (_streamProcess == null || _streamProcess.HasExited)
+                            {
+                                await Dispatcher.InvokeAsync(() => EnsureStreamingWorkerRunning(token));
+                            }
+
+                            await Task.Delay(1000, token);
+                        }
                     }
                 }
                 catch (OperationCanceledException)
@@ -2459,6 +2550,7 @@ namespace SRT_ENCODE
                     var fpsStopwatch = Stopwatch.StartNew();
                     long directFileFrameCounter = 0;
 
+                    int consecutiveFailures = 0;
                     while (!token.IsCancellationRequested && _isTransmissionActive && !process.HasExited)
                     {
                         int totalRead = 0;
@@ -2474,7 +2566,20 @@ namespace SRT_ENCODE
                             _workerBytesSent += (ulong)totalRead;
                             if (_srtStream != null && _srtStream.IsRunning && _srtStream.Statistics.IsConnected)
                             {
-                                _srtStream.SendData(buffer, totalRead, 0, true);
+                                bool sent = _srtStream.SendData(buffer, totalRead, 0, true);
+                                if (!sent)
+                                {
+                                    consecutiveFailures++;
+                                    if (consecutiveFailures >= 5)
+                                    {
+                                        _srtStream.MarkDisconnected("Mất kết nối đường truyền SRT (Send socket failure)");
+                                        consecutiveFailures = 0;
+                                    }
+                                }
+                                else
+                                {
+                                    consecutiveFailures = 0;
+                                }
                             }
 
                             if (isDirectFileSource)
@@ -2552,14 +2657,26 @@ namespace SRT_ENCODE
             _transmissionCts = null;
 
             _reconnectAttempt = 0;
-            if (!_isClosing && Dispatcher.CheckAccess())
+            if (!_isClosing)
             {
-                BtnStartStreaming.IsEnabled = true;
-                BtnStopStreaming.IsEnabled = false;
+                void ResetUi()
+                {
+                    BtnStartStreaming.IsEnabled = true;
+                    BtnStopStreaming.IsEnabled = false;
 
-                LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(158, 158, 158)); // Grey
-                TxtSrtStatus.Text = "SRT: Idle";
-                TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(204, 204, 204));
+                    LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(158, 158, 158)); // Grey
+                    TxtSrtStatus.Text = "SRT: Idle";
+                    TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(204, 204, 204));
+                }
+
+                if (Dispatcher.CheckAccess())
+                {
+                    ResetUi();
+                }
+                else
+                {
+                    try { Dispatcher.Invoke(ResetUi); } catch { }
+                }
             }
         }
 

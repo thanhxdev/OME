@@ -1,42 +1,29 @@
 ; =====================================================================
-; OpenMedia SDK - Professional Inno Setup 6 Application Template
-; Modular Client Application Installer (SRT_ENCODE / SRT_DECODE)
+; OpenMedia - OME_PLAYOUT Inno Setup 6 Script
+; Modular Broadcast Playout Application (.NET 10 Self-Contained win-x64)
+; Version 1.1 Upgrade PLAYOUT
 ; =====================================================================
 
-#ifndef MyAppName
-  #define MyAppName "SRT_ENCODE"
-#endif
-
-#ifndef MyAppExeName
-  #define MyAppExeName MyAppName + ".exe"
-#endif
-
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.0"
+  #define MyAppVersion "1.1.0"
 #endif
 
-#ifndef MyAppPublisher
-  #define MyAppPublisher "OpenMedia Project"
-#endif
-
-#ifndef MyAppURL
-  #define MyAppURL "https://github.com/openmedia/openmedia"
-#endif
-
-#ifndef AppGuid
-  #define AppGuid "{{B3C84260-6FF1-4D6C-81A1-21B91E345678}}"
-#endif
+#define MyAppName "OME_PLAYOUT"
+#define MyAppExeName "OME_PLAYOUT.exe"
+#define MyAppPublisher "OpenMedia Project"
+#define MyAppURL "https://github.com/openmedia/openmedia"
+#define AppGuid "{{D4E5F6A1-B2C3-4D5E-8F9A-1B2C3D4E5F6A}}"
 
 #ifndef SourceDir
-  #define SourceDir "..\..\dist\apps\" + MyAppName
+  #define SourceDir "..\..\dist\apps\OME_PLAYOUT"
 #endif
 
 #ifndef OutputDir
-  #define OutputDir "..\..\dist"
+  #define OutputDir "..\..\dist\installers"
 #endif
 
 #ifndef OutputBaseFilename
-  #define OutputBaseFilename MyAppName + "_Setup"
+  #define OutputBaseFilename "OME_PLAYOUT_Setup"
 #endif
 
 [Setup]
@@ -44,7 +31,7 @@
 AppId={#AppGuid}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
-AppVerName={#MyAppName} v{#MyAppVersion}
+AppVerName={#MyAppName} v{#MyAppVersion} (Upgrade PLAYOUT)
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
@@ -80,7 +67,7 @@ ShowLanguageDialog=auto
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 Name: "startmenuicon"; Description: "Create Start Menu shortcuts"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
@@ -100,14 +87,14 @@ Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
-; Clean up application logs and caches on uninstall (leaves shared SDK intact)
+; Clean up application logs and caches on uninstall
 Type: filesandordirs; Name: "{app}\logs"
 Type: filesandordirs; Name: "{app}\crash_dumps"
 Type: filesandordirs; Name: "{app}\cache"
 
 [Code]
 // =====================================================================
-// Pre-requisite Check: Đảm bảo OpenMedia SDK đã được cài đặt trước
+// Pre-requisite Check: Đảm bảo OpenMedia SDK đã được cài đặt hoặc xác nhận tiếp tục
 // =====================================================================
 function InitializeSetup(): Boolean;
 var
@@ -138,11 +125,11 @@ begin
       SdkFound := True;
   end;
 
-  // Nếu chưa cài đặt OpenMedia SDK: Cảnh báo nhưng cho phép tiếp tục vì app là Self-Contained
+  // Nếu chưa cài đặt OpenMedia SDK: Cảnh báo nhưng cho phép cài đặt tiếp vì bản build là Self-Contained
   if not SdkFound then
   begin
-    if SuppressibleMsgBox('Khuyến nghị cài đặt OpenMedia SDK trước để tối ưu hóa hệ thống.' + #13#10#13#10 +
-                          'Ứng dụng này đã được đóng gói độc lập đầy đủ (Self-Contained).' + #13#10 +
+    if SuppressibleMsgBox('Khuyến nghị cài đặt gói OpenMedia_SDK_Setup.exe trước để hệ thống tối ưu hóa thư viện chia sẻ.' + #13#10#13#10 +
+                          'Ứng dụng OME_PLAYOUT này đã được đóng gói độc lập đầy đủ (Self-Contained).' + #13#10 +
                           'Bạn có muốn tiếp tục cài đặt không?',
                           mbConfirmation, MB_YESNO, IDYES) = IDNO then
     begin

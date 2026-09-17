@@ -3622,28 +3622,26 @@
                     <TabItem Header="3. Output PGM">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
                             <StackPanel>
-                                <!-- ══ KHUNG CẤU HÌNH VIDEO CODEC MASTER & 3 ĐẦU RA PROGRAM (SDI / REC / SRT BRIDGE) ══ -->
+                                <!-- ══ 1. LỰA CHỌN VIDEO CODEC OUTPUT MASTER ══ -->
                                 <Border Style="{StaticResource CardBorderStyle}" Background="#1C1C24" BorderBrush="#00FFCC" BorderThickness="1.5" CornerRadius="6" Padding="10" Margin="0,0,0,10">
                                     <StackPanel>
-                                        <!-- Header for Master Codec & Associated Outputs -->
-                                        <Grid Margin="0,0,0,8">
+                                        <!-- Header for Frame 1 -->
+                                        <Grid Margin="0,0,0,10">
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                 <Border Background="#00FFCC" CornerRadius="3" Padding="6,2" Margin="0,0,8,0">
-                                                    <TextBlock Text="MASTER CODEC" FontWeight="Bold" FontSize="10.5" Foreground="#0E0E12"/>
+                                                    <TextBlock Text="1" FontWeight="Bold" FontSize="11" Foreground="#0E0E12"/>
                                                 </Border>
-                                                <TextBlock Text="CẤU HÌNH CODEC &amp; ĐẦU RA MASTER PGM" FontWeight="Bold" FontSize="12.5" Foreground="#FFFFFF"/>
+                                                <TextBlock Text="LỰA CHỌN VIDEO CODEC OUTPUT MASTER" FontWeight="Bold" FontSize="12.5" Foreground="#00FFCC"/>
                                             </StackPanel>
                                             <Border Background="#2A1B1B" BorderBrush="#EF4444" BorderThickness="1" CornerRadius="3" Padding="6,1" HorizontalAlignment="Right">
                                                 <TextBlock Text="SDI • REC • SRT BRIDGE" FontWeight="Bold" FontSize="10" Foreground="#EF4444"/>
                                             </Border>
                                         </Grid>
 
-                                        <!-- 1. Master Video Codec Output Settings -->
+                                        <!-- 1.1 Thông số Video Codec Master: Độ phân giải, Video Codec, Bitrate, Khung hình (FPS) -->
                                         <Border Style="{StaticResource SubCardBorderStyle}" Background="#16161B" BorderBrush="#383845" Margin="0,0,0,8">
                                             <StackPanel>
-                                                <TextBlock Text="🎬 LỰA CHỌN VIDEO CODEC OUTPUT MASTER" FontWeight="Bold" FontSize="11.5" Foreground="#00FFCC" Margin="0,0,0,6"/>
-                                                
-                                                <Grid Margin="0,0,0,4">
+                                                <Grid Margin="0,0,0,6">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>
                                                         <ColumnDefinition Width="*"/>
@@ -3700,7 +3698,7 @@
                                             </StackPanel>
                                         </Border>
 
-                                        <!-- 2. SDI Output Card -->
+                                        <!-- 1.2 SDI CARD OUTPUT -->
                                         <Border Style="{StaticResource SubCardBorderStyle}" Margin="0,0,0,8">
                                             <StackPanel>
                                                 <Grid Margin="0,0,0,6">
@@ -3728,7 +3726,7 @@
                                             </StackPanel>
                                         </Border>
 
-                                        <!-- 3. Master Recording Card -->
+                                        <!-- 1.3 MASTER RECORDING -->
                                         <Border Style="{StaticResource SubCardBorderStyle}" Margin="0,0,0,8">
                                             <StackPanel>
                                                 <Grid Margin="0,0,0,6">
@@ -3754,7 +3752,7 @@
                                             </StackPanel>
                                         </Border>
 
-                                        <!-- 4. SRT Re-transmitter Bridge Card -->
+                                        <!-- 1.4 SRT RE-TRANSMITTER -->
                                         <Border Style="{StaticResource SubCardBorderStyle}">
                                             <StackPanel>
                                                 <Grid Margin="0,0,0,6">
@@ -3794,20 +3792,23 @@
                                     </StackPanel>
                                 </Border>
 
-                                <!-- ══ KHUNG CÁC ĐẦU RA KHÁC (NDI BROADCAST & MÀN HÌNH NGOÀI) ══ -->
-                                <Border Style="{StaticResource CardBorderStyle}" Background="#1C1C22" BorderBrush="#007ACC" BorderThickness="1.5">
+                                <!-- ══ 2. ĐẦU RA MẠNG NDI & MÀN HÌNH NGOÀI ══ -->
+                                <Border Style="{StaticResource CardBorderStyle}" Background="#1C1C22" BorderBrush="#007ACC" BorderThickness="1.5" CornerRadius="6" Padding="10">
                                     <StackPanel>
-                                        <!-- Group Header -->
-                                        <Grid Margin="0,0,0,8">
+                                        <!-- Group Header for Frame 2 -->
+                                        <Grid Margin="0,0,0,10">
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                 <Border Background="#007ACC" CornerRadius="3" Padding="6,2" Margin="0,0,8,0">
-                                                    <TextBlock Text="DISTRIBUTION" FontWeight="Bold" FontSize="10.5" Foreground="#FFFFFF"/>
+                                                    <TextBlock Text="2" FontWeight="Bold" FontSize="11" Foreground="#FFFFFF"/>
                                                 </Border>
                                                 <TextBlock Text="ĐẦU RA MẠNG NDI &amp; MÀN HÌNH NGOÀI" FontWeight="Bold" FontSize="12.5" Foreground="#FFFFFF"/>
                                             </StackPanel>
+                                            <Border Background="#1E293B" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="3" Padding="6,1" HorizontalAlignment="Right">
+                                                <TextBlock Text="NDI • MONITOR PLAYOUT" FontWeight="Bold" FontSize="10" Foreground="#00FFCC"/>
+                                            </Border>
                                         </Grid>
 
-                                        <!-- NDI Output Card (Broadcast Studio Grade) -->
+                                        <!-- 2.1 NDI BROADCAST OUTPUT -->
                                         <Border Style="{StaticResource SubCardBorderStyle}" Background="#16161C" BorderBrush="#007ACC" BorderThickness="1.2" Margin="0,0,0,8">
                                             <StackPanel>
                                                 <!-- Header with Live On-Air / Offline Status Pill -->
@@ -3853,7 +3854,7 @@
                                             </StackPanel>
                                         </Border>
 
-                                        <!-- Fullscreen Monitor Playout & Hardware Discovery -->
+                                        <!-- 2.2 FULLSCREEN MONITOR PLAYOUT -->
                                         <Border Style="{StaticResource SubCardBorderStyle}" Background="#16161B" BorderBrush="#00FFCC" BorderThickness="1">
                                             <StackPanel>
                                                 <Grid Margin="0,0,0,6">
@@ -4805,6 +4806,162 @@
                                             </Border>
 
                                         </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- ══════════════════════════════════════════════════════ -->
+                    <TabItem Header="7. IP Output Matrix">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+                            <StackPanel Margin="0,0,6,0">
+                                <!-- Banner Header -->
+                                <Border Style="{StaticResource CardBorderStyle}" Background="#151922" BorderBrush="#00E5FF" BorderThickness="1.5">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,8">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Border Background="#00E5FF" CornerRadius="3" Padding="6,2" Margin="0,0,8,0">
+                                                    <TextBlock Text="ROUTER" FontWeight="Bold" FontSize="10.5" Foreground="#0B0F19"/>
+                                                </Border>
+                                                <TextBlock Text="IP VIDEO MATRIX ROUTER (11 PORTS)" FontWeight="Bold" FontSize="13" Foreground="#FFFFFF"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <Button x:Name="BtnToggleMatrixOutput" Content="▶ Start Matrix Output" Click="BtnToggleMatrixOutput_Click"
+                                                        Background="#007ACC" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11" Padding="10,4" Margin="0,0,8,0" Cursor="Hand"
+                                                        ToolTip="Khởi chạy 11 cổng D3D11 Shared Texture IPC để chia sẻ trực tiếp với OME_PLAYOUT"/>
+                                                <Border x:Name="BrdMatrixIpcStatus" Background="#26262B" BorderBrush="#555555" BorderThickness="1" CornerRadius="3" Padding="6,2" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="TxtMatrixIpcStatus" Text="STANDBY (Nhấn để bật)" FontWeight="Bold" FontSize="10" Foreground="#AAAAAA"/>
+                                                </Border>
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBlock Text="Xuất đồng thời 11 luồng độc lập (1 PGM Master + 10 ISO Cameras) qua VRAM Zero-Copy IPC cho OME_PLAYOUT và tùy chọn phát NDI Matrix qua mạng LAN." 
+                                                   FontSize="11" Foreground="#A0AEC0" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Section 1: Local Zero-Copy D3D11 Shared Texture IPC -->
+                                <Border Style="{StaticResource SubCardBorderStyle}" Background="#12161F" BorderBrush="#2D3748" Margin="0,0,0,8">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,6">
+                                            <TextBlock Text="⚡ 11 CỔNG D3D11 SHARED TEXTURE ZERO-COPY (LOCAL IPC)" FontWeight="Bold" FontSize="11.5" Foreground="#00E5FF" VerticalAlignment="Center"/>
+                                            <TextBlock Text="PCM 48kHz Stereo MMF Sync" FontSize="10.5" Foreground="#A0AEC0" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                        </Grid>
+                                        
+                                        <!-- Master Program Port -->
+                                        <Border Background="#1A2234" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,6">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Border Grid.Column="0" Background="#EF4444" CornerRadius="3" Padding="6,2" VerticalAlignment="Center" Margin="0,0,8,0">
+                                                    <TextBlock Text="PORT 0" FontWeight="Bold" FontSize="10" Foreground="#FFFFFF"/>
+                                                </Border>
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="OME_TEX_PGM_MASTER" FontWeight="Bold" FontSize="11.5" Foreground="#FFFFFF"/>
+                                                    <TextBlock Text="Luồng đạo diễn Program Master (Switched Output) • 1920x1080 BGRA32" FontSize="10" Foreground="#94A3B8"/>
+                                                </StackPanel>
+                                                <Border x:Name="BrdPort0Status" Grid.Column="2" Background="#26262B" BorderBrush="#555555" BorderThickness="1" CornerRadius="3" Padding="6,2" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="TxtPort0Status" Text="STANDBY" FontWeight="Bold" FontSize="10" Foreground="#AAAAAA"/>
+                                                </Border>
+                                            </Grid>
+                                        </Border>
+
+                                        <!-- ISO Cameras Grid -->
+                                        <TextBlock Text="10 Cổng Camera ISO Sạch (Clean Feeds trực tiếp sau khi giải mã):" FontSize="10.5" FontWeight="SemiBold" Foreground="#CBD5E1" Margin="0,2,0,4"/>
+                                        <UniformGrid Columns="2" Margin="0,2,0,2">
+                                            <Border Background="#161B26" BorderBrush="#2A3447" BorderThickness="1" CornerRadius="3" Padding="6,4" Margin="2">
+                                                <TextBlock Text="Port 1: OME_TEX_ISO_CAM_01" FontSize="10" Foreground="#38BDF8"/>
+                                            </Border>
+                                            <Border Background="#161B26" BorderBrush="#2A3447" BorderThickness="1" CornerRadius="3" Padding="6,4" Margin="2">
+                                                <TextBlock Text="Port 2: OME_TEX_ISO_CAM_02" FontSize="10" Foreground="#38BDF8"/>
+                                            </Border>
+                                            <Border Background="#161B26" BorderBrush="#2A3447" BorderThickness="1" CornerRadius="3" Padding="6,4" Margin="2">
+                                                <TextBlock Text="Port 3: OME_TEX_ISO_CAM_03" FontSize="10" Foreground="#38BDF8"/>
+                                            </Border>
+                                            <Border Background="#161B26" BorderBrush="#2A3447" BorderThickness="1" CornerRadius="3" Padding="6,4" Margin="2">
+                                                <TextBlock Text="Port 4: OME_TEX_ISO_CAM_04" FontSize="10" Foreground="#38BDF8"/>
+                                            </Border>
+                                            <Border Background="#161B26" BorderBrush="#2A3447" BorderThickness="1" CornerRadius="3" Padding="6,4" Margin="2">
+                                                <TextBlock Text="Port 5: OME_TEX_ISO_CAM_05" FontSize="10" Foreground="#38BDF8"/>
+                                            </Border>
+                                            <Border Background="#161B26" BorderBrush="#2A3447" BorderThickness="1" CornerRadius="3" Padding="6,4" Margin="2">
+                                                <TextBlock Text="Port 6: OME_TEX_ISO_CAM_06" FontSize="10" Foreground="#38BDF8"/>
+                                            </Border>
+                                            <Border Background="#161B26" BorderBrush="#2A3447" BorderThickness="1" CornerRadius="3" Padding="6,4" Margin="2">
+                                                <TextBlock Text="Port 7: OME_TEX_ISO_CAM_07" FontSize="10" Foreground="#38BDF8"/>
+                                            </Border>
+                                            <Border Background="#161B26" BorderBrush="#2A3447" BorderThickness="1" CornerRadius="3" Padding="6,4" Margin="2">
+                                                <TextBlock Text="Port 8: OME_TEX_ISO_CAM_08" FontSize="10" Foreground="#38BDF8"/>
+                                            </Border>
+                                            <Border Background="#161B26" BorderBrush="#2A3447" BorderThickness="1" CornerRadius="3" Padding="6,4" Margin="2">
+                                                <TextBlock Text="Port 9: OME_TEX_ISO_CAM_09" FontSize="10" Foreground="#38BDF8"/>
+                                            </Border>
+                                            <Border Background="#161B26" BorderBrush="#2A3447" BorderThickness="1" CornerRadius="3" Padding="6,4" Margin="2">
+                                                <TextBlock Text="Port 10: OME_TEX_ISO_CAM_10" FontSize="10" Foreground="#38BDF8"/>
+                                            </Border>
+                                        </UniformGrid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Section 2: LAN NDI Output Matrix -->
+                                <Border Style="{StaticResource CardBorderStyle}" Background="#161B26" BorderBrush="#3B82F6" BorderThickness="1.2">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,8">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="🌐 LAN NDI MATRIX OUT (TÙY CHỌN PHÁT QUA MẠNG)" FontWeight="Bold" FontSize="11.5" Foreground="#60A5FA"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                <Button x:Name="BtnEnableAllNdi" Content="Bật Tất Cả NDI" Click="BtnEnableAllNdi_Click" Background="#1E293B" Foreground="#38BDF8" BorderBrush="#334155" Padding="8,2" FontSize="10.5" FontWeight="Bold" Margin="0,0,6,0" Cursor="Hand"/>
+                                                <Button x:Name="BtnDisableAllNdi" Content="Tắt Tất Cả NDI" Click="BtnDisableAllNdi_Click" Background="#1E293B" Foreground="#94A3B8" BorderBrush="#334155" Padding="8,2" FontSize="10.5" FontWeight="Bold" Cursor="Hand"/>
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBlock Text="Tích chọn bật/tắt từng kênh NDI theo nhu cầu thực tế để tối ưu tài nguyên CPU và băng thông mạng switch Gigabit:" FontSize="10.5" Foreground="#94A3B8" Margin="0,0,0,6"/>
+
+                                        <!-- PGM NDI Switch -->
+                                        <Border Background="#1E293B" BorderBrush="#2563EB" BorderThickness="1" CornerRadius="4" Padding="8,6" Margin="0,0,0,6">
+                                            <Grid>
+                                                <CheckBox x:Name="ChkNdiPgmMaster" Content="[x] NDI PGM Master  (Tên stream: OME PGM MASTER)" 
+                                                          Foreground="#FFFFFF" FontWeight="Bold" FontSize="11.5" Click="ChkNdiPgmMaster_Click" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Kênh Đạo Diễn" FontSize="10" Foreground="#60A5FA" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Border>
+
+                                        <!-- 10 ISO NDI Switches Grid -->
+                                        <UniformGrid Columns="2" Margin="0,2,0,0">
+                                            <Border Background="#1E2430" BorderBrush="#334155" BorderThickness="1" CornerRadius="3" Padding="6,5" Margin="2">
+                                                <CheckBox x:Name="ChkNdiIso1" Tag="0" Content="NDI ISO Cam 1  (OME ISO CAM 01)" Foreground="#E2E8F0" FontSize="10.5" Click="ChkNdiIso_Click"/>
+                                            </Border>
+                                            <Border Background="#1E2430" BorderBrush="#334155" BorderThickness="1" CornerRadius="3" Padding="6,5" Margin="2">
+                                                <CheckBox x:Name="ChkNdiIso2" Tag="1" Content="NDI ISO Cam 2  (OME ISO CAM 02)" Foreground="#E2E8F0" FontSize="10.5" Click="ChkNdiIso_Click"/>
+                                            </Border>
+                                            <Border Background="#1E2430" BorderBrush="#334155" BorderThickness="1" CornerRadius="3" Padding="6,5" Margin="2">
+                                                <CheckBox x:Name="ChkNdiIso3" Tag="2" Content="NDI ISO Cam 3  (OME ISO CAM 03)" Foreground="#E2E8F0" FontSize="10.5" Click="ChkNdiIso_Click"/>
+                                            </Border>
+                                            <Border Background="#1E2430" BorderBrush="#334155" BorderThickness="1" CornerRadius="3" Padding="6,5" Margin="2">
+                                                <CheckBox x:Name="ChkNdiIso4" Tag="3" Content="NDI ISO Cam 4  (OME ISO CAM 04)" Foreground="#E2E8F0" FontSize="10.5" Click="ChkNdiIso_Click"/>
+                                            </Border>
+                                            <Border Background="#1E2430" BorderBrush="#334155" BorderThickness="1" CornerRadius="3" Padding="6,5" Margin="2">
+                                                <CheckBox x:Name="ChkNdiIso5" Tag="4" Content="NDI ISO Cam 5  (OME ISO CAM 05)" Foreground="#E2E8F0" FontSize="10.5" Click="ChkNdiIso_Click"/>
+                                            </Border>
+                                            <Border Background="#1E2430" BorderBrush="#334155" BorderThickness="1" CornerRadius="3" Padding="6,5" Margin="2">
+                                                <CheckBox x:Name="ChkNdiIso6" Tag="5" Content="NDI ISO Cam 6  (OME ISO CAM 06)" Foreground="#E2E8F0" FontSize="10.5" Click="ChkNdiIso_Click"/>
+                                            </Border>
+                                            <Border Background="#1E2430" BorderBrush="#334155" BorderThickness="1" CornerRadius="3" Padding="6,5" Margin="2">
+                                                <CheckBox x:Name="ChkNdiIso7" Tag="6" Content="NDI ISO Cam 7  (OME ISO CAM 07)" Foreground="#E2E8F0" FontSize="10.5" Click="ChkNdiIso_Click"/>
+                                            </Border>
+                                            <Border Background="#1E2430" BorderBrush="#334155" BorderThickness="1" CornerRadius="3" Padding="6,5" Margin="2">
+                                                <CheckBox x:Name="ChkNdiIso8" Tag="7" Content="NDI ISO Cam 8  (OME ISO CAM 08)" Foreground="#E2E8F0" FontSize="10.5" Click="ChkNdiIso_Click"/>
+                                            </Border>
+                                            <Border Background="#1E2430" BorderBrush="#334155" BorderThickness="1" CornerRadius="3" Padding="6,5" Margin="2">
+                                                <CheckBox x:Name="ChkNdiIso9" Tag="8" Content="NDI ISO Cam 9  (OME ISO CAM 09)" Foreground="#E2E8F0" FontSize="10.5" Click="ChkNdiIso_Click"/>
+                                            </Border>
+                                            <Border Background="#1E2430" BorderBrush="#334155" BorderThickness="1" CornerRadius="3" Padding="6,5" Margin="2">
+                                                <CheckBox x:Name="ChkNdiIso10" Tag="9" Content="NDI ISO Cam 10 (OME ISO CAM 10)" Foreground="#E2E8F0" FontSize="10.5" Click="ChkNdiIso_Click"/>
+                                            </Border>
+                                        </UniformGrid>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>

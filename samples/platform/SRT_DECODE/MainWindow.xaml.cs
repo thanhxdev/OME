@@ -433,16 +433,19 @@ namespace SRT_DECODE
                     _receiverEngine.Channels[i].Config.AutoLatency = false;
                 }
 
-                // Initialize WriteableBitmaps for video rendering surfaces
-                for (int i = 0; i < MaxChannels; i++)
+                // Lazy-initialize WriteableBitmaps for active channels only (default: 1 channel; saves ~75MB RAM on startup)
+                for (int i = 0; i < _activeChannelCount; i++)
                 {
                     _camBitmaps[i] = new WriteableBitmap(1920, 1080, 96, 96, PixelFormats.Bgra32, null);
                     _videoViews[i].PresentBitmap(_camBitmaps[i]);
                 }
-                VideoViewPgm.PresentBitmap(_camBitmaps[0]);
+                if (_camBitmaps[0] != null)
+                {
+                    VideoViewPgm.PresentBitmap(_camBitmaps[0]);
+                }
 
                 LogEvent("[INFO]", "Ứng dụng OME Broadcast Multi-SRT Decoder & Studio Sync đang khởi chạy...");
-                TxtEngineStatus.Text = "Engine: Initializing Platform...";
+                TxtEngineStatus.Text = "Engine: Standalone / Host Mode";
 
                 // Start High-precision Master UTC Clock immediately on startup
                 StartMasterClockTimer();
@@ -468,30 +471,36 @@ namespace SRT_DECODE
                     }
                 }
 
-                // Initialize OpenMedia Runtime Engine
-                string? serverPath = FindServerExecutable();
-                if (!string.IsNullOrEmpty(serverPath))
+                // Initialize OpenMedia Runtime Engine asynchronously in background to prevent UI freeze
+                _ = Task.Run(async () =>
                 {
-                    LogEvent("[INFO]", $"Tìm thấy OpenMediaServer: {serverPath}");
-                }
-
-                bool runtimeInit = await OpenMediaRuntime.InitializeAsync(new RuntimeOptions 
-                { 
-                    AutoLaunch = true,
-                    ServerPath = serverPath 
+                    try
+                    {
+                        string? serverPath = FindServerExecutable();
+                        bool runtimeInit = await OpenMediaRuntime.InitializeAsync(new RuntimeOptions 
+                        { 
+                            AutoLaunch = false,
+                            ConnectionTimeout = 1000,
+                            ServerPath = serverPath 
+                        });
+                        _ = Dispatcher.InvokeAsync(() =>
+                        {
+                            if (_isShuttingDown || Dispatcher.HasShutdownStarted) return;
+                            if (runtimeInit)
+                            {
+                                TxtEngineStatus.Text = $"Engine: Connected (v{OpenMediaRuntime.EngineVersion} - D3D11 Shared Textures)";
+                                TxtEngineStatus.Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
+                                LogEvent("[ENGINE]", "Khởi tạo OpenMedia.Platform thành công với GPU D3D11 Zero-Copy Pipeline.");
+                            }
+                            else
+                            {
+                                TxtEngineStatus.Text = "Engine: Standalone / Host Mode";
+                                TxtEngineStatus.Foreground = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B));
+                            }
+                        });
+                    }
+                    catch { }
                 });
-                if (runtimeInit)
-                {
-                    TxtEngineStatus.Text = $"Engine: Connected (v{OpenMediaRuntime.EngineVersion} - D3D11 Shared Textures)";
-                    TxtEngineStatus.Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
-                    LogEvent("[ENGINE]", "Khởi tạo OpenMedia.Platform thành công với GPU D3D11 Zero-Copy Pipeline.");
-                }
-                else
-                {
-                    TxtEngineStatus.Text = "Engine: Standalone / Host Mode";
-                    TxtEngineStatus.Foreground = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B));
-                    LogEvent("[WARN]", "OpenMedia Native Engine chưa phát hiện IPC server, chuyển sang chế độ Standalone Host.");
-                }
 
                 // Start Telemetry & VU Timers
                 StartTelemetryTimer();
@@ -502,8 +511,27 @@ namespace SRT_DECODE
                 UpdateTallyIndicators();
                 UpdateNdiUiBadges();
 
-                // Auto-scan display monitors and SDI broadcast ports on startup
-                await RefreshDevicesAsync();
+                // Khởi tạo placeholder mặc định (Không quét đồng bộ khi khởi chạy để mở app tức thì)
+                if (CmbDisplayMonitors != null && CmbDisplayMonitors.Items.Count == 0)
+                {
+                    CmbDisplayMonitors.Items.Add("[Nhấn 'Scan Devices' để quét màn hình]");
+                    CmbDisplayMonitors.SelectedIndex = 0;
+                }
+
+                if (CmbSdiDevice != null && CmbSdiDevice.Items.Count == 0)
+                {
+                    CmbSdiDevice.Items.Add("[Nhấn 'Scan SDI' để quét card phần cứng]");
+                    CmbSdiDevice.SelectedIndex = 0;
+                }
+
+                for (int i = 0; i < MaxChannels; i++)
+                {
+                    if (i < _cmbIsoSdiPort.Length && _cmbIsoSdiPort[i] != null && _cmbIsoSdiPort[i].Items.Count == 0)
+                    {
+                        _cmbIsoSdiPort[i].Items.Add("[Nhấn Scan SDI]");
+                        _cmbIsoSdiPort[i].SelectedIndex = 0;
+                    }
+                }
 
                 // Áp dụng thông số cấu hình mặc định cho CAM 1 (chưa nhận luồng cho đến khi người dùng nhấn nút)
                 ApplyFormInputsToChannel(0);
@@ -726,13 +754,26 @@ namespace SRT_DECODE
                 }
 
                 _activeChannelCount--;
+                if (removeIdx < _camBitmaps.Length && _camBitmaps[removeIdx] != null)
+                {
+                    _camBitmaps[removeIdx] = null;
+                    if (removeIdx < _videoViews.Length && _videoViews[removeIdx] != null)
+                    {
+                        _videoViews[removeIdx].Detach();
+                    }
+                }
+                if (removeIdx < _fallbacks.Length && _fallbacks[removeIdx] != null)
+                {
+                    _fallbacks[removeIdx].Visibility = Visibility.Visible;
+                }
+
                 if (_currentProgramIndex >= _activeChannelCount)
                 {
                     _currentProgramIndex = 0;
                     UpdateTallyIndicators();
                 }
                 UpdateActiveStreamsUI();
-                LogEvent("[INGEST]", $"➖ Đã bớt luồng SRT Ingest #{removeIdx + 1}. Còn lại: {_activeChannelCount}/10 luồng.");
+                LogEvent("[INGEST]", $"➖ Đã bớt luồng SRT Ingest #{removeIdx + 1}. Đã thu hồi bộ nhớ bitmap. Còn lại: {_activeChannelCount}/10 luồng.");
             }
         }
 
@@ -1104,6 +1145,7 @@ namespace SRT_DECODE
                         {
                             FallbackPgm.Visibility = Visibility.Visible;
                         }
+                        _playoutAlignmentEngine.ClearChannel(index);
                     }
 
                     // Update toggle button text in config tab
@@ -2701,6 +2743,112 @@ namespace SRT_DECODE
             }
 
             return null;
+        }
+
+        #endregion
+
+        #region IP Video Matrix Router NDI Event Handlers
+
+        private async void ChkNdiPgmMaster_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is CheckBox chk)
+            {
+                bool enable = chk.IsChecked == true;
+                await _outputManager.ToggleNdiAsync(enable);
+                LogEvent("[MATRIX-NDI]", $"NDI PGM Master (OME PGM MASTER): {(enable ? "ON AIR 🟢" : "STOPPED ⚪")}");
+            }
+        }
+
+        private async void ChkNdiIso_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is CheckBox chk && chk.Tag is string tagStr && int.TryParse(tagStr, out int camIndex))
+            {
+                bool enable = chk.IsChecked == true;
+                await _outputManager.ToggleIsoNdiAsync(camIndex, enable);
+                LogEvent("[MATRIX-NDI]", $"NDI ISO Cam {camIndex + 1} (OME ISO CAM {camIndex + 1:D2}): {(enable ? "ACTIVE 🟢" : "OFF ⚪")}");
+            }
+        }
+
+        private async void BtnEnableAllNdi_Click(object sender, RoutedEventArgs e)
+        {
+            ChkNdiPgmMaster.IsChecked = true;
+            await _outputManager.ToggleNdiAsync(true);
+
+            for (int i = 0; i < 10; i++)
+            {
+                if (FindName($"ChkNdiIso{i + 1}") is CheckBox chk)
+                {
+                    chk.IsChecked = true;
+                }
+                await _outputManager.ToggleIsoNdiAsync(i, true);
+            }
+            LogEvent("[MATRIX-NDI]", "✅ Đã bật tất cả 11 luồng NDI Matrix (1 PGM + 10 ISO).");
+        }
+
+        private async void BtnDisableAllNdi_Click(object sender, RoutedEventArgs e)
+        {
+            ChkNdiPgmMaster.IsChecked = false;
+            await _outputManager.ToggleNdiAsync(false);
+
+            for (int i = 0; i < 10; i++)
+            {
+                if (FindName($"ChkNdiIso{i + 1}") is CheckBox chk)
+                {
+                    chk.IsChecked = false;
+                }
+                await _outputManager.ToggleIsoNdiAsync(i, false);
+            }
+            LogEvent("[MATRIX-NDI]", "⚪ Đã tắt tất cả các luồng NDI Matrix để tiết kiệm băng thông.");
+        }
+
+        private async void BtnToggleMatrixOutput_Click(object sender, RoutedEventArgs e)
+        {
+            BtnToggleMatrixOutput.IsEnabled = false;
+            try
+            {
+                if (!_outputManager.IsMatrixIpcActive)
+                {
+                    bool ok = await Task.Run(() => _outputManager.StartMatrixIpc(1920, 1080));
+                    if (ok)
+                    {
+                        BtnToggleMatrixOutput.Content = "⏹ Stop Matrix Output";
+                        BtnToggleMatrixOutput.Background = new SolidColorBrush(Color.FromRgb(220, 38, 38));
+                        BrdMatrixIpcStatus.Background = new SolidColorBrush(Color.FromRgb(0x0F, 0x28, 0x1E));
+                        BrdMatrixIpcStatus.BorderBrush = new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76));
+                        TxtMatrixIpcStatus.Text = "D3D11 VRAM IPC 0ms: ACTIVE";
+                        TxtMatrixIpcStatus.Foreground = new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76));
+                        BrdPort0Status.Background = new SolidColorBrush(Color.FromRgb(0x0F, 0x2D, 0x1F));
+                        BrdPort0Status.BorderBrush = new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76));
+                        TxtPort0Status.Text = "ONLINE (0ms)";
+                        TxtPort0Status.Foreground = new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76));
+                        LogEvent("[MATRIX-ROUTER]", "🚀 Đã kích hoạt 11 cổng D3D11 Shared Texture IPC để kết nối với OME_PLAYOUT.");
+                    }
+                    else
+                    {
+                        string err = _outputManager.MatrixPublisher?.LastError ?? "Lỗi không xác định";
+                        LogEvent("[WARN]", $"Không thể mở Direct3D11 Matrix Router: {err}");
+                    }
+                }
+                else
+                {
+                    await Task.Run(() => _outputManager.StopMatrixIpc());
+                    BtnToggleMatrixOutput.Content = "▶ Start Matrix Output";
+                    BtnToggleMatrixOutput.Background = new SolidColorBrush(Color.FromRgb(0x00, 0x7A, 0xCC));
+                    BrdMatrixIpcStatus.Background = new SolidColorBrush(Color.FromRgb(0x26, 0x26, 0x2B));
+                    BrdMatrixIpcStatus.BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+                    TxtMatrixIpcStatus.Text = "STANDBY (Nhấn để bật)";
+                    TxtMatrixIpcStatus.Foreground = new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA));
+                    BrdPort0Status.Background = new SolidColorBrush(Color.FromRgb(0x26, 0x26, 0x2B));
+                    BrdPort0Status.BorderBrush = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+                    TxtPort0Status.Text = "STANDBY";
+                    TxtPort0Status.Foreground = new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA));
+                    LogEvent("[MATRIX-ROUTER]", "⏹ Đã dừng D3D11 Matrix Router liên tiến trình.");
+                }
+            }
+            finally
+            {
+                BtnToggleMatrixOutput.IsEnabled = true;
+            }
         }
 
         #endregion

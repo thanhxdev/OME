@@ -64,6 +64,9 @@ bool SRTSource::Connect(const std::string& uri) {
     int tsbpdmode = 1; // Enable Timestamp-Based Packet Delivery
     srt_setsockopt(m_socket, 0, SRTO_TSBPDMODE, &tsbpdmode, sizeof(tsbpdmode));
 
+    linger ling = { 1, 0 }; // Zero linger: abortive close, frees port & multiplexer instantly
+    srt_setsockopt(m_socket, 0, SRTO_LINGER, &ling, sizeof(ling));
+
     if (!config.passphrase.empty()) {
         srt_setsockopt(m_socket, 0, SRTO_PASSPHRASE, config.passphrase.c_str(), (int)config.passphrase.length());
         int pbkeylen = config.pbkeylen;
@@ -81,7 +84,7 @@ bool SRTSource::Connect(const std::string& uri) {
 
     sockaddr_in sa = {};
     sa.sin_family = AF_INET;
-    sa.sin_port = htons(config.port);
+    sa.sin_port = htons((u_short)config.port);
     if (config.ip.empty() || config.ip == "0.0.0.0") {
         sa.sin_addr.s_addr = INADDR_ANY;
     } else {
@@ -95,6 +98,9 @@ bool SRTSource::Connect(const std::string& uri) {
         // Listener mode: set non-blocking accept to not freeze the thread
         int rcvSyn = 0; // non-blocking for accept polling
         srt_setsockopt(m_socket, 0, SRTO_RCVSYN, &rcvSyn, sizeof(rcvSyn));
+
+        int reuse = 1;
+        srt_setsockopt(m_socket, 0, SRTO_REUSEADDR, &reuse, sizeof(reuse));
 
         if (srt_bind(m_socket, (sockaddr*)&sa, sizeof(sa)) == SRT_ERROR) {
             spdlog::error("srt_bind failed: {}", srt_getlasterror_str());
@@ -111,7 +117,10 @@ bool SRTSource::Connect(const std::string& uri) {
         spdlog::info("SRTSource listening on {}:{}", config.ip, config.port);
         m_acceptThread = std::thread(&SRTSource::AcceptLoop, this);
     } else {
-        // Caller mode
+        // Caller mode: configure receive timeout (250ms) to allow responsive cancellation
+        int rcvTimeo = 250;
+        srt_setsockopt(m_socket, 0, SRTO_RCVTIMEO, &rcvTimeo, sizeof(rcvTimeo));
+
         if (srt_connect(m_socket, (sockaddr*)&sa, sizeof(sa)) == SRT_ERROR) {
             spdlog::error("srt_connect failed: {}", srt_getlasterror_str());
             Disconnect();
@@ -125,6 +134,12 @@ bool SRTSource::Connect(const std::string& uri) {
 
 void SRTSource::AcceptLoop() {
     while (m_running && m_socket != -1) {
+        SRT_SOCKSTATUS serverSt = srt_getsockstate(m_socket);
+        if (serverSt != SRTS_LISTENING) {
+            spdlog::warn("SRT listener socket state changed to {} (not listening). Breaking accept loop.", (int)serverSt);
+            break;
+        }
+
         int curClient = m_clientSocket.load();
         if (curClient != -1 && curClient != SRT_INVALID_SOCK) {
             SRT_SOCKSTATUS st = srt_getsockstate(curClient);
@@ -143,6 +158,10 @@ void SRTSource::AcceptLoop() {
             int client = srt_accept(m_socket, (sockaddr*)&client_sa, &client_sa_len);
             if (client != SRT_INVALID_SOCK) {
                 spdlog::info("SRT client connected to source listener");
+                int rcvTimeo = 250;
+                srt_setsockopt(client, 0, SRTO_RCVTIMEO, &rcvTimeo, sizeof(rcvTimeo));
+                linger clientLing = { 1, 0 };
+                srt_setsockopt(client, 0, SRTO_LINGER, &clientLing, sizeof(clientLing));
                 m_clientSocket = client;
             }
         }

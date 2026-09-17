@@ -282,6 +282,187 @@ namespace OpenMedia.Platform.Tests
             Assert.Equal(0x47, recvBuffer[0]);
             Assert.Equal(0xAA, recvBuffer[1315]);
         }
+
+        [Fact]
+        public async Task SRT_Listener_ClientReconnectOnSameSocket()
+        {
+            var serverConfig = new SRTStreamConfig
+            {
+                Host = "127.0.0.1",
+                Port = 9888,
+                Mode = SRTMode.Listener,
+                LatencyMs = 50
+            };
+
+            var clientConfig = new SRTStreamConfig
+            {
+                Host = "127.0.0.1",
+                Port = 9888,
+                Mode = SRTMode.Caller,
+                LatencyMs = 50
+            };
+
+            using var serverSession = new SRTStreamSession(serverConfig);
+            bool serverStarted = await serverSession.ConnectReceiverAsync();
+            Assert.True(serverStarted, "Server listener failed to start");
+
+            // Client 1 connects
+            using (var cli1 = new SRTStreamSession(clientConfig))
+            {
+                Assert.True(await cli1.StartTransmissionAsync(), "Client 1 connect");
+                await Task.Delay(100);
+
+                byte[] send1 = new byte[1316];
+                send1[0] = 0x47;
+                send1[1] = 0x11;
+                Assert.True(cli1.SendData(send1, send1.Length));
+
+                byte[] recvBuffer = new byte[1316];
+                int recv = -1;
+                for (int i = 0; i < 20; i++)
+                {
+                    recv = serverSession.ReceiveData(recvBuffer);
+                    if (recv > 0) break;
+                    await Task.Delay(50);
+                }
+                Assert.Equal(1316, recv);
+                Assert.Equal(0x11, recvBuffer[1]);
+
+                await cli1.StopAsync();
+            }
+
+            // Server detects disconnect when receiving
+            byte[] dummy = new byte[1316];
+            for (int i = 0; i < 20; i++)
+            {
+                int r = serverSession.ReceiveData(dummy);
+                if (r < 0) break;
+                await Task.Delay(50);
+            }
+
+            // Wait a moment for accept loop to reset client socket
+            await Task.Delay(150);
+
+            // Client 2 connects to the SAME server session without restarting server!
+            using (var cli2 = new SRTStreamSession(clientConfig))
+            {
+                Assert.True(await cli2.StartTransmissionAsync(), "Client 2 reconnect to same server");
+                await Task.Delay(100);
+
+                byte[] send2 = new byte[1316];
+                send2[0] = 0x47;
+                send2[1] = 0x22;
+                Assert.True(cli2.SendData(send2, send2.Length));
+
+                byte[] recvBuffer2 = new byte[1316];
+                int recv2 = -1;
+                for (int i = 0; i < 30; i++)
+                {
+                    recv2 = serverSession.ReceiveData(recvBuffer2);
+                    if (recv2 > 0) break;
+                    await Task.Delay(50);
+                }
+                Assert.Equal(1316, recv2);
+                Assert.Equal(0x22, recvBuffer2[1]);
+
+                await cli2.StopAsync();
+            }
+
+            await serverSession.StopAsync();
+        }
+
+        [Fact]
+        public async Task SRT_TwoConcurrentListeners_ClientReconnectWhileOtherStreaming()
+        {
+            var srv1Config = new SRTStreamConfig { Host = "127.0.0.1", Port = 9880, Mode = SRTMode.Listener, LatencyMs = 50 };
+            var srv2Config = new SRTStreamConfig { Host = "127.0.0.1", Port = 9881, Mode = SRTMode.Listener, LatencyMs = 50 };
+
+            var cli1Config = new SRTStreamConfig { Host = "127.0.0.1", Port = 9880, Mode = SRTMode.Caller, LatencyMs = 50 };
+            var cli2Config = new SRTStreamConfig { Host = "127.0.0.1", Port = 9881, Mode = SRTMode.Caller, LatencyMs = 50 };
+
+            using var srv1 = new SRTStreamSession(srv1Config);
+            Assert.True(await srv1.ConnectReceiverAsync(), "Srv 1 start");
+
+            using var srv2 = new SRTStreamSession(srv2Config);
+            Assert.True(await srv2.ConnectReceiverAsync(), "Srv 2 start");
+
+            var cli1 = new SRTStreamSession(cli1Config);
+            Assert.True(await cli1.StartTransmissionAsync(), "Cli 1 start");
+
+            var cli2 = new SRTStreamSession(cli2Config);
+            Assert.True(await cli2.StartTransmissionAsync(), "Cli 2 start");
+
+            await Task.Delay(100);
+
+            // Both send data
+            byte[] p1 = new byte[1316]; p1[0] = 0x47; p1[1] = 0x11;
+            byte[] p2 = new byte[1316]; p2[0] = 0x47; p2[1] = 0x22;
+            Assert.True(cli1.SendData(p1, p1.Length));
+            Assert.True(cli2.SendData(p2, p2.Length));
+
+            // Stop Client 1 only
+            await cli1.StopAsync();
+            cli1.Dispose();
+
+            // Client 2 CONTINUES sending packets in background!
+            using var cts = new CancellationTokenSource();
+            var cli2Pumping = Task.Run(async () =>
+            {
+                while (!cts.Token.IsCancellationRequested)
+                {
+                    cli2.SendData(p2, p2.Length);
+                    await Task.Delay(20);
+                }
+            });
+
+            // Drain srv1
+            byte[] dummy = new byte[1316];
+            for (int i = 0; i < 20; i++)
+            {
+                if (srv1.ReceiveData(dummy) < 0) break;
+                await Task.Delay(50);
+            }
+
+            // SIMULATE MULTISTREAMRECEIVERENGINE TEARDOWN
+            await srv1.StopAsync();
+            srv1.Dispose();
+
+            await Task.Delay(1500);
+
+            // Recreate srv1 while cli2 is still actively sending data
+            var srv1New = new SRTStreamSession(srv1Config);
+            bool srv1NewStarted = await srv1New.ConnectReceiverAsync();
+            Assert.True(srv1NewStarted, "Srv 1 restart while Cli 2 streaming");
+
+            // Reconnect Client 1 while Client 2 is still actively sending data
+            cli1 = new SRTStreamSession(cli1Config);
+            Assert.True(await cli1.StartTransmissionAsync(), "Cli 1 reconnect while Cli 2 streaming");
+
+            await Task.Delay(100);
+            Assert.True(cli1.SendData(p1, p1.Length));
+
+            byte[] recv1 = new byte[1316];
+            int received1 = -1;
+            for (int i = 0; i < 30; i++)
+            {
+                received1 = srv1New.ReceiveData(recv1);
+                if (received1 > 0) break;
+                await Task.Delay(50);
+            }
+
+            Assert.Equal(1316, received1);
+            Assert.Equal(0x11, recv1[1]);
+
+            cts.Cancel();
+            await cli2Pumping;
+            await cli1.StopAsync();
+            cli1.Dispose();
+            await cli2.StopAsync();
+            cli2.Dispose();
+            await srv1New.StopAsync();
+            srv1New.Dispose();
+            await srv2.StopAsync();
+        }
     }
 }
 

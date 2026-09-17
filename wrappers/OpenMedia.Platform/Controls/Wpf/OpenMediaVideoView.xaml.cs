@@ -86,7 +86,8 @@ namespace OpenMedia.Platform.Controls.Wpf
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
-            EnsureRendererInitialized();
+            // Renderer will be lazily initialized when Attach() is called.
+            // Avoids eager D3D11 initialization on startup when using PresentBitmap.
         }
 
         private void OnUnloaded(object sender, RoutedEventArgs e)

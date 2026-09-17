@@ -97,6 +97,16 @@ namespace SRT_DECODE
             {
                 Log("[SRT]", $"Khởi động thu luồng tự động cho {ch.Name} trên {ch.Config.ToSrtUri()}...");
 
+                // Cancel and dispose any lingering previous CTS/Task
+                _receiverCts[index]?.Cancel();
+                var oldTask = _receiverTasks[index];
+                _receiverTasks[index] = null;
+                if (oldTask != null && !oldTask.IsCompleted)
+                {
+                    try { await Task.WhenAny(oldTask, Task.Delay(500)).ConfigureAwait(false); } catch { }
+                }
+                try { _receiverCts[index]?.Dispose(); } catch { }
+
                 ch.IsRunning = true;
                 ch.IsConnected = false;
                 ch.StatusMessage = ch.Config.Mode == SRTMode.Listener
@@ -105,9 +115,6 @@ namespace SRT_DECODE
                 _syncEngine.SetChannelActive(index, false);
                 ChannelUpdated?.Invoke(index, ch);
 
-                // Cancel and dispose any existing CTS/Task
-                _receiverCts[index]?.Cancel();
-                _receiverCts[index]?.Dispose();
                 var cts = new CancellationTokenSource();
                 _receiverCts[index] = cts;
                 var token = cts.Token;
@@ -146,7 +153,9 @@ namespace SRT_DECODE
                     if (reconnectAttempt > 1)
                     {
                         Log("[SRT]", $"🔄 [{ch.Name}] Tự động bắt tay lại và kết nối (Lần thử #{reconnectAttempt}) trên {ch.Config.ToSrtUri()}...");
-                        ch.StatusMessage = $"Đang bắt tay lại (#{reconnectAttempt})...";
+                        ch.StatusMessage = ch.Config.Mode == SRTMode.Listener
+                            ? $"Đang chờ kết nối lại (Port {ch.Config.Port})..."
+                            : $"Đang bắt tay lại (#{reconnectAttempt})...";
                         ch.IsConnected = false;
                         ChannelUpdated?.Invoke(index, ch);
                     }
@@ -211,58 +220,68 @@ namespace SRT_DECODE
                     bool ok = await session.ConnectReceiverAsync().ConfigureAwait(false);
                     if (!ok || token.IsCancellationRequested || !ch.IsRunning)
                     {
-                        Log("[WARN]", $"[{ch.Name}] Chưa thể kết nối tới nguồn SRT trên {ch.Config.Port}. Tự động thử lại sau 2 giây...");
-                        ch.StatusMessage = $"Không có kết nối. Thử lại (#{reconnectAttempt})...";
+                        Log("[WARN]", $"[{ch.Name}] Chưa thể kết nối tới nguồn SRT trên {ch.Config.Port}. Tự động thử lại sau 1.5 giây...");
+                        ch.StatusMessage = ch.Config.Mode == SRTMode.Listener
+                            ? $"Lỗi mở cổng {ch.Config.Port}. Thử lại (#{reconnectAttempt})..."
+                            : $"Không có kết nối. Thử lại (#{reconnectAttempt})...";
                         ch.IsConnected = false;
                         ChannelUpdated?.Invoke(index, ch);
-                        await Task.Delay(2000, token).ConfigureAwait(false);
+                        await Task.Delay(1500, token).ConfigureAwait(false);
                         continue;
                     }
 
-                    // 3. Khởi tạo Video & Audio Decoders
+                    // 3. Định nghĩa factory khởi tạo Video & Audio Decoders khi có dữ liệu thực tế
                     _decoders[index]?.Dispose();
-                    decoder = new ChannelVideoDecoder(index, 1920, 1080);
-                    decoder.LogEmitted += (tag, msg) => Log(tag, msg);
+                    _decoders[index] = null;
+                    _audioDecoders[index]?.Dispose();
+                    _audioDecoders[index] = null;
 
-                    // Trích xuất MediaStreamInfo từ SRT StreamID nếu có
-                    string streamId = session.Config?.StreamId ?? ch.Config.StreamId;
-                    if (!string.IsNullOrEmpty(streamId) && MediaStreamInfo.TryParseFromStreamId(streamId, out var parsedInfo, out _))
+                    ChannelVideoDecoder CreateVideoDecoder()
                     {
-                        decoder.SetExpectedFormat(parsedInfo);
-                        ch.VideoWidth = parsedInfo.Width;
-                        ch.VideoHeight = parsedInfo.Height;
-                        ch.MeasuredFps = parsedInfo.FrameRateDouble;
-                        ch.CurrentFps = parsedInfo.FrameRateDouble;
-                        Log("[SRT_META]", $"[{ch.Name}] Nhận diện MediaStreamInfo từ SRT StreamID: {parsedInfo.Width}x{parsedInfo.Height} @ {parsedInfo.FrameRateDouble:F2} FPS ({parsedInfo.FrameRateNum}/{parsedInfo.FrameRateDen}), Codec: {parsedInfo.VideoCodec}");
+                        var dec = new ChannelVideoDecoder(index, 1920, 1080);
+                        dec.LogEmitted += (tag, msg) => Log(tag, msg);
+
+                        string streamId = session.Config?.StreamId ?? ch.Config.StreamId;
+                        if (!string.IsNullOrEmpty(streamId) && MediaStreamInfo.TryParseFromStreamId(streamId, out var parsedInfo, out _))
+                        {
+                            dec.SetExpectedFormat(parsedInfo);
+                            ch.VideoWidth = parsedInfo.Width;
+                            ch.VideoHeight = parsedInfo.Height;
+                            ch.MeasuredFps = parsedInfo.FrameRateDouble;
+                            ch.CurrentFps = parsedInfo.FrameRateDouble;
+                            Log("[SRT_META]", $"[{ch.Name}] Nhận diện MediaStreamInfo từ SRT StreamID: {parsedInfo.Width}x{parsedInfo.Height} @ {parsedInfo.FrameRateDouble:F2} FPS ({parsedInfo.FrameRateNum}/{parsedInfo.FrameRateDen}), Codec: {parsedInfo.VideoCodec}");
+                        }
+
+                        dec.FrameDecodedWithPts += (chIdx, frameBytes, w, h, pts, duration) =>
+                        {
+                            ch.VideoWidth = dec.DetectedWidth;
+                            ch.VideoHeight = dec.DetectedHeight;
+                            ch.MeasuredFps = dec.GetCurrentFps();
+                            ch.CurrentFps = ch.MeasuredFps;
+                            if (FrameReadyWithPts != null)
+                            {
+                                FrameReadyWithPts.Invoke(chIdx, frameBytes, w, h, pts, duration);
+                            }
+                            else
+                            {
+                                FrameReady?.Invoke(chIdx, frameBytes, w, h);
+                            }
+                        };
+                        dec.Start();
+                        return dec;
                     }
 
-                    decoder.FrameDecodedWithPts += (chIdx, frameBytes, w, h, pts, duration) =>
+                    ChannelAudioDecoder CreateAudioDecoder()
                     {
-                        ch.VideoWidth = decoder.DetectedWidth;
-                        ch.VideoHeight = decoder.DetectedHeight;
-                        ch.MeasuredFps = decoder.GetCurrentFps();
-                        ch.CurrentFps = ch.MeasuredFps;
-                        if (FrameReadyWithPts != null)
+                        var aDec = new ChannelAudioDecoder(index);
+                        aDec.LogEmitted += (tag, msg) => Log(tag, msg);
+                        aDec.PcmAudioDecoded += (chIdx, pcmBytes, len) =>
                         {
-                            FrameReadyWithPts.Invoke(chIdx, frameBytes, w, h, pts, duration);
-                        }
-                        else
-                        {
-                            FrameReady?.Invoke(chIdx, frameBytes, w, h);
-                        }
-                    };
-                    decoder.Start();
-                    _decoders[index] = decoder;
-
-                    _audioDecoders[index]?.Dispose();
-                    audioDecoder = new ChannelAudioDecoder(index);
-                    audioDecoder.LogEmitted += (tag, msg) => Log(tag, msg);
-                    audioDecoder.PcmAudioDecoded += (chIdx, pcmBytes, len) =>
-                    {
-                        AudioPcmReady?.Invoke(chIdx, pcmBytes, len);
-                    };
-                    audioDecoder.Start();
-                    _audioDecoders[index] = audioDecoder;
+                            AudioPcmReady?.Invoke(chIdx, pcmBytes, len);
+                        };
+                        aDec.Start();
+                        return aDec;
+                    }
 
                     if (ch.Config.Mode == SRTMode.Listener)
                     {
@@ -296,7 +315,18 @@ namespace SRT_DECODE
                                     ch.StatusMessage = "Receiving LIVE";
                                     _syncEngine.SetChannelActive(index, true);
                                     ChannelUpdated?.Invoke(index, ch);
-                                    Log("[SRT]", $"✅ [{ch.Name}] Đã bắt tay và đang nhận luồng dữ liệu trực tiếp!");
+                                    Log("[SRT]", $"✅ [{ch.Name}] Đã bắt tay và đang nhận luồng dữ liệu trực tiếp trên cổng {ch.Config.Port}!");
+                                }
+
+                                if (decoder == null)
+                                {
+                                    decoder = CreateVideoDecoder();
+                                    _decoders[index] = decoder;
+                                }
+                                if (audioDecoder == null)
+                                {
+                                    audioDecoder = CreateAudioDecoder();
+                                    _audioDecoders[index] = audioDecoder;
                                 }
 
                                 decoder.FeedData(buffer, bytesRead);
@@ -307,31 +337,65 @@ namespace SRT_DECODE
                             } while (bytesRead > 0 && !token.IsCancellationRequested && ch.IsRunning);
 
                             // Đẩy ngay toàn bộ byte tích lũy trong bộ đệm C# vào pipe của FFmpeg Decoders
-                            decoder.Flush();
-                            audioDecoder.Flush();
+                            decoder?.Flush();
+                            audioDecoder?.Flush();
                         }
                         else
                         {
-                            // Nếu trước đó đang nhận dữ liệu bình thường, nhưng > 2.5s không nhận được thêm gói tin:
-                            if (hasReceivedData && (DateTime.UtcNow - lastDataReceivedTime).TotalSeconds > 2.5)
+                            if (ch.Config.Mode == SRTMode.Listener)
                             {
-                                bool activeConnected = session.NativeSource?.IsActiveConnected == true;
-                                if (!activeConnected || (DateTime.UtcNow - lastDataReceivedTime).TotalSeconds > 3.5)
+                                // Trong chế độ Listener: Duy trì socket lắng nghe vĩnh viễn, KHÔNG break phiên
+                                if (hasReceivedData)
                                 {
-                                    Log("[WARN]", $"⚠️ [{ch.Name}] Mất tín hiệu luồng SRT (Timeout). Tự động ngắt socket cũ và bắt tay lại...");
-                                    break; // Thoát vòng lặp con để tự động tái khởi động kết nối
+                                    bool activeConnected = session.NativeSource?.IsActiveConnected == true;
+                                    if (!activeConnected || (DateTime.UtcNow - lastDataReceivedTime).TotalSeconds > 2.0)
+                                    {
+                                        Log("[WARN]", $"⚠️ [{ch.Name}] Khách đã ngắt luồng SRT. Đặt lại decoder và duy trì lắng nghe đón kết nối mới trên cổng {ch.Config.Port}...");
+                                        hasReceivedData = false;
+                                        ch.IsConnected = false;
+                                        _syncEngine.SetChannelActive(index, false);
+                                        ch.CurrentFps = 0;
+                                        ch.MeasuredFps = 0;
+                                        ch.CurrentBitrateKbps = 0;
+                                        ch.CurrentRttMs = 0;
+                                        ch.BufferHealthPercent = 0.0;
+                                        ch.StatusMessage = $"Đang chờ kết nối lại (Port {ch.Config.Port})...";
+                                        ChannelUpdated?.Invoke(index, ch);
+
+                                        try { decoder?.Stop(); decoder?.Dispose(); } catch { }
+                                        decoder = null;
+                                        _decoders[index] = null;
+
+                                        try { audioDecoder?.Stop(); audioDecoder?.Dispose(); } catch { }
+                                        audioDecoder = null;
+                                        _audioDecoders[index] = null;
+                                    }
                                 }
-                            }
 
-                            // Ở chế độ Caller: Nếu mất kết nối với remote listener
-                            if (ch.Config.Mode != SRTMode.Listener && session.NativeSource != null && !session.NativeSource.IsActiveConnected && hasReceivedData)
+                                // Socket tạm thời chưa có gói tin: Sleep 2ms để nhường CPU
+                                await Task.Delay(2, token).ConfigureAwait(false);
+                            }
+                            else
                             {
-                                Log("[WARN]", $"⚠️ [{ch.Name}] Mất kết nối tới SRT Host từ xa. Đang kết nối lại...");
-                                break;
-                            }
+                                // Trong chế độ Caller: Nếu mất kết nối hoặc quá thời gian chờ, thoát để tạo phiên bắt tay lại
+                                if (hasReceivedData && (DateTime.UtcNow - lastDataReceivedTime).TotalSeconds > 2.5)
+                                {
+                                    bool activeConnected = session.NativeSource?.IsActiveConnected == true;
+                                    if (!activeConnected || (DateTime.UtcNow - lastDataReceivedTime).TotalSeconds > 3.5)
+                                    {
+                                        Log("[WARN]", $"⚠️ [{ch.Name}] Mất tín hiệu luồng SRT (Timeout). Đang kết nối lại...");
+                                        break;
+                                    }
+                                }
 
-                            // Socket tạm thời chưa có gói tin mới: Sleep 1ms để nhường CPU cho tiến trình FFmpeg giải mã
-                            await Task.Delay(1, token).ConfigureAwait(false);
+                                if (session.NativeSource != null && !session.NativeSource.IsActiveConnected)
+                                {
+                                    Log("[WARN]", $"⚠️ [{ch.Name}] Mất kết nối tới SRT Host từ xa. Đang kết nối lại...");
+                                    break;
+                                }
+
+                                await Task.Delay(1, token).ConfigureAwait(false);
+                            }
                         }
                     }
                 }
@@ -376,7 +440,9 @@ namespace SRT_DECODE
 
                 if (ch.IsRunning && !token.IsCancellationRequested)
                 {
-                    ch.StatusMessage = $"Mất kết nối - Đang bắt tay lại (#{reconnectAttempt + 1})...";
+                    ch.StatusMessage = ch.Config.Mode == SRTMode.Listener
+                        ? $"Đang chờ kết nối lại (Port {ch.Config.Port})..."
+                        : $"Mất kết nối - Đang bắt tay lại (#{reconnectAttempt + 1})...";
                     ChannelUpdated?.Invoke(index, ch);
                     await Task.Delay(1500, token).ConfigureAwait(false);
                 }
@@ -401,20 +467,28 @@ namespace SRT_DECODE
                 ch.IsConnected = false;
                 _syncEngine.SetChannelActive(index, false);
 
-                // 1. Cancel background loop and await task completion (prevent native use-after-free)
+                // 1. Cancel background loop
                 _receiverCts[index]?.Cancel();
+
+                // 2. Stop SRT session immediately to unblock native srt_recv
+                if (ch.Session != null)
+                {
+                    try { await ch.Session.StopAsync().ConfigureAwait(false); } catch { }
+                }
+
+                // 3. Await receiver task completion cleanly
                 var rxTask = _receiverTasks[index];
                 _receiverTasks[index] = null;
                 if (rxTask != null)
                 {
                     try
                     {
-                        await Task.WhenAny(rxTask, Task.Delay(200)).ConfigureAwait(false);
+                        await Task.WhenAny(rxTask, Task.Delay(1500)).ConfigureAwait(false);
                     }
                     catch { }
                 }
 
-                // 2. Stop and dispose decoders
+                // 4. Stop and dispose decoders
                 _decoders[index]?.Stop();
                 _decoders[index]?.Dispose();
                 _decoders[index] = null;
@@ -423,15 +497,14 @@ namespace SRT_DECODE
                 _audioDecoders[index]?.Dispose();
                 _audioDecoders[index] = null;
 
-                // 3. Stop and dispose SRT session
+                // 5. Dispose session
                 if (ch.Session != null)
                 {
-                    try { await ch.Session.StopAsync().ConfigureAwait(false); } catch { }
                     try { ch.Session.Dispose(); } catch { }
                     ch.Session = null;
                 }
 
-                // 4. Dispose CTS now that receiver task has completely stopped
+                // 6. Dispose CTS
                 try { _receiverCts[index]?.Dispose(); } catch { }
                 _receiverCts[index] = null;
 

@@ -712,6 +712,46 @@
                                     </StackPanel>
                                 </Border>
 
+                                <!-- ICE / NAT Traversal (STUN/TURN) Optional Card -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}" BorderBrush="#F59E0B" BorderThickness="1.2">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="ICE / NAT TRAVERSAL (OPTIONAL)" FontWeight="Bold" FontSize="12" Foreground="#F59E0B" VerticalAlignment="Center"/>
+                                            <CheckBox Grid.Column="1" x:Name="ChkEnableIce" Content="Bật ICE NAT Traversal (STUN/TURN)" Style="{StaticResource ToggleSwitchStyle}" Checked="ChkEnableIce_Changed" Unchecked="ChkEnableIce_Changed"/>
+                                        </Grid>
+                                        <TextBlock Text="Chỉ cần khi Encoder và Decoder nằm khác mạng, qua NAT/Firewall. Để trống nếu dùng mạng LAN." Foreground="#888888" FontSize="10.5" TextWrapping="Wrap" Margin="0,0,0,6"/>
+
+                                        <StackPanel x:Name="PnlIceConfig" Visibility="Collapsed" Margin="0,4,0,0">
+                                            <StackPanel Margin="0,0,0,8">
+                                                <TextBlock Text="STUN Server:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <TextBox x:Name="TxtStunServer" Text="stun:stun.l.google.com:19302"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="0,0,0,8">
+                                                <TextBlock Text="TURN Server:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <TextBox x:Name="TxtTurnServer" Text="turn:your-server.com:3478"/>
+                                            </StackPanel>
+                                            <Grid Margin="0,0,0,4">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Margin="0,0,4,0">
+                                                    <TextBlock Text="TURN Username:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                    <TextBox x:Name="TxtTurnUsername" Text=""/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Margin="4,0,0,0">
+                                                    <TextBlock Text="TURN Password:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                    <PasswordBox x:Name="TxtTurnPassword" Background="#252526" Foreground="#FFFFFF" BorderBrush="#3F3F46" BorderThickness="1" Height="30" Padding="6,4" VerticalContentAlignment="Center" CaretBrush="#007ACC"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
                                 <!-- SFU Ingress UDP Mapping Card -->
                                 <Border Style="{StaticResource DarkCardBorderStyle}">
                                     <StackPanel>

@@ -294,6 +294,18 @@ namespace SRT_DECODE
             }
         }
 
+        /// <summary>
+        /// Clears all queued frames and resets playout timing for the specified channel.
+        /// Call when a channel disconnects or is stopped to avoid stale video freeze.
+        /// </summary>
+        public void ClearChannel(int channelIndex)
+        {
+            if (channelIndex < 0 || channelIndex >= MaxChannels) return;
+            _channelNextPlayoutMs[channelIndex] = 0;
+            _lastDispatchedFrames[channelIndex] = null;
+            while (_channelQueues[channelIndex].TryDequeue(out _)) { }
+        }
+
         public int GetQueueDepth(int channelIndex)
         {
             if (channelIndex < 0 || channelIndex >= MaxChannels) return 0;

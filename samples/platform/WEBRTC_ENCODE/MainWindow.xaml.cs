@@ -1077,6 +1077,36 @@ namespace WEBRTC_ENCODE
             }
         }
 
+        private void ChkEnableIce_Changed(object sender, RoutedEventArgs e)
+        {
+            if (PnlIceConfig != null)
+            {
+                PnlIceConfig.Visibility = (ChkEnableIce.IsChecked == true) ? Visibility.Visible : Visibility.Collapsed;
+            }
+        }
+
+        #region ICE / STUN / TURN Server Configuration
+
+        public bool IsIceEnabled => ChkEnableIce?.IsChecked == true;
+        public string StunServerUrl => TxtStunServer?.Text?.Trim() ?? string.Empty;
+        public string TurnServerUrl => TxtTurnServer?.Text?.Trim() ?? string.Empty;
+        public string TurnUsername => TxtTurnUsername?.Text?.Trim() ?? string.Empty;
+        public string TurnPassword => TxtTurnPassword?.Password ?? string.Empty;
+
+        public IceServerConfig GetIceServers()
+        {
+            return new IceServerConfig
+            {
+                Enabled = ChkEnableIce?.IsChecked == true,
+                StunUrl = TxtStunServer?.Text?.Trim() ?? string.Empty,
+                TurnUrl = TxtTurnServer?.Text?.Trim() ?? string.Empty,
+                TurnUsername = TxtTurnUsername?.Text?.Trim() ?? string.Empty,
+                TurnPassword = TxtTurnPassword?.Password ?? string.Empty
+            };
+        }
+
+        #endregion
+
         private void TxtCameraDisplayName_TextChanged(object sender, TextChangedEventArgs e)
         {
             if (!_isInitialized) return;

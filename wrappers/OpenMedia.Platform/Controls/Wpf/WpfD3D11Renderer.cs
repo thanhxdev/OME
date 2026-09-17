@@ -31,32 +31,45 @@ namespace OpenMedia.Platform.Controls.Wpf
         /// </summary>
         internal WriteableBitmap? Bitmap => _bitmap;
 
+        private static readonly object _deviceLock = new();
+        private static ID3D11Device? _sharedDevice;
+        private static ID3D11DeviceContext? _sharedContext;
+
         /// <summary>
-        /// Initializes the D3D11 device.
+        /// Initializes the D3D11 device using a shared singleton device cache.
         /// Must be called on the UI thread.
         /// </summary>
         internal bool Initialize()
         {
             try
             {
-                // Create D3D11 device (Hardware first, fallback to WARP if needed)
-                var result = D3D11.D3D11CreateDevice(
-                    adapter: null!,
-                    DriverType.Hardware,
-                    DeviceCreationFlags.BgraSupport,
-                    featureLevels: null,
-                    out _d3d11Device,
-                    out _d3d11Context);
-
-                if (result.Failure || _d3d11Device == null || _d3d11Context == null)
+                lock (_deviceLock)
                 {
-                    D3D11.D3D11CreateDevice(
-                        adapter: null!,
-                        DriverType.Warp,
-                        DeviceCreationFlags.BgraSupport,
-                        featureLevels: null,
-                        out _d3d11Device,
-                        out _d3d11Context);
+                    if (_sharedDevice == null || _sharedContext == null)
+                    {
+                        // Create D3D11 device (Hardware first, fallback to WARP if needed)
+                        var result = D3D11.D3D11CreateDevice(
+                            adapter: null!,
+                            DriverType.Hardware,
+                            DeviceCreationFlags.BgraSupport,
+                            featureLevels: null,
+                            out _sharedDevice,
+                            out _sharedContext);
+
+                        if (result.Failure || _sharedDevice == null || _sharedContext == null)
+                        {
+                            D3D11.D3D11CreateDevice(
+                                adapter: null!,
+                                DriverType.Warp,
+                                DeviceCreationFlags.BgraSupport,
+                                featureLevels: null,
+                                out _sharedDevice,
+                                out _sharedContext);
+                        }
+                    }
+
+                    _d3d11Device = _sharedDevice;
+                    _d3d11Context = _sharedContext;
                 }
 
                 return _d3d11Device != null && _d3d11Context != null;
@@ -240,8 +253,8 @@ namespace OpenMedia.Platform.Controls.Wpf
                     _sharedTextures[i] = null;
                 }
             }
-            _d3d11Context?.Dispose();
-            _d3d11Device?.Dispose();
+            _d3d11Context = null;
+            _d3d11Device = null;
         }
     }
 }
