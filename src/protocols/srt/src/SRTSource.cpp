@@ -117,7 +117,20 @@ bool SRTSource::Connect(const std::string& uri) {
         spdlog::info("SRTSource listening on {}:{}", config.ip, config.port);
         m_acceptThread = std::thread(&SRTSource::AcceptLoop, this);
     } else {
-        // Caller mode: configure receive timeout (250ms) to allow responsive cancellation
+        // Caller mode: bind to specific local network adapter if requested
+        if (!config.bindAddress.empty()) {
+            sockaddr_in localSa = {};
+            localSa.sin_family = AF_INET;
+            localSa.sin_port = 0;
+            inet_pton(AF_INET, config.bindAddress.c_str(), &localSa.sin_addr);
+            if (srt_bind(m_socket, (sockaddr*)&localSa, sizeof(localSa)) == SRT_ERROR) {
+                spdlog::warn("SRTSource failed to bind to local interface {}: {}", config.bindAddress, srt_getlasterror_str());
+            } else {
+                spdlog::info("SRTSource bound to interface {}", config.bindAddress);
+            }
+        }
+
+        // Configure receive timeout (250ms) to allow responsive cancellation
         int rcvTimeo = 250;
         srt_setsockopt(m_socket, 0, SRTO_RCVTIMEO, &rcvTimeo, sizeof(rcvTimeo));
 
@@ -126,7 +139,7 @@ bool SRTSource::Connect(const std::string& uri) {
             Disconnect();
             return false;
         }
-        spdlog::info("SRTSource connected to {}:{}", config.ip, config.port);
+        spdlog::info("SRTSource connected to {}:{} (Bonding redundancy: {})", config.ip, config.port, config.broadcastRedundancy);
     }
     
     return true;

@@ -185,6 +185,7 @@ if(GTest_FOUND)
         unit/mixer/test_chroma_key.cpp
         unit/mixer/test_luma_key.cpp
         unit/mixer/test_scale_filter.cpp
+        unit/mixer/test_gpu_scale.cpp
     )
 
     target_link_libraries(test_mixer
@@ -269,6 +270,7 @@ if(GTest_FOUND)
     # --- SRT Unit Tests ---
     add_executable(test_srt
         test_srt_engine.cpp
+        unit/protocols/srt/test_srt_bonding.cpp
     )
 
     target_link_libraries(test_srt
@@ -286,6 +288,29 @@ if(GTest_FOUND)
     endif()
 
     gtest_discover_tests(test_srt)
+
+    # --- ST2022 Unit Tests ---
+    add_executable(test_st2022
+        unit/protocols/st2022/test_st2022_engine.cpp
+        unit/protocols/st2022/test_hitless_merge.cpp
+        unit/protocols/st2022/test_st2022_fec.cpp
+    )
+
+    target_link_libraries(test_st2022
+        PRIVATE
+            OpenMedia.Core
+            OpenMedia.ST2022
+            GTest::gtest
+            GTest::gtest_main
+    )
+
+    target_include_directories(test_st2022 PRIVATE ../src/protocols/st2022/include)
+
+    if(WIN32)
+        target_link_libraries(test_st2022 PRIVATE ws2_32.lib)
+    endif()
+
+    gtest_discover_tests(test_st2022)
 
 
     # --- NDI Unit Tests ---

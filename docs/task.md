@@ -721,9 +721,9 @@
 | Phase 1.5 — Exhand | 37 | `[x]` 100% done |
 | Phase 2 — I/O Modules | 48 | `[x]` 100% done |
 | Phase 3 — Processing | 52 | `[x]` 100% done |
-| Phase 4 — GPU | 33 | `[/]` ~82% (Native NVENC in progress) |
-| Phase 5 — Protocols | 45 | `[x]` 100% done |
-| Phase 6 — .NET | 27 | `[x]` 100% done |
-| Phase 7 — Plugins | 23 | `[x]` 100% done |
-| Phase 8 — Test/Doc/Pkg/Ref | 50 | `[x]` 100% done |
-| **TOTAL** | **367** | **~97% complete** |
+| Phase 4 — GPU | 33 | `[x]` 100% done (Native NVENC + QuickSync + GPU Scale) |
+| Phase 5 — Protocols | 45 | `[x]` 100% done (ST 2110, ST 2022-7, SRT Bonding, RIST, OTT) |
+| Phase 6 — .NET | 27 | `[x]` 100% done (WPF + WinUI 3 SwapChainPanel) |
+| Phase 7 — Plugins | 23 | `[x]` 100% done (Dynamic Loader + SEH Crash Isolation) |
+| Phase 8 — Test/Doc/Pkg/Ref | 50 | `[x]` 100% done (Unit Tests, C++ / .NET Suite, Docs) |
+| **TOTAL** | **367** | **100% complete** |

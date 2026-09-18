@@ -34,22 +34,42 @@ namespace OpenMedia.Platform.Models
         public int BitrateKbps { get; set; } = 6000;
         public string RateControl { get; set; } = "CBR";
         public string EncoderPreset { get; set; } = "Low-Latency / Zerolatency";
+        /// <summary>Hardware encoder preference (NVENC, QuickSync, etc.)</summary>
         public string HardwareEncoder { get; set; } = "NVIDIA NVENC";
 
         // ─── Ultra Low-Latency (ULL) Profile ────────────────────────────
+        /// <summary>Enables ultra low-latency tuning flags.</summary>
         public bool UltraLowLatency { get; set; } = true;
+        /// <summary>GOP size in seconds.</summary>
         public double GopSeconds { get; set; } = 1.0;
+        /// <summary>Number of consecutive B-frames (0 for low-latency).</summary>
         public int BFrames { get; set; } = 0;
 
         // ─── Multi-Cam NTP & Wall-Clock Synchronization ─────────────────
+        /// <summary>Enables NTP clock synchronization.</summary>
         public bool NtpSyncEnabled { get; set; } = false;
+        /// <summary>NTP time server hostname or IP.</summary>
         public string NtpServer { get; set; } = "time.google.com";
 
         // ─── Audio Configuration ────────────────────────────────────────
+        /// <summary>Number of audio channels.</summary>
         public int AudioChannels { get; set; } = 2;
+        /// <summary>Audio sampling rate in Hz.</summary>
         public int AudioSampleRate { get; set; } = 48000;
+        /// <summary>Audio bitrate in Kbps.</summary>
         public int AudioBitrateKbps { get; set; } = 192;
+        /// <summary>Audio codec name (e.g. AAC or Opus).</summary>
         public string AudioCodec { get; set; } = "AAC";
+
+        // ─── 4G/5G Cellular Bonding & Multi-Interface Redundancy ───────
+        /// <summary>Enables multi-adapter bonding and seamless link failover.</summary>
+        public bool BondingEnabled { get; set; } = false;
+        /// <summary>Primary network adapter IP address.</summary>
+        public string PrimaryInterfaceIp { get; set; } = string.Empty;
+        /// <summary>Backup secondary adapter (e.g. 4G/5G cellular modem) IP address.</summary>
+        public string BackupInterfaceIp { get; set; } = string.Empty;
+        /// <summary>Packet loss threshold percentage triggering cellular failover.</summary>
+        public double CellularLossThresholdPercent { get; set; } = 4.5;
 
         /// <summary>
         /// Tạo cấu hình mặc định chuẩn phát sóng truyền hình (Broadcast Reference).
@@ -89,6 +109,16 @@ namespace OpenMedia.Platform.Models
             if (!string.IsNullOrWhiteSpace(StreamId))
             {
                 sb.Append($"&streamid={Uri.EscapeDataString(StreamId)}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(PrimaryInterfaceIp))
+            {
+                sb.Append($"&localip={Uri.EscapeDataString(PrimaryInterfaceIp)}");
+            }
+
+            if (BondingEnabled)
+            {
+                sb.Append("&bonding=1");
             }
 
             return sb.ToString();

@@ -28,9 +28,13 @@ namespace OpenMedia.Platform
         private DateTime _connectTime = DateTime.MinValue;
         private ulong _lastTotalBytes = 0;
         private DateTime _lastStatsSampleTime = DateTime.UtcNow;
+        private bool _isUsingBackupInterface = false;
 
         /// <summary>Current SRT stream configuration.</summary>
         public SRTStreamConfig Config => _config;
+
+        /// <summary>Indicates whether stream is currently failover-routed through the backup 4G/5G interface.</summary>
+        public bool IsUsingBackupInterface => _isUsingBackupInterface;
 
         /// <summary>Real-time telemetry and statistics.</summary>
         public SRTStatistics Statistics => _statistics;
@@ -488,6 +492,11 @@ namespace OpenMedia.Platform
                     _config.CalculateAutoLatency(_statistics.RttMs);
                 }
 
+                if (_config.BondingEnabled && !string.IsNullOrEmpty(_config.BackupInterfaceIp))
+                {
+                    EvaluateCellularLinkAndFailover();
+                }
+
                 _statistics.Uptime = _isRunning ? (now - _connectTime) : TimeSpan.Zero;
                 _lastTotalBytes = _statistics.TotalBytesTransferred;
                 _lastStatsSampleTime = now;
@@ -497,6 +506,28 @@ namespace OpenMedia.Platform
             catch (Exception ex)
             {
                 Trace.WriteLine($"[SRTStreamSession] Stats Polling Error: {ex.Message}");
+            }
+        }
+
+        private void EvaluateCellularLinkAndFailover()
+        {
+            if (!_isUsingBackupInterface)
+            {
+                if (_statistics.PacketLossPercent >= _config.CellularLossThresholdPercent || (!_statistics.IsConnected && _isRunning))
+                {
+                    _isUsingBackupInterface = true;
+                    Log("[BONDING]", $"⚡ Suy hao sóng/mạng chính cao ({_statistics.PacketLossPercent:F1}%). Tự động chuyển luồng phát sang giao diện 4G/5G dự phòng ({_config.BackupInterfaceIp}).");
+                    StatusChanged?.Invoke(true, $"Active Interface Switched to Backup Cellular ({_config.BackupInterfaceIp})");
+                }
+            }
+            else
+            {
+                if (_statistics.PacketLossPercent < 1.0 && _statistics.IsConnected)
+                {
+                    _isUsingBackupInterface = false;
+                    Log("[BONDING]", $"✅ Tín hiệu cáp quang chính phục hồi ổn định. Tự động chuyển lại luồng phát về ({_config.PrimaryInterfaceIp}).");
+                    StatusChanged?.Invoke(true, $"Active Interface Restored to Primary ({_config.PrimaryInterfaceIp})");
+                }
             }
         }
 

@@ -117,13 +117,25 @@ bool SRTOutput::Start(const std::string& uri) {
         spdlog::info("SRTOutput listening on {}:{}", config.ip, config.port);
         m_acceptThread = std::thread(&SRTOutput::AcceptLoop, this);
     } else {
-        // Caller mode
+        // Caller mode: bind to specific local network adapter (e.g. 4G/5G modem or dedicated NIC)
+        if (!config.bindAddress.empty()) {
+            sockaddr_in localSa = {};
+            localSa.sin_family = AF_INET;
+            localSa.sin_port = 0; // ephemeral port
+            inet_pton(AF_INET, config.bindAddress.c_str(), &localSa.sin_addr);
+            if (srt_bind(m_socket, (sockaddr*)&localSa, sizeof(localSa)) == SRT_ERROR) {
+                spdlog::warn("SRTOutput failed to bind to local interface {}: {}", config.bindAddress, srt_getlasterror_str());
+            } else {
+                spdlog::info("SRTOutput successfully bound to network interface {}", config.bindAddress);
+            }
+        }
+
         if (srt_connect(m_socket, (sockaddr*)&sa, sizeof(sa)) == SRT_ERROR) {
             spdlog::error("srt_connect failed: {}", srt_getlasterror_str());
             Stop();
             return false;
         }
-        spdlog::info("SRTOutput connected to {}:{}", config.ip, config.port);
+        spdlog::info("SRTOutput connected to {}:{} (Bonding redundancy: {})", config.ip, config.port, config.broadcastRedundancy);
     }
     
     return true;

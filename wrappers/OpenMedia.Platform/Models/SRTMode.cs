@@ -1,7 +1,7 @@
 namespace OpenMedia.Platform
 {
     /// <summary>
-    /// Specifies the SRT connection mode for <see cref="StreamOutput.SRT"/>.
+    /// Specifies the SRT connection mode for <see cref="StreamOutput"/>.
     /// </summary>
     public enum SRTMode
     {

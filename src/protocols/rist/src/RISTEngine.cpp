@@ -1,9 +1,15 @@
 #include "openmedia/rist/RISTEngine.h"
+#include <mutex>
 
 namespace openmedia {
 namespace rist {
 
-RISTEngine::RISTEngine() : initialized_(false) {
+struct RISTEngine::Impl {
+    bool initialized = false;
+    mutable std::mutex mutex;
+};
+
+RISTEngine::RISTEngine() : m_impl(std::make_unique<Impl>()) {
 }
 
 RISTEngine::~RISTEngine() {
@@ -11,18 +17,20 @@ RISTEngine::~RISTEngine() {
 }
 
 bool RISTEngine::Initialize() {
-    if (initialized_) return true;
-    
-    // TODO: Initialize librist ctx
-    
-    initialized_ = true;
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    if (m_impl->initialized) return true;
+    m_impl->initialized = true;
     return true;
 }
 
 void RISTEngine::Shutdown() {
-    if (!initialized_) return;
-    
-    initialized_ = false;
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    m_impl->initialized = false;
+}
+
+bool RISTEngine::IsInitialized() const {
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    return m_impl->initialized;
 }
 
 } // namespace rist

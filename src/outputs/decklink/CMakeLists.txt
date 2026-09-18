@@ -9,7 +9,9 @@ file(GLOB SOURCES "src/*.cpp")
 
 add_library(OpenMediaOutputsDecklink STATIC ${SOURCES})
 
-target_include_directories(OpenMediaOutputsDecklink PUBLIC include)
+target_include_directories(OpenMediaOutputsDecklink PUBLIC 
+    include
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../../third_party/decklink_sdk/include>
+)
 
-# TODO: Link Blackmagic DeckLink SDK
-# target_link_libraries(OpenMediaOutputsDecklink PUBLIC OpenMediaCore ...)
+target_link_libraries(OpenMediaOutputsDecklink PUBLIC OpenMedia.Core)

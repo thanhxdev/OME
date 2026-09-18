@@ -12,8 +12,8 @@ else()
         CACHE STRING "Vcpkg toolchain file")
 endif()
 
-project(OpenMediaSDK
-    VERSION 1.0.0
+project(OpenMedia
+    VERSION 2.1.0
     DESCRIPTION "High-Performance Media Engine SDK"
     LANGUAGES CXX C
 )

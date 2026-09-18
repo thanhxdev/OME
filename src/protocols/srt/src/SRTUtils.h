@@ -20,6 +20,8 @@ struct SRTUriConfig {
     int pbkeylen = 16;
     int latency = 120;
     int maxbw = -1; // -1 means infinite/default
+    std::string bindAddress; // Local interface / SIM IP
+    bool broadcastRedundancy = false; // Multi-interface bonding mode
 
     static std::map<std::string, std::string> ParseQuery(const std::string& query) {
         std::map<std::string, std::string> params;
@@ -34,7 +36,7 @@ struct SRTUriConfig {
         return params;
     }
 
-    // srt://<ip>:<port>?mode=<caller|listener>&passphrase=<pass>&pbkeylen=<16|24|32>&latency=<ms>&maxbw=<bps>
+    // srt://<ip>:<port>?mode=<caller|listener>&passphrase=<pass>&pbkeylen=<16|24|32>&latency=<ms>&maxbw=<bps>&localip=<ip>&redundancy=<1|0>
     static bool Parse(const std::string& uri, SRTUriConfig& config) {
         std::regex uri_regex(R"(srt://([^:]+):(\d+)(?:\?(.*))?)");
         std::smatch match;
@@ -67,6 +69,14 @@ struct SRTUriConfig {
 
                 if (params.count("maxbw")) {
                     config.maxbw = std::stoi(params["maxbw"]);
+                }
+
+                if (params.count("localip")) {
+                    config.bindAddress = params["localip"];
+                }
+
+                if (params.count("redundancy") || params.count("bonding")) {
+                    config.broadcastRedundancy = (params["redundancy"] == "1" || params["bonding"] == "1" || params["redundancy"] == "true");
                 }
             } else {
                 config.mode = SRTMode::Caller; // Default

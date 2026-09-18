@@ -3,7 +3,7 @@
 **High-Performance Media Engine with Client/Server Process Separation**
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
-[![Version](https://img.shields.io/badge/version-1.0.0-blue)]()
+[![Version](https://img.shields.io/badge/version-2.1.0-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-23-orange)]()
 [![.NET](https://img.shields.io/badge/.NET-10-purple)]()
