@@ -6,7 +6,7 @@ using System.Runtime.InteropServices.ComTypes;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace SRT_DECODE
+namespace SRT_ENCODE
 {
     public enum SdiPortDirection
     {
@@ -18,7 +18,7 @@ namespace SRT_DECODE
     public sealed class SdiDeviceInfo
     {
         public string Name { get; set; } = string.Empty;           // e.g., "DeckLink Duo (1)"
-        public string DisplayLabel { get; set; } = string.Empty;   // e.g., "📡 [SDI OUT] DeckLink Duo (1)"
+        public string DisplayLabel { get; set; } = string.Empty;   // e.g., "📡 [SDI IN] DeckLink Duo (1)"
         public SdiPortDirection Direction { get; set; }
         public bool IsPhysicalHardware { get; set; }
         public string DevicePath { get; set; } = string.Empty;
@@ -56,25 +56,8 @@ namespace SRT_DECODE
         private static readonly Regex SingleQuoteRegex = new(@"'([^']+)'", RegexOptions.Compiled);
 
         /// <summary>
-        /// Scans for SDI Output devices using FFmpeg DeckLink probe.
+        /// Scans for SDI Input devices using FFmpeg DeckLink probe with graceful fallback to DirectShow.
         /// Guaranteed: Never returns fake mock hardware if cards are offline.
-        /// </summary>
-        public static Task<List<SdiDeviceInfo>> ScanOutputsAsync()
-        {
-            return Task.Run(() =>
-            {
-                var list = ProbeFfmpegDecklink(isInput: false);
-                if (list.Count > 0)
-                {
-                    return list;
-                }
-
-                return ScanDirectShowFallback(SdiPortDirection.Output);
-            });
-        }
-
-        /// <summary>
-        /// Scans for SDI Input devices using FFmpeg DeckLink probe.
         /// </summary>
         public static Task<List<SdiDeviceInfo>> ScanInputsAsync()
         {
@@ -86,18 +69,43 @@ namespace SRT_DECODE
                     return list;
                 }
 
+                // Fallback to DirectShow
                 return ScanDirectShowFallback(SdiPortDirection.Input);
             });
         }
 
         /// <summary>
-        /// Backward-compatible general scan (returns output devices for Decode app).
+        /// Scans for SDI Output devices using FFmpeg DeckLink probe.
+        /// </summary>
+        public static Task<List<SdiDeviceInfo>> ScanOutputsAsync()
+        {
+            return Task.Run(() =>
+            {
+                var list = ProbeFfmpegDecklink(isInput: false);
+                if (list.Count > 0)
+                {
+                    return list;
+                }
+
+                // If FFmpeg decklink probe fails or finds nothing, fallback to checking physical cards via DirectShow
+                var dshowDevices = ScanDirectShowFallback(SdiPortDirection.Output);
+                return dshowDevices;
+            });
+        }
+
+        /// <summary>
+        /// Backward-compatible general scan (returns input devices by default).
         /// </summary>
         public static Task<List<SdiDeviceInfo>> ScanDevicesAsync()
         {
-            return ScanOutputsAsync();
+            return ScanInputsAsync();
         }
 
+        /// <summary>
+        /// Probes DeckLink devices directly via FFmpeg background process.
+        /// Input probe:  ffmpeg -hide_banner -f decklink -list_devices 1 -i dummy
+        /// Output probe: ffmpeg -hide_banner -list_devices 1 -f decklink dummy
+        /// </summary>
         private static List<SdiDeviceInfo> ProbeFfmpegDecklink(bool isInput)
         {
             var results = new List<SdiDeviceInfo>();
@@ -125,6 +133,7 @@ namespace SRT_DECODE
 
                 if (string.IsNullOrWhiteSpace(stderr)) return results;
 
+                // If FFmpeg does not support decklink format, return empty so caller falls back
                 if (stderr.Contains("Unknown input format: 'decklink'", StringComparison.OrdinalIgnoreCase) ||
                     stderr.Contains("Unknown output format: 'decklink'", StringComparison.OrdinalIgnoreCase))
                 {
@@ -145,6 +154,7 @@ namespace SRT_DECODE
 
                     if (inDeviceList)
                     {
+                        // Match '[decklink @ ...] 'DeckLink Port Name'' or ''DeckLink Port Name''
                         Match match = DecklinkDevRegex.Match(line);
                         string devName = string.Empty;
 
@@ -177,11 +187,17 @@ namespace SRT_DECODE
                     }
                 }
             }
-            catch { }
+            catch
+            {
+                // FFmpeg probe failed or not found
+            }
 
             return results;
         }
 
+        /// <summary>
+        /// DirectShow COM enumeration fallback when FFmpeg DeckLink probe is not compiled or empty.
+        /// </summary>
         private static List<SdiDeviceInfo> ScanDirectShowFallback(SdiPortDirection direction)
         {
             var results = new List<SdiDeviceInfo>();
@@ -262,15 +278,22 @@ namespace SRT_DECODE
             }
             catch { }
 
+            // Sort: physical SDI devices alphabetically
             results.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+
             return results;
         }
 
+        /// <summary>
+        /// Cleans device labels from UI adornments (e.g. '[SDI IN]', '[PORT]', emojis)
+        /// returning the pure device string for FFmpeg arguments.
+        /// </summary>
         public static string CleanDeviceName(string? raw)
         {
             if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
 
             string clean = raw.Trim();
+            // Remove common tags
             clean = clean.Replace("[SDI IN]", "")
                          .Replace("[SDI OUT]", "")
                          .Replace("[SDI HW]", "")

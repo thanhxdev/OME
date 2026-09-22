@@ -60,11 +60,15 @@ namespace OME_PLAYOUT
         private volatile bool _isRunning;
 
         // D3D11 Hardware Subsystem
+        private readonly object _d3dContextLock = new();
         private ID3D11Device? _device;
         private ID3D11DeviceContext? _context;
         private ID3D11Texture2D?[] _stagingTextures = new ID3D11Texture2D?[MatrixChannelConstants.TotalMatrixChannels];
         private readonly int[] _stagingWidths = new int[MatrixChannelConstants.TotalMatrixChannels];
         private readonly int[] _stagingHeights = new int[MatrixChannelConstants.TotalMatrixChannels];
+        private ID3D11Texture2D? _thumbStagingTexture;
+        private int _thumbStagingWidth;
+        private int _thumbStagingHeight;
         private byte[]? _rescaleScratchBuffer;
 
         // IPC Ingest Subscriber
@@ -78,6 +82,9 @@ namespace OME_PLAYOUT
         public BroadcastGraphicsEngine GraphicsEngine { get; } = new();
         public EmergencyFailSafeEngine FailSafeEngine { get; } = new();
         public AudioMeterService MeterService { get; } = new();
+        public int SelectedPlaylistPort { get; set; } = -1;
+        public string? SelectedClipKey { get; set; }
+        public string? CurrentPlayingClipKey { get; private set; }
 
         // Working Canvas Buffers (BGRA32 1920x1080)
         private const int CanvasWidth = 1920;
@@ -94,11 +101,15 @@ namespace OME_PLAYOUT
         private readonly byte[] _finalProgramBuffer = new byte[FrameBytes];
         private readonly byte[] _frontProgramBuffer = new byte[FrameBytes];
         private readonly object _masterOutLock = new object();
+        private readonly object _previewLock = new object();
 
         // High-Performance Preview Proxy Buffers (Only 2MB per monitor instead of 8.3MB)
         private readonly byte[] _previewPgmBuffer = new byte[PreviewBytes];
+        private readonly byte[] _previewStbyBuffer = new byte[PreviewBytes];
         private readonly byte[] _previewMasterBuffer = new byte[PreviewBytes];
         private readonly byte[] _previewFallbackBars = new byte[PreviewBytes];
+        private readonly byte[] _previewBlackBuffer = new byte[PreviewBytes];
+        private readonly byte[] _transitionBlendBuffer = new byte[PreviewBytes];
 
         // Scope Async Snapshot Buffer & Worker State
         private readonly byte[] _scopeSnapshotBuffer = new byte[FrameBytes];
@@ -114,31 +125,258 @@ namespace OME_PLAYOUT
         // Audio Subsystem
         private readonly byte[] _masterAudioBuffer = new byte[38400]; // ~200ms
         public AudioMeterLevels CurrentAudioLevels { get; private set; }
+        public AudioOutputDevice AudioMonitor { get; } = new();
 
-        // Selected Background Source for Matrix Ingest: 0 = PGM Master, 1..10 = ISO Cam 1..10
+        // Selected Background Source for Matrix Ingest: 0 = PGM Master, 1..10 = ISO Cam 1..10, 11 = SMPTE Bars
         public int SelectedIngestSource { get; set; } = 0;
+
+        // Selected Standby Source for Preview Monitor: 0 = PGM Master, 1..10 = ISO Cam 1..10, 11 = SMPTE Bars
+        public int PreviewIngestSource { get; set; } = 1;
+
+        // File Clip Readers for Automated Rundown Playout
+        private ClipPlayoutReader _onAirClipReader = new();
+        private ClipPlayoutReader _nextClipReader = new();
+        public ClipPlayoutReader OnAirClipReader => _onAirClipReader;
+        public ClipPlayoutReader NextClipReader => _nextClipReader;
+        public bool IsOnAirClip { get; set; } = false;
+        public bool IsPreviewClip { get; set; } = false;
+        private readonly byte[] _rawClipStandbyBuffer = new byte[FrameBytes];
+        private readonly byte[] _clipAudioChunk = new byte[ClipPlayoutReader.AudioChunkSize];
+
+        // Transition Control: 0.0 = 100% Program, 1.0 = 100% Preview Standby (Thread-Safe Atomic)
+        private long _transitionProgressBits = 0;
+        public double TransitionProgress
+        {
+            get => BitConverter.Int64BitsToDouble(Interlocked.Read(ref _transitionProgressBits));
+            set => Interlocked.Exchange(ref _transitionProgressBits, BitConverter.DoubleToInt64Bits(Math.Clamp(value, 0.0, 1.0)));
+        }
+
+        // Emergency Fade To Black (FTB)
+        public bool IsFadeToBlack { get; set; } = false;
+
+        public void SwapPreviewProgram()
+        {
+            bool tempClip = IsOnAirClip;
+            IsOnAirClip = IsPreviewClip;
+            IsPreviewClip = tempClip;
+
+            int temp = SelectedIngestSource;
+            SelectedIngestSource = PreviewIngestSource;
+            PreviewIngestSource = temp;
+        }
+
+        public void PlayClipOnAir(string filePath, TimeSpan duration)
+        {
+            IsOnAirClip = true;
+            CurrentPlayingClipKey = filePath;
+            FailSafeEngine.DismissFallback();
+
+            // 1. If OnAirClipReader is already playing this file, do nothing
+            if (_onAirClipReader.IsFileLoaded && string.Equals(_onAirClipReader.CurrentFilePath, filePath, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            // 2. Seamless handover: if NextClipReader already has this file open and decoded, promote it!
+            if (_nextClipReader.IsFileLoaded && string.Equals(_nextClipReader.CurrentFilePath, filePath, StringComparison.OrdinalIgnoreCase))
+            {
+                var temp = _onAirClipReader;
+                _onAirClipReader = _nextClipReader;
+                _nextClipReader = temp;
+                // DO NOT close _nextClipReader here! The scheduler will immediately cue the next item into _nextClipReader.
+                return;
+            }
+
+            _onAirClipReader.Open(filePath, duration);
+        }
+
+        public void CueClipNext(string filePath, TimeSpan duration)
+        {
+            IsPreviewClip = true;
+            // If NextClipReader already has this file open and decoded, keep it!
+            if (_nextClipReader.IsFileLoaded && string.Equals(_nextClipReader.CurrentFilePath, filePath, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+            _nextClipReader.Open(filePath, duration);
+        }
 
         public const int TotalMatrixSlots = MatrixChannelConstants.TotalMatrixChannels;
 
         // 11 Playout Ports (Port 0 = PGM, Port 1..10 = Cam 1..10 ISO) mapped to 32 Matrix Slots
-        private readonly int[] _portToSlotMap = new int[11];
+        private readonly int[] _portToSlotMap = new int[11] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
 
         public void SetPortRoute(int playoutPort, int matrixSourceSlot)
         {
             if (playoutPort < 0 || playoutPort >= 11) return;
-            _portToSlotMap[playoutPort] = Math.Clamp(matrixSourceSlot, 0, MatrixChannelConstants.TotalMatrixChannels - 1);
+            _portToSlotMap[playoutPort] = matrixSourceSlot < 0 ? -1 : Math.Clamp(matrixSourceSlot, 0, MatrixChannelConstants.TotalMatrixChannels - 1);
             Log("[ROUTER]", $"🔀 Gán cổng Playout {playoutPort} ➔ Matrix Slot {_portToSlotMap[playoutPort]}");
         }
 
         public int GetPortRoute(int playoutPort)
         {
-            if (playoutPort < 0 || playoutPort >= 11) return playoutPort;
+            if (playoutPort < 0 || playoutPort >= 11) return -1;
             return _portToSlotMap[playoutPort];
         }
 
         public System.Collections.Generic.List<(int slot, string name, int width, int height, double fps, bool isActive)> GetDiscoveredSources()
         {
             return _routerSubscriber.GetDiscoveredSources();
+        }
+
+        public bool ExtractSlotThumbnail(int slot, byte[] targetBuffer, int thumbWidth, int thumbHeight)
+        {
+            if (slot < 0 || slot >= MatrixChannelConstants.TotalMatrixChannels || _device == null || _context == null) return false;
+            if (targetBuffer == null || targetBuffer.Length < thumbWidth * thumbHeight * 4) return false;
+
+            lock (_d3dContextLock)
+            {
+                try
+                {
+                    var sharedTex = _routerSubscriber.GetOrOpenTexture(slot);
+                    if (sharedTex == null) return false;
+
+                    var info = _routerSubscriber.GetChannelInfo(slot);
+                    if (info.Width <= 0 || info.Height <= 0) return false;
+
+                    int w = info.Width;
+                    int h = info.Height;
+
+                    // Dedicated thumbnail staging texture to avoid any race condition with On-Air/Standby pipelines
+                    if (_thumbStagingTexture == null || _thumbStagingWidth != w || _thumbStagingHeight != h)
+                    {
+                        _thumbStagingTexture?.Dispose();
+                        var stagingDesc = new Texture2DDescription
+                        {
+                            Width = (uint)w,
+                            Height = (uint)h,
+                            MipLevels = 1,
+                            ArraySize = 1,
+                            Format = Format.B8G8R8A8_UNorm,
+                            SampleDescription = new SampleDescription(1, 0),
+                            Usage = ResourceUsage.Staging,
+                            BindFlags = BindFlags.None,
+                            CPUAccessFlags = CpuAccessFlags.Read
+                        };
+                        _thumbStagingTexture = _device.CreateTexture2D(stagingDesc);
+                        _thumbStagingWidth = w;
+                        _thumbStagingHeight = h;
+                    }
+
+                    var stagingTex = _thumbStagingTexture;
+                    if (stagingTex == null) return false;
+
+                    _context.CopyResource(stagingTex, sharedTex);
+                    var mapped = _context.Map(stagingTex, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+                    if (mapped.DataPointer == IntPtr.Zero) return false;
+
+                    try
+                    {
+                        int rowPitch = (int)mapped.RowPitch;
+                        unsafe
+                        {
+                            byte* pSrc = (byte*)mapped.DataPointer;
+                            fixed (byte* pDst = targetBuffer)
+                            {
+                                int* pSrc32 = (int*)pSrc;
+                                int* pDst32 = (int*)pDst;
+                                int srcPitch32 = rowPitch / 4;
+
+                                int stepY = Math.Max(1, h / thumbHeight);
+                                int stepX = Math.Max(1, w / thumbWidth);
+
+                                for (int y = 0; y < thumbHeight; y++)
+                                {
+                                    int srcY = Math.Min(y * stepY, h - 1);
+                                    int* srcRow = pSrc32 + srcY * srcPitch32;
+                                    int* dstRow = pDst32 + y * thumbWidth;
+                                    for (int x = 0; x < thumbWidth; x++)
+                                    {
+                                        int srcX = Math.Min(x * stepX, w - 1);
+                                        dstRow[x] = srcRow[srcX];
+                                    }
+                                }
+                            }
+                        }
+                        return true;
+                    }
+                    finally
+                    {
+                        _context.Unmap(stagingTex, 0);
+                    }
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+        }
+
+        public void CueSlotDirect(int slot)
+        {
+            _isNdiCued = false;
+            IsPreviewClip = false;
+            SetPortRoute(10, slot);
+            PreviewIngestSource = 10;
+        }
+
+        public void TakeSlotDirect(int slot)
+        {
+            _isNdiOnAir = false;
+            IsOnAirClip = false;
+            SetPortRoute(0, slot);
+            SelectedIngestSource = 0;
+        }
+
+        // Live NDI Ingest for CUE / ON-AIR
+        private byte[]? _ndiLiveBuffer;
+        private int _ndiLiveWidth;
+        private int _ndiLiveHeight;
+        private bool _isNdiOnAir = false;
+        private bool _isNdiCued = false;
+        private readonly object _ndiLock = new();
+
+        public void SetNdiOnAir(bool active) => _isNdiOnAir = active;
+        public void SetNdiCued(bool active) => _isNdiCued = active;
+
+        public void FeedNdiLiveFrame(byte[] bgraData, int width, int height, int stride)
+        {
+            lock (_ndiLock)
+            {
+                int needed = width * height * 4;
+                if (_ndiLiveBuffer == null || _ndiLiveBuffer.Length < needed)
+                {
+                    _ndiLiveBuffer = new byte[needed];
+                }
+                _ndiLiveWidth = width;
+                _ndiLiveHeight = height;
+
+                unsafe
+                {
+                    fixed (byte* pSrc = bgraData)
+                    fixed (byte* pDst = _ndiLiveBuffer)
+                    {
+                        for (int y = 0; y < height; y++)
+                        {
+                            Buffer.MemoryCopy(pSrc + y * stride, pDst + y * width * 4, width * 4, width * 4);
+                        }
+                    }
+                }
+
+                if (_isNdiCued)
+                {
+                    lock (_previewLock)
+                    {
+                        MultiCamDveCompositor.BlitScaled(_ndiLiveBuffer, width, height, _previewStbyBuffer, PreviewWidth, PreviewHeight, 0, 0, PreviewWidth, PreviewHeight);
+                    }
+                }
+
+                if (_isNdiOnAir)
+                {
+                    MultiCamDveCompositor.BlitScaled(_ndiLiveBuffer, width, height, _rawPgmBuffer, CanvasWidth, CanvasHeight, 0, 0, CanvasWidth, CanvasHeight);
+                    FailSafeEngine.NotifySignalAlive();
+                }
+            }
         }
 
         // Broadcast Network Out (NDI / SDI / SRT)
@@ -198,6 +436,14 @@ namespace OME_PLAYOUT
                         return false;
                     }
 
+                    // Enable multi-thread protection on context if available
+                    try
+                    {
+                        using var multithread = _context.QueryInterface<ID3D11Multithread>();
+                        multithread?.SetMultithreadProtected(true);
+                    }
+                    catch { }
+
                     // 2. Connect to IP Video Matrix Router (Staging textures created dynamically per port)
                     _routerSubscriber.Connect(_device);
                     _routerSubscriber.ChannelAudioReceived += OnRouterAudioReceived;
@@ -221,16 +467,27 @@ namespace OME_PLAYOUT
                     {
                         fixed (byte* pFull = fullBars)
                         fixed (byte* pPrev = _previewFallbackBars)
+                        fixed (byte* pStby = _previewStbyBuffer)
+                        fixed (byte* pBlack = _previewBlackBuffer)
                         {
                             int* pSrc32 = (int*)pFull;
                             int* pDst32 = (int*)pPrev;
+                            int* pStby32 = (int*)pStby;
+                            int* pBlack32 = (int*)pBlack;
+
                             for (int y = 0; y < PreviewHeight; y++)
                             {
                                 int* srcRow = pSrc32 + (y * 2) * CanvasWidth;
                                 int* dstRow = pDst32 + y * PreviewWidth;
+                                int* stbyRow = pStby32 + y * PreviewWidth;
+                                int* blackRow = pBlack32 + y * PreviewWidth;
+
                                 for (int x = 0; x < PreviewWidth; x++)
                                 {
-                                    dstRow[x] = srcRow[x * 2];
+                                    int pixel = srcRow[x * 2];
+                                    dstRow[x] = pixel;
+                                    stbyRow[x] = pixel; // Default standby to color bars until source is selected
+                                    blackRow[x] = unchecked((int)0xFF000000); // 100% opaque black
                                 }
                             }
                         }
@@ -367,234 +624,420 @@ namespace OME_PLAYOUT
                 _routerSubscriber.RefreshChannel(slot);
             }
 
-            // 1. Ingest ON-AIR channel into _rawPgmBuffer
-            var sharedTex = _routerSubscriber.GetOrOpenTexture(onAirSlot);
-            if (sharedTex != null)
+            // If ON-AIR is currently playing from an automated video clip file:
+            if (IsOnAirClip)
             {
-                var info = _routerSubscriber.GetChannelInfo(onAirSlot);
-                if (info.FrameIndex != _cachedFrameIds[onAirSlot] && info.Width > 0 && info.Height > 0)
+                if (OnAirClipReader.TryGetNextFrame(_rawPgmBuffer))
                 {
-                    try
+                    unsafe
                     {
-                        // Ensure staging texture matches slot's dimensions
-                        if (_stagingTextures[onAirSlot] == null || _stagingWidths[onAirSlot] != info.Width || _stagingHeights[onAirSlot] != info.Height)
+                        fixed (byte* pFull = _rawPgmBuffer)
+                        fixed (byte* pPrev = _previewPgmBuffer)
                         {
-                            _stagingTextures[onAirSlot]?.Dispose();
-                            var stagingDesc = new Texture2DDescription
+                            int* pSrc32 = (int*)pFull;
+                            int* pDst32 = (int*)pPrev;
+                            for (int y = 0; y < PreviewHeight; y++)
                             {
-                                Width = (uint)info.Width,
-                                Height = (uint)info.Height,
-                                MipLevels = 1,
-                                ArraySize = 1,
-                                Format = Format.B8G8R8A8_UNorm,
-                                SampleDescription = new SampleDescription(1, 0),
-                                Usage = ResourceUsage.Staging,
-                                BindFlags = BindFlags.None,
-                                CPUAccessFlags = CpuAccessFlags.Read
-                            };
-                            _stagingTextures[onAirSlot] = _device.CreateTexture2D(stagingDesc);
-                            _stagingWidths[onAirSlot] = info.Width;
-                            _stagingHeights[onAirSlot] = info.Height;
-                        }
-
-                        var stagingTex = _stagingTextures[onAirSlot];
-                        if (stagingTex != null)
-                        {
-                            _context.CopyResource(stagingTex, sharedTex);
-                            var mapped = _context.Map(stagingTex, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
-                            if (mapped.DataPointer != IntPtr.Zero)
-                            {
-                                int rowPitch = (int)mapped.RowPitch;
-                                int w = info.Width;
-                                int h = info.Height;
-
-                                if (w == CanvasWidth && h == CanvasHeight)
+                                int* srcRow = pSrc32 + (y * 2) * CanvasWidth;
+                                int* dstRow = pDst32 + y * PreviewWidth;
+                                for (int x = 0; x < PreviewWidth; x++)
                                 {
-                                    unsafe
-                                    {
-                                        byte* pSrc = (byte*)mapped.DataPointer;
-                                        fixed (byte* pDst = _rawPgmBuffer)
-                                        fixed (byte* pPrev = _previewPgmBuffer)
-                                        {
-                                            for (int y = 0; y < h; y++)
-                                            {
-                                                Buffer.MemoryCopy(pSrc + y * rowPitch, pDst + y * CanvasWidth * 4, CanvasWidth * 4, w * 4);
-                                            }
-
-                                            // If on-air slot is also the PGM IN feed, downsample directly to preview
-                                            if (onAirSlot == pgmSlot)
-                                            {
-                                                int* pSrc32 = (int*)pSrc;
-                                                int* pDst32 = (int*)pPrev;
-                                                int srcPitch32 = rowPitch / 4;
-
-                                                for (int y = 0; y < PreviewHeight; y++)
-                                                {
-                                                    int* srcRow = pSrc32 + (y * 2) * srcPitch32;
-                                                    int* dstRow = pDst32 + y * PreviewWidth;
-                                                    for (int x = 0; x < PreviewWidth; x++)
-                                                    {
-                                                        dstRow[x] = srcRow[x * 2];
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    // Rescale to 1920x1080 canvas
-                                    int srcBytes = w * h * 4;
-                                    if (_rescaleScratchBuffer == null || _rescaleScratchBuffer.Length < srcBytes)
-                                    {
-                                        _rescaleScratchBuffer = new byte[srcBytes];
-                                    }
-
-                                    unsafe
-                                    {
-                                        byte* pSrc = (byte*)mapped.DataPointer;
-                                        fixed (byte* pScratch = _rescaleScratchBuffer)
-                                        {
-                                            for (int y = 0; y < h; y++)
-                                            {
-                                                Buffer.MemoryCopy(pSrc + y * rowPitch, pScratch + y * w * 4, w * 4, w * 4);
-                                            }
-                                        }
-                                    }
-
-                                    MultiCamDveCompositor.BlitScaled(_rescaleScratchBuffer, w, h, _rawPgmBuffer, CanvasWidth, CanvasHeight, 0, 0, CanvasWidth, CanvasHeight);
-
-                                    if (onAirSlot == pgmSlot)
-                                    {
-                                        unsafe
-                                        {
-                                            fixed (byte* pFull = _rawPgmBuffer)
-                                            fixed (byte* pPrev = _previewPgmBuffer)
-                                            {
-                                                int* pSrc32 = (int*)pFull;
-                                                int* pDst32 = (int*)pPrev;
-                                                for (int y = 0; y < PreviewHeight; y++)
-                                                {
-                                                    int* srcRow = pSrc32 + (y * 2) * CanvasWidth;
-                                                    int* dstRow = pDst32 + y * PreviewWidth;
-                                                    for (int x = 0; x < PreviewWidth; x++)
-                                                    {
-                                                        dstRow[x] = srcRow[x * 2];
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                _context.Unmap(stagingTex, 0);
-
-                                _cachedWidths[onAirSlot] = w;
-                                _cachedHeights[onAirSlot] = h;
-                                _cachedFrameIds[onAirSlot] = info.FrameIndex;
-
-                                if (onAirSlot == pgmSlot)
-                                {
-                                    FailSafeEngine.NotifySignalAlive();
+                                    dstRow[x] = srcRow[x * 2];
                                 }
                             }
                         }
                     }
-                    catch (Exception ex)
+                    FailSafeEngine.NotifySignalAlive();
+                }
+
+                // Ingest audio from On-Air Clip file
+                if (OnAirClipReader.TryGetNextAudioChunk(_clipAudioChunk, out int audioBytes) && audioBytes > 0)
+                {
+                    ProcessMasterAudio(_clipAudioChunk, audioBytes);
+                }
+            }
+            else
+            {
+                // 1. Ingest ON-AIR channel into _rawPgmBuffer
+                lock (_d3dContextLock)
+                {
+                    var sharedTex = _routerSubscriber.GetOrOpenTexture(onAirSlot);
+                    if (sharedTex != null)
                     {
-                        Trace.WriteLine($"[IngestMatrixFrames] Slot {onAirSlot} error: {ex.Message}");
+                        var info = _routerSubscriber.GetChannelInfo(onAirSlot);
+                        if (info.FrameIndex != _cachedFrameIds[onAirSlot] && info.Width > 0 && info.Height > 0)
+                        {
+                            try
+                            {
+                                // Ensure staging texture matches slot's dimensions
+                                if (_stagingTextures[onAirSlot] == null || _stagingWidths[onAirSlot] != info.Width || _stagingHeights[onAirSlot] != info.Height)
+                                {
+                                    _stagingTextures[onAirSlot]?.Dispose();
+                                    var stagingDesc = new Texture2DDescription
+                                    {
+                                        Width = (uint)info.Width,
+                                        Height = (uint)info.Height,
+                                        MipLevels = 1,
+                                        ArraySize = 1,
+                                        Format = Format.B8G8R8A8_UNorm,
+                                        SampleDescription = new SampleDescription(1, 0),
+                                        Usage = ResourceUsage.Staging,
+                                        BindFlags = BindFlags.None,
+                                        CPUAccessFlags = CpuAccessFlags.Read
+                                    };
+                                    _stagingTextures[onAirSlot] = _device.CreateTexture2D(stagingDesc);
+                                    _stagingWidths[onAirSlot] = info.Width;
+                                    _stagingHeights[onAirSlot] = info.Height;
+                                }
+
+                                var stagingTex = _stagingTextures[onAirSlot];
+                                if (stagingTex != null)
+                                {
+                                    _context.CopyResource(stagingTex, sharedTex);
+                                    var mapped = _context.Map(stagingTex, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+                                    if (mapped.DataPointer != IntPtr.Zero)
+                                    {
+                                        try
+                                        {
+                                            int rowPitch = (int)mapped.RowPitch;
+                                            int w = info.Width;
+                                            int h = info.Height;
+
+                                            if (w == CanvasWidth && h == CanvasHeight)
+                                            {
+                                                unsafe
+                                                {
+                                                    byte* pSrc = (byte*)mapped.DataPointer;
+                                                    fixed (byte* pDst = _rawPgmBuffer)
+                                                    fixed (byte* pPrev = _previewPgmBuffer)
+                                                    {
+                                                        for (int y = 0; y < h; y++)
+                                                        {
+                                                            Buffer.MemoryCopy(pSrc + y * rowPitch, pDst + y * CanvasWidth * 4, CanvasWidth * 4, w * 4);
+                                                        }
+
+                                                        // If on-air slot is also the PGM IN feed, downsample directly to preview
+                                                        if (onAirSlot == pgmSlot)
+                                                        {
+                                                            int* pSrc32 = (int*)pSrc;
+                                                            int* pDst32 = (int*)pPrev;
+                                                            int srcPitch32 = rowPitch / 4;
+
+                                                            for (int y = 0; y < PreviewHeight; y++)
+                                                            {
+                                                                int* srcRow = pSrc32 + (y * 2) * srcPitch32;
+                                                                int* dstRow = pDst32 + y * PreviewWidth;
+                                                                for (int x = 0; x < PreviewWidth; x++)
+                                                                {
+                                                                    dstRow[x] = srcRow[x * 2];
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            else
+                                            {
+                                                // Rescale to 1920x1080 canvas
+                                                int srcBytes = w * h * 4;
+                                                if (_rescaleScratchBuffer == null || _rescaleScratchBuffer.Length < srcBytes)
+                                                {
+                                                    _rescaleScratchBuffer = new byte[srcBytes];
+                                                }
+
+                                                unsafe
+                                                {
+                                                    byte* pSrc = (byte*)mapped.DataPointer;
+                                                    fixed (byte* pScratch = _rescaleScratchBuffer)
+                                                    {
+                                                        for (int y = 0; y < h; y++)
+                                                        {
+                                                            Buffer.MemoryCopy(pSrc + y * rowPitch, pScratch + y * w * 4, w * 4, w * 4);
+                                                        }
+                                                    }
+                                                }
+
+                                                MultiCamDveCompositor.BlitScaled(_rescaleScratchBuffer, w, h, _rawPgmBuffer, CanvasWidth, CanvasHeight, 0, 0, CanvasWidth, CanvasHeight);
+
+                                                if (onAirSlot == pgmSlot)
+                                                {
+                                                    unsafe
+                                                    {
+                                                        fixed (byte* pFull = _rawPgmBuffer)
+                                                        fixed (byte* pPrev = _previewPgmBuffer)
+                                                        {
+                                                            int* pSrc32 = (int*)pFull;
+                                                            int* pDst32 = (int*)pPrev;
+                                                            for (int y = 0; y < PreviewHeight; y++)
+                                                            {
+                                                                int* srcRow = pSrc32 + (y * 2) * CanvasWidth;
+                                                                int* dstRow = pDst32 + y * PreviewWidth;
+                                                                for (int x = 0; x < PreviewWidth; x++)
+                                                                {
+                                                                    dstRow[x] = srcRow[x * 2];
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        finally
+                                        {
+                                            _context.Unmap(stagingTex, 0);
+                                        }
+
+                                        _cachedWidths[onAirSlot] = info.Width;
+                                        _cachedHeights[onAirSlot] = info.Height;
+                                        _cachedFrameIds[onAirSlot] = info.FrameIndex;
+
+                                        if (onAirSlot == pgmSlot)
+                                        {
+                                            FailSafeEngine.NotifySignalAlive();
+                                        }
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Trace.WriteLine($"[IngestMatrixFrames] Slot {onAirSlot} error: {ex.Message}");
+                            }
+                        }
                     }
                 }
             }
 
-            // 2. If on-air is NOT PGM IN (e.g. FailSafe Backup Port or ISO Camera is active),
-            // independently ingest PGM IN (Port 0) so preview monitor shows live video and detects recovery!
-            if (onAirSlot != pgmSlot)
+            // 2. Independently ingest Standby Preview source into _previewStbyBuffer
+            IngestStandbyPreview(PreviewIngestSource);
+
+            // 3. If on-air is NOT PGM IN and preview is not PGM IN,
+            // independently ingest PGM IN (Port 0) so PGM IN status and recovery are tracked!
+            if (!IsOnAirClip && onAirSlot != pgmSlot && (PreviewIngestSource == 11 || GetPortRoute(Math.Clamp(PreviewIngestSource, 0, 10)) != pgmSlot))
             {
                 IngestPgmPreviewOnly(pgmSlot);
             }
         }
 
-        private void IngestPgmPreviewOnly(int pgmSlot)
+        private void IngestStandbyPreview(int stbyPort)
         {
-            var sharedTex = _routerSubscriber.GetOrOpenTexture(pgmSlot);
-            if (sharedTex == null) return;
-
-            var info = _routerSubscriber.GetChannelInfo(pgmSlot);
-            if (info.FrameIndex == _cachedFrameIds[pgmSlot] || info.Width <= 0 || info.Height <= 0) return;
-
-            try
+            if (IsPreviewClip)
             {
-                if (_stagingTextures[pgmSlot] == null || _stagingWidths[pgmSlot] != info.Width || _stagingHeights[pgmSlot] != info.Height)
+                if (NextClipReader.TryGetNextFrame(_rawClipStandbyBuffer))
                 {
-                    _stagingTextures[pgmSlot]?.Dispose();
-                    var stagingDesc = new Texture2DDescription
+                    lock (_previewLock)
                     {
-                        Width = (uint)info.Width,
-                        Height = (uint)info.Height,
-                        MipLevels = 1,
-                        ArraySize = 1,
-                        Format = Format.B8G8R8A8_UNorm,
-                        SampleDescription = new SampleDescription(1, 0),
-                        Usage = ResourceUsage.Staging,
-                        BindFlags = BindFlags.None,
-                        CPUAccessFlags = CpuAccessFlags.Read
-                    };
-                    _stagingTextures[pgmSlot] = _device!.CreateTexture2D(stagingDesc);
-                    _stagingWidths[pgmSlot] = info.Width;
-                    _stagingHeights[pgmSlot] = info.Height;
-                }
-
-                var stagingTex = _stagingTextures[pgmSlot];
-                if (stagingTex != null)
-                {
-                    _context!.CopyResource(stagingTex, sharedTex);
-                    var mapped = _context.Map(stagingTex, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
-                    if (mapped.DataPointer != IntPtr.Zero)
-                    {
-                        int rowPitch = (int)mapped.RowPitch;
-                        int w = info.Width;
-                        int h = info.Height;
-
                         unsafe
                         {
-                            byte* pSrc = (byte*)mapped.DataPointer;
-                            fixed (byte* pPrev = _previewPgmBuffer)
+                            fixed (byte* pFull = _rawClipStandbyBuffer)
+                            fixed (byte* pPrev = _previewStbyBuffer)
                             {
-                                int* pSrc32 = (int*)pSrc;
+                                int* pSrc32 = (int*)pFull;
                                 int* pDst32 = (int*)pPrev;
-                                int srcPitch32 = rowPitch / 4;
-
-                                int stepY = Math.Max(1, h / PreviewHeight);
-                                int stepX = Math.Max(1, w / PreviewWidth);
-
                                 for (int y = 0; y < PreviewHeight; y++)
                                 {
-                                    int srcY = Math.Min(y * stepY, h - 1);
-                                    int* srcRow = pSrc32 + srcY * srcPitch32;
+                                    int* srcRow = pSrc32 + (y * 2) * CanvasWidth;
                                     int* dstRow = pDst32 + y * PreviewWidth;
                                     for (int x = 0; x < PreviewWidth; x++)
                                     {
-                                        int srcX = Math.Min(x * stepX, w - 1);
-                                        dstRow[x] = srcRow[srcX];
+                                        dstRow[x] = srcRow[x * 2];
                                     }
                                 }
                             }
                         }
-
-                        _context.Unmap(stagingTex, 0);
-
-                        _cachedWidths[pgmSlot] = w;
-                        _cachedHeights[pgmSlot] = h;
-                        _cachedFrameIds[pgmSlot] = info.FrameIndex;
-
-                        FailSafeEngine.NotifySignalAlive();
                     }
                 }
+
+                // Keep CUE audio queue in lockstep with video frames (prevents audio starvation/desync when taken on air)
+                NextClipReader.DiscardAudioChunk();
+                return;
             }
-            catch (Exception ex)
+
+            if (stbyPort == 11)
             {
-                Trace.WriteLine($"[IngestPgmPreviewOnly] Error: {ex.Message}");
+                // Standby is SMPTE Color Bars
+                lock (_previewLock)
+                {
+                    Buffer.BlockCopy(_previewFallbackBars, 0, _previewStbyBuffer, 0, PreviewBytes);
+                }
+                return;
+            }
+
+            int stbySlot = GetPortRoute(Math.Clamp(stbyPort, 0, 10));
+
+            lock (_d3dContextLock)
+            {
+                var sharedTex = _routerSubscriber.GetOrOpenTexture(stbySlot);
+                if (sharedTex == null) return;
+
+                var info = _routerSubscriber.GetChannelInfo(stbySlot);
+                if (info.Width <= 0 || info.Height <= 0) return;
+
+                try
+                {
+                    if (_stagingTextures[stbySlot] == null || _stagingWidths[stbySlot] != info.Width || _stagingHeights[stbySlot] != info.Height)
+                    {
+                        _stagingTextures[stbySlot]?.Dispose();
+                        var stagingDesc = new Texture2DDescription
+                        {
+                            Width = (uint)info.Width,
+                            Height = (uint)info.Height,
+                            MipLevels = 1,
+                            ArraySize = 1,
+                            Format = Format.B8G8R8A8_UNorm,
+                            SampleDescription = new SampleDescription(1, 0),
+                            Usage = ResourceUsage.Staging,
+                            BindFlags = BindFlags.None,
+                            CPUAccessFlags = CpuAccessFlags.Read
+                        };
+                        _stagingTextures[stbySlot] = _device!.CreateTexture2D(stagingDesc);
+                        _stagingWidths[stbySlot] = info.Width;
+                        _stagingHeights[stbySlot] = info.Height;
+                    }
+
+                    var stagingTex = _stagingTextures[stbySlot];
+                    if (stagingTex != null)
+                    {
+                        _context!.CopyResource(stagingTex, sharedTex);
+                        var mapped = _context.Map(stagingTex, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+                        if (mapped.DataPointer != IntPtr.Zero)
+                        {
+                            try
+                            {
+                                int rowPitch = (int)mapped.RowPitch;
+                                int w = info.Width;
+                                int h = info.Height;
+
+                                lock (_previewLock)
+                                {
+                                    unsafe
+                                    {
+                                        byte* pSrc = (byte*)mapped.DataPointer;
+                                        fixed (byte* pPrev = _previewStbyBuffer)
+                                        {
+                                            int* pSrc32 = (int*)pSrc;
+                                            int* pDst32 = (int*)pPrev;
+                                            int srcPitch32 = rowPitch / 4;
+
+                                            int stepY = Math.Max(1, h / PreviewHeight);
+                                            int stepX = Math.Max(1, w / PreviewWidth);
+
+                                            for (int y = 0; y < PreviewHeight; y++)
+                                            {
+                                                int srcY = Math.Min(y * stepY, h - 1);
+                                                int* srcRow = pSrc32 + srcY * srcPitch32;
+                                                int* dstRow = pDst32 + y * PreviewWidth;
+                                                for (int x = 0; x < PreviewWidth; x++)
+                                                {
+                                                    int srcX = Math.Min(x * stepX, w - 1);
+                                                    dstRow[x] = srcRow[srcX];
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            finally
+                            {
+                                _context.Unmap(stagingTex, 0);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Trace.WriteLine($"[IngestStandbyPreview] Port {stbyPort} error: {ex.Message}");
+                }
+            }
+        }
+
+        private void IngestPgmPreviewOnly(int pgmSlot)
+        {
+            lock (_d3dContextLock)
+            {
+                var sharedTex = _routerSubscriber.GetOrOpenTexture(pgmSlot);
+                if (sharedTex == null) return;
+
+                var info = _routerSubscriber.GetChannelInfo(pgmSlot);
+                if (info.FrameIndex == _cachedFrameIds[pgmSlot] || info.Width <= 0 || info.Height <= 0) return;
+
+                try
+                {
+                    if (_stagingTextures[pgmSlot] == null || _stagingWidths[pgmSlot] != info.Width || _stagingHeights[pgmSlot] != info.Height)
+                    {
+                        _stagingTextures[pgmSlot]?.Dispose();
+                        var stagingDesc = new Texture2DDescription
+                        {
+                            Width = (uint)info.Width,
+                            Height = (uint)info.Height,
+                            MipLevels = 1,
+                            ArraySize = 1,
+                            Format = Format.B8G8R8A8_UNorm,
+                            SampleDescription = new SampleDescription(1, 0),
+                            Usage = ResourceUsage.Staging,
+                            BindFlags = BindFlags.None,
+                            CPUAccessFlags = CpuAccessFlags.Read
+                        };
+                        _stagingTextures[pgmSlot] = _device!.CreateTexture2D(stagingDesc);
+                        _stagingWidths[pgmSlot] = info.Width;
+                        _stagingHeights[pgmSlot] = info.Height;
+                    }
+
+                    var stagingTex = _stagingTextures[pgmSlot];
+                    if (stagingTex != null)
+                    {
+                        _context!.CopyResource(stagingTex, sharedTex);
+                        var mapped = _context.Map(stagingTex, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
+                        if (mapped.DataPointer != IntPtr.Zero)
+                        {
+                            try
+                            {
+                                int rowPitch = (int)mapped.RowPitch;
+                                int w = info.Width;
+                                int h = info.Height;
+
+                                unsafe
+                                {
+                                    byte* pSrc = (byte*)mapped.DataPointer;
+                                    fixed (byte* pPrev = _previewPgmBuffer)
+                                    {
+                                        int* pSrc32 = (int*)pSrc;
+                                        int* pDst32 = (int*)pPrev;
+                                        int srcPitch32 = rowPitch / 4;
+
+                                        int stepY = Math.Max(1, h / PreviewHeight);
+                                        int stepX = Math.Max(1, w / PreviewWidth);
+
+                                        for (int y = 0; y < PreviewHeight; y++)
+                                        {
+                                            int srcY = Math.Min(y * stepY, h - 1);
+                                            int* srcRow = pSrc32 + srcY * srcPitch32;
+                                            int* dstRow = pDst32 + y * PreviewWidth;
+                                            for (int x = 0; x < PreviewWidth; x++)
+                                            {
+                                                int srcX = Math.Min(x * stepX, w - 1);
+                                                dstRow[x] = srcRow[srcX];
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            finally
+                            {
+                                _context.Unmap(stagingTex, 0);
+                            }
+
+                            _cachedWidths[pgmSlot] = info.Width;
+                            _cachedHeights[pgmSlot] = info.Height;
+                            _cachedFrameIds[pgmSlot] = info.FrameIndex;
+
+                            FailSafeEngine.NotifySignalAlive();
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Trace.WriteLine($"[IngestPgmPreviewOnly] Error: {ex.Message}");
+                }
             }
         }
 
@@ -628,10 +1071,36 @@ namespace OME_PLAYOUT
 
         private void ProcessColorGrading()
         {
-            // Apply CCU math: Gain * (In + Lift * (1 - In))^(1/Gamma) + Saturation + 3D LUT
-            ColorEngine.ApplyToBgraBuffer(_delayedBuffer, CanvasWidth, CanvasHeight);
+            // Step 4.1: Apply source-specific isolated color grading profile (Clip or Live Ingest Slot)
+            if (IsOnAirClip)
+            {
+                var clipKey = CurrentPlayingClipKey;
+                if (!string.IsNullOrEmpty(clipKey))
+                {
+                    var clipProfile = ColorEngine.GetClipProfile(clipKey);
+                    if (!clipProfile.IsNeutral)
+                    {
+                        ColorEngine.ApplyToBgraBuffer(_delayedBuffer, CanvasWidth, CanvasHeight, clipProfile);
+                    }
+                }
+            }
+            else
+            {
+                int activePort = Math.Clamp(SelectedIngestSource, 0, 10);
+                var slotProfile = ColorEngine.GetSlotProfile(activePort);
+                if (!slotProfile.IsNeutral)
+                {
+                    ColorEngine.ApplyToBgraBuffer(_delayedBuffer, CanvasWidth, CanvasHeight, slotProfile);
+                }
+            }
 
-            // Asynchronously render broadcast scopes at ~30 FPS without stalling the 60 FPS video pipeline
+            // Step 4.2: Apply Master PGM color grading profile (applied to final ON-AIR PGM)
+            if (!ColorEngine.MasterProfile.IsNeutral)
+            {
+                ColorEngine.ApplyToBgraBuffer(_delayedBuffer, CanvasWidth, CanvasHeight, ColorEngine.MasterProfile);
+            }
+
+            // Step 4.3: Asynchronously render broadcast scopes at ~30 FPS without stalling the 60 FPS video pipeline
             if ((++_scopeRenderCounter % 2) == 0 && !_isScopeRendering)
             {
                 _isScopeRendering = true;
@@ -658,20 +1127,23 @@ namespace OME_PLAYOUT
             GraphicsEngine.ApplyGraphics(_finalProgramBuffer, CanvasWidth, CanvasHeight);
 
             // Ultra-fast 2x downsample for smooth UI monitor preview (960x540)
-            unsafe
+            lock (_previewLock)
             {
-                fixed (byte* pFull = _finalProgramBuffer)
-                fixed (byte* pPrev = _previewMasterBuffer)
+                unsafe
                 {
-                    int* pSrc32 = (int*)pFull;
-                    int* pDst32 = (int*)pPrev;
-                    for (int y = 0; y < PreviewHeight; y++)
+                    fixed (byte* pFull = _finalProgramBuffer)
+                    fixed (byte* pPrev = _previewMasterBuffer)
                     {
-                        int* srcRow = pSrc32 + (y * 2) * CanvasWidth;
-                        int* dstRow = pDst32 + y * PreviewWidth;
-                        for (int x = 0; x < PreviewWidth; x++)
+                        int* pSrc32 = (int*)pFull;
+                        int* pDst32 = (int*)pPrev;
+                        for (int y = 0; y < PreviewHeight; y++)
                         {
-                            dstRow[x] = srcRow[x * 2];
+                            int* srcRow = pSrc32 + (y * 2) * CanvasWidth;
+                            int* dstRow = pDst32 + y * PreviewWidth;
+                            for (int x = 0; x < PreviewWidth; x++)
+                            {
+                                dstRow[x] = srcRow[x * 2];
+                            }
                         }
                     }
                 }
@@ -687,10 +1159,10 @@ namespace OME_PLAYOUT
         private void ProcessMasterOutput()
         {
             // Check Emergency Fail-Safe (Bảo vệ sóng)
-            bool isSignalHealthy = FailSafeEngine.CheckSignalHealth();
+            bool isSignalHealthy = IsOnAirClip || FailSafeEngine.CheckSignalHealth();
             byte[] outputFrame = _finalProgramBuffer;
 
-            if (!isSignalHealthy)
+            if (!IsOnAirClip && !isSignalHealthy)
             {
                 if (FailSafeEngine.FallbackMode == FailSafeFallbackMode.BackupIsoPort)
                 {
@@ -738,6 +1210,7 @@ namespace OME_PLAYOUT
         private void OnRouterAudioReceived(int slot, byte[] pcmBytes, int length)
         {
             if (pcmBytes == null || length <= 0) return;
+            if (IsOnAirClip) return; // Prevent camera audio from bleeding over playing Clip!
 
             int onAirPort;
             if (FailSafeEngine.IsFallbackActive && FailSafeEngine.FallbackMode == FailSafeFallbackMode.BackupIsoPort)
@@ -753,29 +1226,38 @@ namespace OME_PLAYOUT
 
             if (slot == onAirSlot)
             {
-                DelayEngine.PushAudioPcm(pcmBytes, length);
+                ProcessMasterAudio(pcmBytes, length);
+            }
+        }
 
-                byte[] delayedAudio = new byte[length];
-                if (DelayEngine.TryGetDelayedAudioPcm(delayedAudio, length))
+        private void ProcessMasterAudio(byte[] pcmBytes, int length)
+        {
+            DelayEngine.PushAudioPcm(pcmBytes, length);
+
+            byte[] delayedAudio = new byte[length];
+            if (DelayEngine.TryGetDelayedAudioPcm(delayedAudio, length))
+            {
+                CurrentAudioLevels = MeterService.ProcessPcm(delayedAudio, length);
+
+                // Feed to local audio monitoring (Speakers / Headphones)
+                AudioMonitor.PlayPcm(delayedAudio, 0, length);
+
+                // Feed delayed audio to NDI
+                if (IsNdiMasterOutEnabled && _ndiMasterSender != null)
                 {
-                    CurrentAudioLevels = MeterService.ProcessPcm(delayedAudio, length);
-
-                    // Feed delayed audio to NDI
-                    if (IsNdiMasterOutEnabled && _ndiMasterSender != null)
-                    {
-                        _ndiMasterSender.FeedAudio(delayedAudio, length, 48000, 2);
-                    }
-
-                    // Feed delayed audio to SDI
-                    if (IsSdiMasterOutEnabled)
-                    {
-                        _sdiWorker.FeedAudio(delayedAudio, length, 48000, 2);
-                    }
+                    _ndiMasterSender.FeedAudio(delayedAudio, length, 48000, 2);
                 }
-                else
+
+                // Feed delayed audio to SDI
+                if (IsSdiMasterOutEnabled)
                 {
-                    CurrentAudioLevels = MeterService.ProcessPcm(pcmBytes, length);
+                    _sdiWorker.FeedAudio(delayedAudio, length, 48000, 2);
                 }
+            }
+            else
+            {
+                CurrentAudioLevels = MeterService.ProcessPcm(pcmBytes, length);
+                AudioMonitor.PlayPcm(pcmBytes, 0, length);
             }
         }
 
@@ -784,37 +1266,45 @@ namespace OME_PLAYOUT
         #region Presentation to WPF Monitors (UI Thread)
 
         /// <summary>
-        /// Updates the 2 WPF WriteableBitmap monitors (PGM In & Master Out) ultra-lightweight at 60 FPS using 960x540 qHD proxies.
+        /// Updates the 2 WPF WriteableBitmap monitors (Preview Standby & Master Program Out) ultra-lightweight at 60 FPS using 960x540 qHD proxies.
         /// </summary>
         public void UpdateWpfMonitors(
-            ref WriteableBitmap? pgmBmp,
-            ref WriteableBitmap? masterBmp)
+            ref WriteableBitmap? previewBmp,
+            ref WriteableBitmap? programBmp)
         {
-            EnsurePreviewBitmap(ref pgmBmp);
-            EnsurePreviewBitmap(ref masterBmp);
+            EnsurePreviewBitmap(ref previewBmp);
+            EnsurePreviewBitmap(ref programBmp);
 
             int stride = PreviewWidth * 4;
             var rect = new Int32Rect(0, 0, PreviewWidth, PreviewHeight);
 
-            // PGM IN (Router Feed) monitor always receives the live PGM IN (Port 0) feed
-            pgmBmp!.WritePixels(rect, _previewPgmBuffer, stride, 0);
-
-            byte[] finalToShow;
-            if (FailSafeEngine.IsFallbackActive)
+            lock (_previewLock)
             {
-                if (FailSafeEngine.FallbackMode == FailSafeFallbackMode.BackupIsoPort)
-                {
-                    int backupPort = Math.Clamp(FailSafeEngine.BackupIsoPort, 1, 10);
-                    int backupSlot = GetPortRoute(backupPort);
-                    var backupInfo = _routerSubscriber.GetChannelInfo(backupSlot);
-                    bool isBackupAlive = backupInfo.IsActive == 1 && backupInfo.Width > 0 && (DateTime.UtcNow.Ticks - backupInfo.TimestampUtcTicks) < TimeSpan.FromSeconds(3).Ticks;
+                // PREVIEW MONITOR: receives the selected Standby input feed
+                previewBmp!.WritePixels(rect, _previewStbyBuffer, stride, 0);
 
-                    if (isBackupAlive)
+                // PROGRAM MONITOR: receives the Master On-Air feed (or FTB black, or transition blend)
+                byte[] finalToShow;
+                double progress = TransitionProgress;
+                if (IsFadeToBlack)
+                {
+                    finalToShow = _previewBlackBuffer;
+                }
+                else if (progress > 0.001)
+                {
+                    BlendTransitionPreview((float)progress);
+                    finalToShow = _transitionBlendBuffer;
+                }
+                else if (!IsOnAirClip && FailSafeEngine.IsFallbackActive)
+                {
+                    if (FailSafeEngine.FallbackMode == FailSafeFallbackMode.BackupIsoPort)
                     {
-                        lock (_masterOutLock)
-                        {
-                            finalToShow = _previewMasterBuffer;
-                        }
+                        int backupPort = Math.Clamp(FailSafeEngine.BackupIsoPort, 1, 10);
+                        int backupSlot = GetPortRoute(backupPort);
+                        var backupInfo = _routerSubscriber.GetChannelInfo(backupSlot);
+                        bool isBackupAlive = backupInfo.IsActive == 1 && backupInfo.Width > 0 && (DateTime.UtcNow.Ticks - backupInfo.TimestampUtcTicks) < TimeSpan.FromSeconds(3).Ticks;
+
+                        finalToShow = isBackupAlive ? _previewMasterBuffer : _previewFallbackBars;
                     }
                     else
                     {
@@ -823,17 +1313,31 @@ namespace OME_PLAYOUT
                 }
                 else
                 {
-                    finalToShow = _previewFallbackBars;
-                }
-            }
-            else
-            {
-                lock (_masterOutLock)
-                {
                     finalToShow = _previewMasterBuffer;
                 }
+                programBmp!.WritePixels(rect, finalToShow, stride, 0);
             }
-            masterBmp!.WritePixels(rect, finalToShow, stride, 0);
+        }
+
+        private void BlendTransitionPreview(float t)
+        {
+            float invT = 1.0f - t;
+            unsafe
+            {
+                fixed (byte* pMaster = _previewMasterBuffer)
+                fixed (byte* pStby = _previewStbyBuffer)
+                fixed (byte* pBlend = _transitionBlendBuffer)
+                {
+                    int totalBytes = PreviewBytes;
+                    for (int i = 0; i < totalBytes; i += 4)
+                    {
+                        pBlend[i] = (byte)(pMaster[i] * invT + pStby[i] * t);
+                        pBlend[i + 1] = (byte)(pMaster[i + 1] * invT + pStby[i + 1] * t);
+                        pBlend[i + 2] = (byte)(pMaster[i + 2] * invT + pStby[i + 2] * t);
+                        pBlend[i + 3] = 255;
+                    }
+                }
+            }
         }
 
         private static void EnsurePreviewBitmap(ref WriteableBitmap? bmp)
@@ -848,7 +1352,7 @@ namespace OME_PLAYOUT
 
         #region Broadcast Out Controls
 
-        public bool ToggleMasterNdi(bool enable)
+        public bool ToggleMasterNdi(bool enable, string? customStreamName = null)
         {
             lock (_pipelineLock)
             {
@@ -856,9 +1360,10 @@ namespace OME_PLAYOUT
                 if (enable)
                 {
                     _ndiMasterSender?.Dispose();
-                    _ndiMasterSender = new NdiNativeSender("OME MASTER BROADCAST");
+                    string streamName = !string.IsNullOrWhiteSpace(customStreamName) ? customStreamName.Trim() : "OME Playout Master HD";
+                    _ndiMasterSender = new NdiNativeSender(streamName);
                     bool started = _ndiMasterSender.Start();
-                    Log("[NDI]", started ? "✅ NDI Master Out phát sóng: OME MASTER BROADCAST" : "❌ Lỗi khởi động NDI Master Out");
+                    Log("[NDI]", started ? $"✅ NDI Master Out phát sóng: {streamName}" : "❌ Lỗi khởi động NDI Master Out");
                     return started;
                 }
                 else
@@ -879,23 +1384,24 @@ namespace OME_PLAYOUT
                 if (enable)
                 {
                     var (w, h) = MasterCodecConfig.ParseResolution(CanvasWidth, CanvasHeight);
-                    double fps = customFps ?? MasterCodecConfig.ParseFps(59.94);
+                    double fps = customFps ?? MasterCodecConfig.ParseFps(60.0);
 
                     if (!string.IsNullOrEmpty(mode))
                     {
                         if (mode.Contains("2160") || mode.Contains("4K")) { w = 3840; h = 2160; }
-                        else if (mode.Contains("1440") || mode.Contains("2K")) { w = 2560; h = 1440; }
+                        else if (mode.Contains("2048") || mode.Contains("2K DCI")) { w = 2048; h = 1080; }
+                        else if (mode.Contains("1440") || mode.Contains("2K QHD") || mode.Contains("2K")) { w = 2560; h = 1440; }
                         else if (mode.Contains("1080")) { w = 1920; h = 1080; }
                         else if (mode.Contains("720")) { w = 1280; h = 720; }
 
                         if (customFps == null)
                         {
-                            if (mode.Contains("59.94")) fps = 59.94;
+                            if (mode.Contains("60.00") || mode.Contains("60 fps") || mode.Contains("60")) fps = 60.0;
+                            else if (mode.Contains("30.00") || mode.Contains("30 fps") || mode.Contains("30")) fps = 30.0;
+                            else if (mode.Contains("59.94")) fps = 59.94;
                             else if (mode.Contains("29.97")) fps = 29.97;
                             else if (mode.Contains("25")) fps = 25.0;
                             else if (mode.Contains("50")) fps = 50.0;
-                            else if (mode.Contains("60")) fps = 60.0;
-                            else if (mode.Contains("30")) fps = 30.0;
                             else if (mode.Contains("24")) fps = 24.0;
                         }
                     }
@@ -938,11 +1444,19 @@ namespace OME_PLAYOUT
                 _isDisposed = true;
                 _isRunning = false;
 
-                _engineThread?.Join(300);
+                if (_engineThread != null && _engineThread.IsAlive)
+                {
+                    _engineThread.Join(500);
+                    _engineThread = null;
+                }
 
                 ToggleMasterNdi(false);
                 _sdiWorker.Dispose();
 
+                OnAirClipReader.Dispose();
+                NextClipReader.Dispose();
+
+                AudioMonitor.Dispose();
                 _routerSubscriber.Dispose();
                 DelayEngine.Dispose();
                 for (int i = 0; i < _stagingTextures.Length; i++)
@@ -950,8 +1464,12 @@ namespace OME_PLAYOUT
                     _stagingTextures[i]?.Dispose();
                     _stagingTextures[i] = null;
                 }
+                _thumbStagingTexture?.Dispose();
+                _thumbStagingTexture = null;
                 _context?.Dispose();
+                _context = null;
                 _device?.Dispose();
+                _device = null;
             }
         }
     }

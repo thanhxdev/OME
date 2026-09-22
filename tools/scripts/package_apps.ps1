@@ -88,6 +88,13 @@ try {
             IssFile  = Join-Path $RepoRoot "tools\installer\webrtc_decode.iss"
             Guid     = "{{F8EA2481-9CC4-4F8E-A3D3-54EB4F678901}}"
             OutputExe= "WEBRTC_DECODE_Setup.exe"
+        },
+        @{
+            Name     = "OME_PLAYOUT"
+            Csproj   = Join-Path $RepoRoot "samples\platform\OME_PLAYOUT\OME_PLAYOUT.csproj"
+            IssFile  = Join-Path $RepoRoot "tools\installer\ome_playout.iss"
+            Guid     = "{{D4E5F6A1-B2C3-4D5E-8F9A-1B2C3D4E5F6A}}"
+            OutputExe= "OME_PLAYOUT_Setup.exe"
         }
     )
 

@@ -1,29 +1,34 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
-using System.Threading;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace OME_PLAYOUT
 {
+    public enum SdiPortDirection
+    {
+        Input,
+        Output,
+        Both
+    }
+
     public sealed class SdiDeviceInfo
     {
-        public string Name { get; set; } = string.Empty;
-        public string DevicePath { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;           // e.g., "DeckLink Duo (1)"
+        public string DisplayLabel { get; set; } = string.Empty;   // e.g., "📡 [SDI OUT] DeckLink Duo (1)"
+        public SdiPortDirection Direction { get; set; }
         public bool IsPhysicalHardware { get; set; }
-        public string PortIdentifier { get; set; } = string.Empty;
+        public string DevicePath { get; set; } = string.Empty;
 
-        public string DisplayLabel => IsPhysicalHardware
-            ? $"📡 [SDI HW] {Name}"
-            : $"📡 [PORT] {Name}";
-
-        public override string ToString() => DisplayLabel;
+        public override string ToString() => string.IsNullOrWhiteSpace(DisplayLabel) ? Name : DisplayLabel;
     }
 
     public static class SdiHardwareScanner
     {
-        #region COM Interfaces for DirectShow Device Enumeration
+        #region COM Interfaces for DirectShow Device Enumeration Fallback
 
         [ComImport, Guid("55272A00-42CB-11CE-8135-00AA004BB851"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
         private interface IPropertyBag
@@ -44,186 +49,257 @@ namespace OME_PLAYOUT
 
         private static readonly Guid CLSID_SystemDeviceEnum = new("62BE5D10-60EB-11d0-BD3B-00A0C911CE86");
         private static readonly Guid CLSID_VideoInputDeviceCategory = new("860BB310-5D01-11d0-BD3B-00A0C911CE86");
+        private static readonly Guid CLSID_LegacyAmFilterCategory = new("083863F1-70DE-11d0-BD40-00A0C911CE86");
 
         #endregion
 
-        /// <summary>
-        /// Returns instant default broadcast devices without performing unmanaged COM calls.
-        /// Guaranteed 100% crash-free for fast application startup.
-        /// </summary>
-        public static List<SdiDeviceInfo> GetDefaultDevices()
-        {
-            var defaultPorts = new[]
-            {
-                "Blackmagic DeckLink 8K Pro (Port 1)",
-                "Blackmagic DeckLink 8K Pro (Port 2)",
-                "Blackmagic DeckLink 8K Pro (Port 3)",
-                "Blackmagic DeckLink 8K Pro (Port 4)",
-                "Blackmagic DeckLink Studio 4K (SDI Out)",
-                "Blackmagic DeckLink Duo 2 (Port 1)",
-                "Blackmagic DeckLink Duo 2 (Port 2)",
-                "Blackmagic DeckLink Mini Monitor 4K",
-                "AJA Kona 5 (SDI 1)",
-                "AJA Kona 5 (SDI 2)",
-                "Magewell Pro Capture SDI"
-            };
+        private static readonly Regex DecklinkDevRegex = new(@"\[decklink\s*@.*?\]\s*'(.*?)'", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex SingleQuoteRegex = new(@"'([^']+)'", RegexOptions.Compiled);
 
-            var results = new List<SdiDeviceInfo>();
-            foreach (var port in defaultPorts)
+        /// <summary>
+        /// Scans for SDI Output devices using FFmpeg DeckLink probe.
+        /// Guaranteed: Never returns fake mock hardware if cards are offline.
+        /// </summary>
+        public static Task<List<SdiDeviceInfo>> ScanOutputsAsync()
+        {
+            return Task.Run(() =>
             {
-                results.Add(new SdiDeviceInfo
+                var list = ProbeFfmpegDecklink(isInput: false);
+                if (list.Count > 0)
                 {
-                    Name = port,
-                    DevicePath = string.Empty,
-                    IsPhysicalHardware = false,
-                    PortIdentifier = port
-                });
-            }
-            return results;
+                    return list;
+                }
+
+                // If FFmpeg decklink output probe is not supported or returns empty, fallback to checking physical cards
+                return ScanDirectShowFallback(SdiPortDirection.Output);
+            });
         }
 
         /// <summary>
-        /// Scans devices on a dedicated Single-Threaded Apartment (STA) thread
-        /// to ensure DirectShow COM drivers do not throw access violations.
+        /// Scans for SDI Input devices using FFmpeg DeckLink probe.
+        /// </summary>
+        public static Task<List<SdiDeviceInfo>> ScanInputsAsync()
+        {
+            return Task.Run(() =>
+            {
+                var list = ProbeFfmpegDecklink(isInput: true);
+                if (list.Count > 0)
+                {
+                    return list;
+                }
+
+                return ScanDirectShowFallback(SdiPortDirection.Input);
+            });
+        }
+
+        /// <summary>
+        /// Backward-compatible general scan (returns output devices for Playout).
         /// </summary>
         public static Task<List<SdiDeviceInfo>> ScanDevicesAsync()
         {
-            var tcs = new TaskCompletionSource<List<SdiDeviceInfo>>();
-            var thread = new Thread(() =>
-            {
-                try
-                {
-                    var list = ScanDevices();
-                    tcs.TrySetResult(list);
-                }
-                catch
-                {
-                    tcs.TrySetResult(GetDefaultDevices());
-                }
-            })
-            {
-                IsBackground = true
-            };
-            thread.SetApartmentState(ApartmentState.STA);
-            thread.Start();
-            return tcs.Task;
+            return ScanOutputsAsync();
         }
 
-        public static List<SdiDeviceInfo> ScanDevices()
+        /// <summary>
+        /// Probes DeckLink devices directly via FFmpeg background process.
+        /// </summary>
+        private static List<SdiDeviceInfo> ProbeFfmpegDecklink(bool isInput)
+        {
+            var results = new List<SdiDeviceInfo>();
+            string args = isInput
+                ? "-hide_banner -f decklink -list_devices 1 -i dummy"
+                : "-hide_banner -list_devices 1 -f decklink dummy";
+
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "ffmpeg",
+                    Arguments = args,
+                    RedirectStandardError = true,
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var proc = Process.Start(psi);
+                if (proc == null) return results;
+
+                string stderr = proc.StandardError.ReadToEnd();
+                proc.WaitForExit(3000);
+
+                if (string.IsNullOrWhiteSpace(stderr)) return results;
+
+                if (stderr.Contains("Unknown input format: 'decklink'", StringComparison.OrdinalIgnoreCase) ||
+                    stderr.Contains("Unknown output format: 'decklink'", StringComparison.OrdinalIgnoreCase))
+                {
+                    return results;
+                }
+
+                var lines = stderr.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                bool inDeviceList = false;
+
+                foreach (var line in lines)
+                {
+                    if (line.Contains("Blackmagic DeckLink", StringComparison.OrdinalIgnoreCase) &&
+                        line.Contains("devices:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        inDeviceList = true;
+                        continue;
+                    }
+
+                    if (inDeviceList)
+                    {
+                        Match match = DecklinkDevRegex.Match(line);
+                        string devName = string.Empty;
+
+                        if (match.Success && match.Groups.Count > 1)
+                        {
+                            devName = match.Groups[1].Value.Trim();
+                        }
+                        else
+                        {
+                            var sqMatch = SingleQuoteRegex.Match(line);
+                            if (sqMatch.Success && sqMatch.Groups.Count > 1)
+                            {
+                                devName = sqMatch.Groups[1].Value.Trim();
+                            }
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(devName) && !results.Exists(d => d.Name.Equals(devName, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            var dir = isInput ? SdiPortDirection.Input : SdiPortDirection.Output;
+                            string prefix = isInput ? "📡 [SDI IN]" : "📡 [SDI OUT]";
+                            results.Add(new SdiDeviceInfo
+                            {
+                                Name = devName,
+                                DisplayLabel = $"{prefix} {devName}",
+                                Direction = dir,
+                                IsPhysicalHardware = true,
+                                DevicePath = devName
+                            });
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            return results;
+        }
+
+        private static List<SdiDeviceInfo> ScanDirectShowFallback(SdiPortDirection direction)
         {
             var results = new List<SdiDeviceInfo>();
 
             try
             {
                 Type? devEnumType = Type.GetTypeFromCLSID(CLSID_SystemDeviceEnum);
-                if (devEnumType != null)
+                if (devEnumType == null) return results;
+
+                object? devEnumObj = Activator.CreateInstance(devEnumType);
+                if (devEnumObj is not ICreateDevEnum devEnum) return results;
+
+                var categories = direction == SdiPortDirection.Output
+                    ? new[] { CLSID_LegacyAmFilterCategory, CLSID_VideoInputDeviceCategory }
+                    : new[] { CLSID_VideoInputDeviceCategory };
+
+                foreach (var catGuid in categories)
                 {
-                    object? devEnumObj = Activator.CreateInstance(devEnumType);
-                    if (devEnumObj is ICreateDevEnum devEnum)
+                    Guid currentCat = catGuid;
+                    int hr = devEnum.CreateClassEnumerator(ref currentCat, out IEnumMoniker enumMoniker, 0);
+
+                    if (hr == 0 && enumMoniker != null)
                     {
-                        Guid catGuid = CLSID_VideoInputDeviceCategory;
-                        int hr = devEnum.CreateClassEnumerator(ref catGuid, out IEnumMoniker enumMoniker, 0);
+                        IMoniker[] monikers = new IMoniker[1];
+                        IntPtr fetched = IntPtr.Zero;
 
-                        if (hr == 0 && enumMoniker != null)
+                        while (enumMoniker.Next(1, monikers, fetched) == 0 && monikers[0] != null)
                         {
-                            IMoniker[] monikers = new IMoniker[1];
-                            IntPtr fetched = IntPtr.Zero;
+                            IMoniker moniker = monikers[0];
+                            string friendlyName = string.Empty;
+                            string devicePath = string.Empty;
 
-                            while (enumMoniker.Next(1, monikers, fetched) == 0 && monikers[0] != null)
+                            try
                             {
-                                IMoniker moniker = monikers[0];
-                                string friendlyName = string.Empty;
-                                string devicePath = string.Empty;
+                                Guid bagGuid = typeof(IPropertyBag).GUID;
+                                moniker.BindToStorage(null!, null, ref bagGuid, out object bagObj);
 
-                                try
+                                if (bagObj is IPropertyBag propertyBag)
                                 {
-                                    Guid bagGuid = typeof(IPropertyBag).GUID;
-                                    moniker.BindToStorage(null!, null, ref bagGuid, out object bagObj);
-
-                                    if (bagObj is IPropertyBag propertyBag)
+                                    object val = string.Empty;
+                                    if (propertyBag.Read("FriendlyName", ref val, IntPtr.Zero) == 0 && val != null)
                                     {
-                                        object val = string.Empty;
-                                        if (propertyBag.Read("FriendlyName", ref val, IntPtr.Zero) == 0 && val != null)
-                                        {
-                                            friendlyName = val.ToString() ?? string.Empty;
-                                        }
-
-                                        object pathVal = string.Empty;
-                                        if (propertyBag.Read("DevicePath", ref pathVal, IntPtr.Zero) == 0 && pathVal != null)
-                                        {
-                                            devicePath = pathVal.ToString() ?? string.Empty;
-                                        }
+                                        friendlyName = val.ToString() ?? string.Empty;
                                     }
-                                }
-                                catch { }
-                                finally
-                                {
-                                    try { Marshal.ReleaseComObject(moniker); } catch { }
-                                }
 
-                                if (!string.IsNullOrWhiteSpace(friendlyName) && IsSdiBroadcastDevice(friendlyName))
-                                {
-                                    if (!results.Exists(d => d.Name == friendlyName))
+                                    object pathVal = string.Empty;
+                                    if (propertyBag.Read("DevicePath", ref pathVal, IntPtr.Zero) == 0 && pathVal != null)
                                     {
-                                        results.Add(new SdiDeviceInfo
-                                        {
-                                            Name = friendlyName,
-                                            DevicePath = devicePath,
-                                            IsPhysicalHardware = true,
-                                            PortIdentifier = friendlyName
-                                        });
+                                        devicePath = pathVal.ToString() ?? string.Empty;
                                     }
                                 }
                             }
+                            catch { }
+                            finally
+                            {
+                                Marshal.ReleaseComObject(moniker);
+                            }
 
-                            try { Marshal.ReleaseComObject(enumMoniker); } catch { }
+                            if (!string.IsNullOrWhiteSpace(friendlyName) && !results.Exists(d => d.Name.Equals(friendlyName, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                bool isSdi = IsSdiBroadcastDevice(friendlyName);
+                                if (isSdi)
+                                {
+                                    string prefix = direction == SdiPortDirection.Output ? "📡 [SDI OUT]" : "📡 [SDI IN]";
+                                    results.Add(new SdiDeviceInfo
+                                    {
+                                        Name = friendlyName,
+                                        DisplayLabel = $"{prefix} {friendlyName}",
+                                        Direction = direction,
+                                        IsPhysicalHardware = true,
+                                        DevicePath = devicePath
+                                    });
+                                }
+                            }
                         }
 
-                        try { Marshal.ReleaseComObject(devEnum); } catch { }
+                        Marshal.ReleaseComObject(enumMoniker);
                     }
+                }
+
+                if (devEnumObj is not null)
+                {
+                    Marshal.ReleaseComObject(devEnumObj);
                 }
             }
             catch { }
 
-            // Ensure standard DeckLink & broadcast ports are available even if cards are offline
-            var defaultPorts = new[]
-            {
-                "Blackmagic DeckLink 8K Pro (Port 1)",
-                "Blackmagic DeckLink 8K Pro (Port 2)",
-                "Blackmagic DeckLink 8K Pro (Port 3)",
-                "Blackmagic DeckLink 8K Pro (Port 4)",
-                "Blackmagic DeckLink Studio 4K (SDI Out)",
-                "Blackmagic DeckLink Duo 2 (Port 1)",
-                "Blackmagic DeckLink Duo 2 (Port 2)",
-                "Blackmagic DeckLink Mini Monitor 4K",
-                "AJA Kona 5 (SDI 1)",
-                "AJA Kona 5 (SDI 2)",
-                "Magewell Pro Capture SDI"
-            };
+            results.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+            return results;
+        }
 
-            foreach (var port in defaultPorts)
+        public static string CleanDeviceName(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+
+            string clean = raw.Trim();
+            clean = clean.Replace("[SDI IN]", "")
+                         .Replace("[SDI OUT]", "")
+                         .Replace("[SDI HW]", "")
+                         .Replace("[PORT]", "")
+                         .Replace("[SDI/BROADCAST]", "")
+                         .Replace("[CAPTURE/CAMERA]", "")
+                         .Replace("📡", "")
+                         .Replace("📷", "")
+                         .Trim();
+
+            int parenIndex = clean.IndexOf(" (System Video Device)", StringComparison.OrdinalIgnoreCase);
+            if (parenIndex > 0)
             {
-                if (!results.Exists(d => d.Name.Equals(port, StringComparison.OrdinalIgnoreCase)))
-                {
-                    results.Add(new SdiDeviceInfo
-                    {
-                        Name = port,
-                        DevicePath = string.Empty,
-                        IsPhysicalHardware = false,
-                        PortIdentifier = port
-                    });
-                }
+                clean = clean.Substring(0, parenIndex).Trim();
             }
 
-            // Physical hardware first, then alphabetical
-            results.Sort((a, b) =>
-            {
-                if (a.IsPhysicalHardware && !b.IsPhysicalHardware) return -1;
-                if (!a.IsPhysicalHardware && b.IsPhysicalHardware) return 1;
-                return string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
-            });
-
-            return results;
+            return clean;
         }
 
         public static bool IsSdiBroadcastDevice(string name)
@@ -238,6 +314,7 @@ namespace OME_PLAYOUT
                    name.Contains("KONA", StringComparison.OrdinalIgnoreCase) ||
                    name.Contains("SDI", StringComparison.OrdinalIgnoreCase) ||
                    name.Contains("Magewell", StringComparison.OrdinalIgnoreCase) ||
+                   name.Contains("Pro Capture", StringComparison.OrdinalIgnoreCase) ||
                    name.Contains("Bluefish", StringComparison.OrdinalIgnoreCase) ||
                    name.Contains("Deltacast", StringComparison.OrdinalIgnoreCase);
         }

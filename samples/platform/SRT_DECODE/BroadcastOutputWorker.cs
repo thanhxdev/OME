@@ -124,9 +124,12 @@ namespace SRT_DECODE
                     string fpsArg = BroadcastFrameRates.FormatFfmpeg(rational);
 
                     // Clean device name
-                    string cleanDevice = sdiDevice;
-                    if (cleanDevice.Contains("[SDI HW]")) cleanDevice = cleanDevice.Replace("[SDI HW]", "").Trim();
-                    if (cleanDevice.Contains("[PORT]")) cleanDevice = cleanDevice.Replace("[PORT]", "").Trim();
+                    string cleanDevice = SdiHardwareScanner.CleanDeviceName(sdiDevice);
+                    if (string.IsNullOrWhiteSpace(cleanDevice) || cleanDevice.Contains("Không phát hiện", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Log("[WARN]", "Chưa chọn thiết bị SDI output hợp lệ.");
+                        return false;
+                    }
 
                     // FFmpeg command to DeckLink sink or DirectShow video renderer
                     // -f decklink -pix_fmt uyvy422 "DeckLink Port"

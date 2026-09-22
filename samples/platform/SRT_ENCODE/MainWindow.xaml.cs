@@ -760,10 +760,10 @@ namespace SRT_ENCODE
         {
             try
             {
-                LogEvent("[INFO]", "Đang quét các thiết bị phần cứng SDI / DeckLink / Video Capture trên hệ thống qua DirectShow...");
+                LogEvent("[INFO]", "Đang dò quét cổng SDI IN phần cứng (DeckLink FFmpeg Probe / DirectShow Fallback)...");
                 CmbSdiDevices.Items.Clear();
 
-                var devices = await HardwareDeviceScanner.ScanDevicesAsync();
+                var devices = await SdiHardwareScanner.ScanInputsAsync();
 
                 if (devices.Count > 0)
                 {
@@ -772,14 +772,14 @@ namespace SRT_ENCODE
                         CmbSdiDevices.Items.Add(dev.DisplayLabel);
                     }
                     CmbSdiDevices.SelectedIndex = 0;
-                    int sdiCount = devices.Count(d => d.IsSdiHardware);
-                    LogEvent("[INFO]", $"✅ Tìm thấy {devices.Count} thiết bị Video Capture ({sdiCount} thiết bị SDI/Broadcast chuyên dụng).");
+                    int sdiCount = devices.Count(d => d.IsPhysicalHardware);
+                    LogEvent("[INFO]", $"✅ Tìm thấy {devices.Count} thiết bị SDI ({sdiCount} cổng phần cứng vật lý).");
                 }
                 else
                 {
-                    CmbSdiDevices.Items.Add("[Không tìm thấy thiết bị phần cứng SDI/Capture nào]");
+                    CmbSdiDevices.Items.Add("[Không phát hiện cổng SDI]");
                     CmbSdiDevices.SelectedIndex = 0;
-                    LogEvent("[WARN]", "Không tìm thấy thiết bị phần cứng SDI/DeckLink nào đang kết nối trên máy.");
+                    LogEvent("[WARN]", "Không phát hiện cổng SDI phần cứng nào trên máy trạm.");
                 }
             }
             catch (Exception ex)
@@ -787,7 +787,7 @@ namespace SRT_ENCODE
                 LogEvent("[WARN]", $"Lỗi quét SDI: {ex.Message}");
                 if (CmbSdiDevices.Items.Count == 0)
                 {
-                    CmbSdiDevices.Items.Add("[Không tìm thấy thiết bị phần cứng SDI/Capture nào]");
+                    CmbSdiDevices.Items.Add("[Không phát hiện cổng SDI]");
                     CmbSdiDevices.SelectedIndex = 0;
                 }
             }

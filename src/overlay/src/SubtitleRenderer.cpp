@@ -121,9 +121,7 @@ bool SubtitleRenderer::Render(std::shared_ptr<openmedia::core::MediaFrame> frame
     if (textToDisplay.empty()) return true; // Nothing to render for this frame
 
     // Tag frame metadata with active subtitle text
-    auto meta = frame->GetMetadata();
-    meta.custom["subtitle_text"] = textToDisplay;
-    frame->SetMetadata(meta);
+    frame->GetMetadata().Set("subtitle_text", textToDisplay);
 
     // If frame is BGRA format, draw a semi-transparent subtitle background box at bottom
     if (frame->GetPixelFormat() == core::PixelFormat::BGRA) {

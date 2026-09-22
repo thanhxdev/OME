@@ -141,6 +141,7 @@ namespace OpenMedia.Platform.IPC
         private readonly MemoryMappedFile?[] _channelMmfs = new MemoryMappedFile?[MatrixChannelConstants.TotalMatrixChannels];
         private readonly MemoryMappedViewAccessor?[] _channelAccessors = new MemoryMappedViewAccessor?[MatrixChannelConstants.TotalMatrixChannels];
         public int SlotBaseIndex { get; set; } = 0;
+        public int PgmSlotIndex { get; set; } = MatrixChannelConstants.PgmChannelIndex; // Default is Port 0 (SRT or standalone)
         private readonly string[] _channelSourceNames = new string[MatrixChannelConstants.TotalMatrixChannels];
 
         // Audio IPC
@@ -287,11 +288,17 @@ namespace OpenMedia.Platform.IPC
         #region Video Feed Methods
 
         /// <summary>
-        /// Updates the PGM Master Shared Texture (Port 0) with a newly switched broadcast frame.
+        /// Updates the PGM Master Shared Texture (Port 0 or custom PgmSlotIndex) with a newly switched broadcast frame.
         /// </summary>
         public void UpdateMasterVideo(byte[] bgraBytes, int width, int height, double fps = 59.94)
         {
-            UpdateChannelVideo(MatrixChannelConstants.PgmChannelIndex, bgraBytes, width, height, fps);
+            UpdateMasterVideo("", bgraBytes, width, height, fps);
+        }
+
+        public void UpdateMasterVideo(string sourceName, byte[] bgraBytes, int width, int height, double fps = 59.94)
+        {
+            int pgmPort = PgmSlotIndex >= 0 ? PgmSlotIndex : MatrixChannelConstants.PgmChannelIndex;
+            UpdateChannelVideo(pgmPort, sourceName, bgraBytes, width, height, fps);
         }
 
         /// <summary>
@@ -438,11 +445,12 @@ namespace OpenMedia.Platform.IPC
         #region Audio Feed Methods
 
         /// <summary>
-        /// Updates the Master Program Audio (Port 0) in the IPC Audio MMF.
+        /// Updates the Master Program Audio (Port 0 or custom PgmSlotIndex) in the IPC Audio MMF.
         /// </summary>
         public void UpdateMasterAudio(byte[] pcmBytes, int length)
         {
-            UpdateChannelAudio(MatrixChannelConstants.PgmChannelIndex, pcmBytes, length);
+            int pgmPort = PgmSlotIndex >= 0 ? PgmSlotIndex : MatrixChannelConstants.PgmChannelIndex;
+            UpdateChannelAudio(pgmPort, pcmBytes, length);
         }
 
         /// <summary>
@@ -586,6 +594,49 @@ namespace OpenMedia.Platform.IPC
             _audioSlotTotalSize = _audioHeaderSize + MatrixRouterPublisher.AudioRingBufferSizePerChannel;
         }
 
+        private long _lastAudioOpenAttemptTicks = 0;
+
+        private bool TryOpenAudioIpc()
+        {
+            if (_audioAccessor != null && _audioSyncEvent != null && _audioReaderRunning) return true;
+
+            long nowTicks = Environment.TickCount64;
+            if (nowTicks - _lastAudioOpenAttemptTicks < 1000) return false;
+            _lastAudioOpenAttemptTicks = nowTicks;
+
+            try
+            {
+                if (_audioMmf == null || _audioAccessor == null)
+                {
+                    _audioMmf = MemoryMappedFile.OpenExisting(MatrixChannelConstants.AudioMmfName, MemoryMappedFileRights.Read);
+                    _audioAccessor = _audioMmf.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
+                }
+
+                if (_audioSyncEvent == null)
+                {
+                    _audioSyncEvent = EventWaitHandle.OpenExisting(MatrixChannelConstants.AudioSyncEventName);
+                }
+
+                if (!_audioReaderRunning)
+                {
+                    _audioReaderRunning = true;
+                    _audioReaderThread = new Thread(AudioReaderLoop)
+                    {
+                        IsBackground = true,
+                        Name = "MatrixRouterAudioSubscriber"
+                    };
+                    _audioReaderThread.Start();
+                    Console.WriteLine("[MatrixRouterSubscriber] Audio IPC connected and background reader thread started.");
+                }
+
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private bool TryOpenChannelMmf(int port)
         {
             if (port < 0 || port >= MatrixChannelConstants.TotalMatrixChannels) return false;
@@ -642,21 +693,7 @@ namespace OpenMedia.Platform.IPC
                     }
 
                     // Open Audio IPC
-                    try
-                    {
-                        _audioMmf = MemoryMappedFile.OpenExisting(MatrixChannelConstants.AudioMmfName, MemoryMappedFileRights.Read);
-                        _audioAccessor = _audioMmf.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
-                        _audioSyncEvent = EventWaitHandle.OpenExisting(MatrixChannelConstants.AudioSyncEventName);
-
-                        _audioReaderRunning = true;
-                        _audioReaderThread = new Thread(AudioReaderLoop)
-                        {
-                            IsBackground = true,
-                            Name = "MatrixRouterAudioSubscriber"
-                        };
-                        _audioReaderThread.Start();
-                    }
-                    catch { }
+                    TryOpenAudioIpc();
 
                     RefreshAllChannels();
                     return true;
@@ -740,47 +777,64 @@ namespace OpenMedia.Platform.IPC
         {
             if (port < 0 || port >= MatrixChannelConstants.TotalMatrixChannels) return;
 
-            try
+            MatrixVideoChannelInfo updatedInfo = default;
+            bool shouldNotify = false;
+
+            lock (_syncLock)
             {
-                if (_channelAccessors[port] == null)
+                // Ensure Audio IPC is also dynamically connected whenever channels are refreshed
+                if (!_audioReaderRunning)
                 {
-                    if (!TryOpenChannelMmf(port)) return;
+                    TryOpenAudioIpc();
                 }
 
-                var accessor = _channelAccessors[port];
-                if (accessor != null)
+                try
                 {
-                    accessor.Read(0, out MatrixVideoChannelInfo info);
-                    _channelInfos[port] = info;
-
-                    var handle = new IntPtr(info.SharedHandle);
-                    if (handle != IntPtr.Zero && handle != _cachedHandles[port] && _device != null)
+                    if (_channelAccessors[port] == null)
                     {
-                        _openedTextures[port]?.Dispose();
-                        _openedTextures[port] = null;
-
-                        try
-                        {
-                            _openedTextures[port] = _device.OpenSharedResource<ID3D11Texture2D>(handle);
-                            _cachedHandles[port] = handle;
-                            Console.WriteLine($"[MatrixRouterSubscriber] Successfully mapped shared texture for Port {port} (Handle: 0x{handle:X})");
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"[MatrixRouterSubscriber] Failed to open shared texture Port {port}: {ex.Message}");
-                        }
+                        if (!TryOpenChannelMmf(port)) return;
                     }
 
-                    ChannelMetadataUpdated?.Invoke(port, info);
+                    var accessor = _channelAccessors[port];
+                    if (accessor != null)
+                    {
+                        accessor.Read(0, out MatrixVideoChannelInfo info);
+                        _channelInfos[port] = info;
+                        updatedInfo = info;
+                        shouldNotify = true;
+
+                        var handle = new IntPtr(info.SharedHandle);
+                        if (handle != IntPtr.Zero && handle != _cachedHandles[port] && _device != null)
+                        {
+                            _openedTextures[port]?.Dispose();
+                            _openedTextures[port] = null;
+
+                            try
+                            {
+                                _openedTextures[port] = _device.OpenSharedResource<ID3D11Texture2D>(handle);
+                                _cachedHandles[port] = handle;
+                                Console.WriteLine($"[MatrixRouterSubscriber] Successfully mapped shared texture for Port {port} (Handle: 0x{handle:X})");
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[MatrixRouterSubscriber] Failed to open shared texture Port {port}: {ex.Message}");
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // Channel MMF closed or invalidated by publisher restart
+                    _channelAccessors[port]?.Dispose();
+                    _channelAccessors[port] = null;
+                    _channelMmfs[port]?.Dispose();
+                    _channelMmfs[port] = null;
                 }
             }
-            catch
+
+            if (shouldNotify)
             {
-                // Channel MMF closed or invalidated by publisher restart
-                _channelAccessors[port]?.Dispose();
-                _channelAccessors[port] = null;
-                _channelMmfs[port]?.Dispose();
-                _channelMmfs[port] = null;
+                ChannelMetadataUpdated?.Invoke(port, updatedInfo);
             }
         }
 

@@ -1458,16 +1458,18 @@ namespace WEBRTC_ENCODE
 
         private async void BtnScanSdi_Click(object sender, RoutedEventArgs e)
         {
-            LogEvent("[SDI]", "Đang quét các thiết bị SDI DeckLink/AJA...");
+            LogEvent("[SDI]", "Đang dò quét cổng SDI IN phần cứng (DeckLink FFmpeg Probe / DirectShow Fallback)...");
             CmbSdiDevices.Items.Clear();
-            var devs = await HardwareDeviceScanner.ScanDevicesAsync();
+            var devs = await SdiHardwareScanner.ScanInputsAsync();
             if (devs.Count > 0)
             {
                 foreach (var d in devs) CmbSdiDevices.Items.Add(d.DisplayLabel);
+                LogEvent("[SDI]", $"✅ Tìm thấy {devs.Count} cổng SDI ({devs.Count(d => d.IsPhysicalHardware)} phần cứng vật lý).");
             }
             else
             {
-                CmbSdiDevices.Items.Add("DeckLink Quad 2 (1) - SDI In 1");
+                CmbSdiDevices.Items.Add("[Không phát hiện cổng SDI]");
+                LogEvent("[WARN]", "Không phát hiện cổng SDI phần cứng nào trên máy trạm.");
             }
             CmbSdiDevices.SelectedIndex = 0;
         }

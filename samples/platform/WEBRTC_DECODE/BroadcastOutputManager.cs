@@ -95,11 +95,11 @@ namespace WEBRTC_DECODE
                 if (_matrixPublisher == null || !_matrixPublisher.IsInitialized)
                 {
                     _matrixPublisher?.Dispose();
-                    _matrixPublisher = new MatrixRouterPublisher { SlotBaseIndex = 11 };
+                    _matrixPublisher = new MatrixRouterPublisher { SlotBaseIndex = 11, PgmSlotIndex = 21 };
                     bool ok = _matrixPublisher.Initialize(width, height);
                     if (ok)
                     {
-                        Log("[MATRIX-ROUTER]", "✅ Đã mở IP Video Matrix Router liên tiến trình (Slots 11..20 dành cho WebRTC + Audio MMF).");
+                        Log("[MATRIX-ROUTER]", "✅ Đã mở IP Video Matrix Router liên tiến trình (Slot 21: PGM Master, Slots 11..20: WebRTC CAM 01..10 + Audio MMF).");
                         return true;
                     }
                     else
@@ -410,10 +410,10 @@ namespace WEBRTC_DECODE
         {
             if (_isDisposed) return;
 
-            // Zero-copy local IPC: update D3D11 Shared Texture Port 0 (OME_TEX_PGM_MASTER) when active
+            // Zero-copy local IPC: update D3D11 Shared Texture Slot 21 (OME_TEX_ISO_CAM_21) when active
             if (_matrixPublisher?.IsInitialized == true)
             {
-                _matrixPublisher.UpdateMasterVideo(bgraBytes, width, height, fps);
+                _matrixPublisher.UpdateMasterVideo("[WebRTC] PGM Master", bgraBytes, width, height, fps);
             }
 
             // If NDI is in Multiviewer mode, NDI gets its frames from the Compositor engine.

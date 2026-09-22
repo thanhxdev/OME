@@ -1,5 +1,9 @@
 #include <openmedia/io/MagewellSource.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 namespace openmedia::io {
 
 MagewellSource::MagewellSource(int deviceIndex) : m_deviceIndex(deviceIndex) {

@@ -1,4 +1,5 @@
 #include "openmedia/webrtc/WebRTCOutput.h"
+#include "openmedia/webrtc/WebRTCEngine.h"
 
 #include <openmedia/core/Logger.h>
 #include <mutex>
@@ -57,9 +58,9 @@ core::VoidResult WebRTCOutput::PushFrame(std::shared_ptr<core::MediaFrame> frame
     if (frame->GetWidth() > 0 && frame->GetHeight() > 0) {
         // Video track packetization
         OME_LOG_DEBUG(*m_impl->logger, "WebRTC video track frame {}x{} pushed at PTS {}", frame->GetWidth(), frame->GetHeight(), frame->GetPts());
-    } else if (frame->GetAudioSampleCount() > 0) {
+    } else if (frame->GetSampleCount() > 0) {
         // Audio track packetization
-        OME_LOG_DEBUG(*m_impl->logger, "WebRTC audio track samples {} pushed", frame->GetAudioSampleCount());
+        OME_LOG_DEBUG(*m_impl->logger, "WebRTC audio track samples {} pushed", frame->GetSampleCount());
     }
     
     if (m_impl->downstream) {

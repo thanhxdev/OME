@@ -3232,16 +3232,22 @@ namespace WEBRTC_DECODE
                 }
 
                 // 2. SDI Hardware Devices
-                _sdiDevices = await SdiHardwareScanner.ScanDevicesAsync();
+                _sdiDevices = await SdiHardwareScanner.ScanOutputsAsync();
                 CmbSdiDevice.Items.Clear();
-                foreach (var dev in _sdiDevices)
+                if (_sdiDevices.Count > 0)
                 {
-                    CmbSdiDevice.Items.Add(dev.DisplayLabel);
-                }
-                if (CmbSdiDevice.Items.Count > 0)
-                {
+                    foreach (var dev in _sdiDevices)
+                    {
+                        CmbSdiDevice.Items.Add(dev.DisplayLabel);
+                    }
                     CmbSdiDevice.SelectedIndex = 0;
                     _outputManager.SdiDevice = _sdiDevices[0].Name;
+                }
+                else
+                {
+                    CmbSdiDevice.Items.Add("[Không phát hiện cổng SDI]");
+                    CmbSdiDevice.SelectedIndex = 0;
+                    _outputManager.SdiDevice = string.Empty;
                 }
 
                 // 3. Populate each ISO Cam SDI Port dropdown
@@ -3251,22 +3257,30 @@ namespace WEBRTC_DECODE
                     {
                         var cmb = _cmbIsoSdiPort[i];
                         cmb.Items.Clear();
-                        foreach (var dev in _sdiDevices)
+                        if (_sdiDevices.Count > 0)
                         {
-                            cmb.Items.Add(dev.Name);
+                            foreach (var dev in _sdiDevices)
+                            {
+                                cmb.Items.Add(dev.Name);
+                            }
+                            if (cmb.Items.Count > i)
+                            {
+                                cmb.SelectedIndex = i;
+                            }
+                            else
+                            {
+                                cmb.SelectedIndex = 0;
+                            }
                         }
-                        if (cmb.Items.Count > i)
+                        else
                         {
-                            cmb.SelectedIndex = i;
-                        }
-                        else if (cmb.Items.Count > 0)
-                        {
+                            cmb.Items.Add("[Không phát hiện cổng SDI]");
                             cmb.SelectedIndex = 0;
                         }
                     }
                 }
 
-                LogEvent("[SUCCESS]", $"Đã phát hiện {_monitors.Count} màn hình hiển thị và {_sdiDevices.Count} thiết bị SDI / Broadcast.");
+                LogEvent("[SUCCESS]", $"Đã phát hiện {_monitors.Count} màn hình hiển thị và {_sdiDevices.Count} cổng SDI Output.");
             }
             catch (Exception ex)
             {
@@ -3283,20 +3297,26 @@ namespace WEBRTC_DECODE
         {
             try
             {
-                LogEvent("[INFO]", "Đang quét các thiết bị và cổng SDI phần cứng (DeckLink / AJA / WDM)...");
-                _sdiDevices = await SdiHardwareScanner.ScanDevicesAsync();
+                LogEvent("[INFO]", "Đang dò quét cổng SDI OUT phần cứng (DeckLink FFmpeg Probe / DirectShow Fallback)...");
+                _sdiDevices = await SdiHardwareScanner.ScanOutputsAsync();
 
                 if (CmbSdiDevice != null)
                 {
                     CmbSdiDevice.Items.Clear();
-                    foreach (var dev in _sdiDevices)
+                    if (_sdiDevices.Count > 0)
                     {
-                        CmbSdiDevice.Items.Add(dev.DisplayLabel);
-                    }
-                    if (CmbSdiDevice.Items.Count > 0)
-                    {
+                        foreach (var dev in _sdiDevices)
+                        {
+                            CmbSdiDevice.Items.Add(dev.DisplayLabel);
+                        }
                         CmbSdiDevice.SelectedIndex = 0;
                         _outputManager.SdiDevice = _sdiDevices[0].Name;
+                    }
+                    else
+                    {
+                        CmbSdiDevice.Items.Add("[Không phát hiện cổng SDI]");
+                        CmbSdiDevice.SelectedIndex = 0;
+                        _outputManager.SdiDevice = string.Empty;
                     }
                 }
 
@@ -3306,20 +3326,30 @@ namespace WEBRTC_DECODE
                     {
                         var cmb = _cmbIsoSdiPort[i];
                         cmb.Items.Clear();
-                        foreach (var dev in _sdiDevices)
+                        if (_sdiDevices.Count > 0)
                         {
-                            cmb.Items.Add(dev.Name);
+                            foreach (var dev in _sdiDevices)
+                            {
+                                cmb.Items.Add(dev.Name);
+                            }
+                            if (cmb.Items.Count > i)
+                            {
+                                cmb.SelectedIndex = i;
+                            }
+                            else
+                            {
+                                cmb.SelectedIndex = 0;
+                            }
                         }
-                        if (cmb.Items.Count > i)
+                        else
                         {
-                            cmb.SelectedIndex = i;
-                        }
-                        else if (cmb.Items.Count > 0)
-                        {
+                            cmb.Items.Add("[Không phát hiện cổng SDI]");
                             cmb.SelectedIndex = 0;
                         }
                     }
                 }
+
+                LogEvent("[INFO]", $"✅ Quét xong: {_sdiDevices.Count} cổng SDI Output phần cứng.");
 
                 LogEvent("[SUCCESS]", $"✅ Đã tìm thấy {_sdiDevices.Count} cổng xuất SDI khả dụng trên hệ thống.");
             }

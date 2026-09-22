@@ -197,23 +197,28 @@ namespace SRT_ENCODE
                 _cts = new CancellationTokenSource();
                 var token = _cts.Token;
 
-                // Chuẩn hóa tên thiết bị cho DirectShow
-                string cleanDeviceName = DeviceName;
-                int tagIndex = cleanDeviceName.IndexOf("]");
-                if (tagIndex >= 0 && tagIndex < cleanDeviceName.Length - 1)
+                string cleanDeviceName = SdiHardwareScanner.CleanDeviceName(DeviceName);
+                if (string.IsNullOrWhiteSpace(cleanDeviceName))
                 {
-                    cleanDeviceName = cleanDeviceName.Substring(tagIndex + 1).Trim();
+                    LogRequested?.Invoke("[WARN]", "Tên thiết bị không hợp lệ.");
+                    return false;
                 }
 
-                int parenIndex = cleanDeviceName.IndexOf(" (System Video Device)");
-                if (parenIndex > 0)
-                {
-                    cleanDeviceName = cleanDeviceName.Substring(0, parenIndex).Trim();
-                }
-
-                // Chạy FFmpeg background process đọc DirectShow frame chuyển đổi sang BGRA raw byte stream
                 int intFps = (int)Math.Round(fps > 0 ? fps : 30.0);
-                string args = $"-hide_banner -loglevel error -f dshow -rtbufsize 100M -i video=\"{cleanDeviceName}\" -pix_fmt bgra -s {width}x{height} -r {intFps} -f rawvideo pipe:1";
+                bool isDeckLink = cleanDeviceName.Contains("DeckLink", StringComparison.OrdinalIgnoreCase);
+                string args;
+                bool attemptedDeckLink = false;
+
+                if (isDeckLink)
+                {
+                    // Lệnh bắt hình DeckLink Native
+                    args = $"-hide_banner -loglevel error -f decklink -i \"{cleanDeviceName}\" -pix_fmt bgra -s {width}x{height} -r {intFps} -f rawvideo pipe:1";
+                    attemptedDeckLink = true;
+                }
+                else
+                {
+                    args = $"-hide_banner -loglevel error -f dshow -rtbufsize 100M -i video=\"{cleanDeviceName}\" -pix_fmt bgra -s {width}x{height} -r {intFps} -f rawvideo pipe:1";
+                }
 
                 var psi = new ProcessStartInfo
                 {
@@ -226,9 +231,20 @@ namespace SRT_ENCODE
                 };
 
                 _captureProcess = Process.Start(psi);
+
+                // Fallback thông minh: nếu native decklink không mở được, tự động fallback sang DirectShow
+                if (attemptedDeckLink && (_captureProcess == null || _captureProcess.WaitForExit(300)))
+                {
+                    LogRequested?.Invoke("[WARN]", $"Native DeckLink capture không mở được cổng '{cleanDeviceName}'. Tự động chuyển sang DirectShow fallback...");
+                    try { _captureProcess?.Dispose(); } catch { }
+                    args = $"-hide_banner -loglevel error -f dshow -rtbufsize 100M -i video=\"{cleanDeviceName}\" -pix_fmt bgra -s {width}x{height} -r {intFps} -f rawvideo pipe:1";
+                    psi.Arguments = args;
+                    _captureProcess = Process.Start(psi);
+                }
+
                 if (_captureProcess == null || _captureProcess.HasExited)
                 {
-                    LogRequested?.Invoke("[WARN]", $"Không thể khởi chạy bộ bắt tín hiệu DirectShow cho: {cleanDeviceName}");
+                    LogRequested?.Invoke("[WARN]", $"Không thể khởi chạy bắt hình cho thiết bị: {cleanDeviceName}");
                     return false;
                 }
 

@@ -1,5 +1,9 @@
 #include <openmedia/io/AJASource.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 namespace openmedia::io {
 
 AJASource::AJASource(int deviceIndex) : m_deviceIndex(deviceIndex) {

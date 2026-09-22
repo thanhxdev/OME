@@ -3,35 +3,80 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:OME_PLAYOUT"
         mc:Ignorable="d"
-        Title="OME PLAYOUT • Master Production &amp; Playout Engine"
-        Height="950" Width="1600"
-        MinHeight="750" MinWidth="1200"
+        Title="OME MASTER CONTROL PLAYOUT • CHANNEL-IN-A-BOX (Broadcast Station Edition)"
+        Height="980" Width="1720"
+        MinHeight="768" MinWidth="1360"
         WindowStartupLocation="CenterScreen"
-        Background="#0B0F17"
+        Background="#080C14"
         Foreground="#E2E8F0"
         FontFamily="Segoe UI, Inter, Roboto, Arial, sans-serif"
         Loaded="Window_Loaded"
-        Closing="Window_Closing">
+        Closing="Window_Closing"
+        KeyDown="Window_KeyDown">
 
     <Window.Resources>
         <!-- Card & Border Styles -->
         <Style x:Key="CardStyle" TargetType="Border">
-            <Setter Property="Background" Value="#131926"/>
-            <Setter Property="BorderBrush" Value="#222D42"/>
+            <Setter Property="Background" Value="#0D1322"/>
+            <Setter Property="BorderBrush" Value="#1E293B"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Padding" Value="12"/>
-            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="Padding" Value="8"/>
         </Style>
 
         <Style x:Key="SubCardStyle" TargetType="Border">
-            <Setter Property="Background" Value="#182030"/>
-            <Setter Property="BorderBrush" Value="#2B3954"/>
+            <Setter Property="Background" Value="#111A2E"/>
+            <Setter Property="BorderBrush" Value="#1E2B45"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="4"/>
-            <Setter Property="Padding" Value="10"/>
+            <Setter Property="Padding" Value="8"/>
             <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+
+        <!-- Tool Button Style -->
+        <Style x:Key="ToolBtnStyle" TargetType="Button">
+            <Setter Property="Background" Value="#151F33"/>
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="BorderBrush" Value="#253552"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="8,5"/>
+            <Setter Property="Margin" Value="2"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="btnBorder" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="btnBorder" Property="Background" Value="#24334C"/>
+                                <Setter TargetName="btnBorder" Property="BorderBrush" Value="#00E5FF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="btnBorder" Property="Background" Value="#0F172A"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- DSK Rail Button Style -->
+        <Style x:Key="DskBtnStyle" TargetType="Button">
+            <Setter Property="Background" Value="#111C30"/>
+            <Setter Property="Foreground" Value="#94A3B8"/>
+            <Setter Property="BorderBrush" Value="#1E2F4D"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,8"/>
+            <Setter Property="Margin" Value="0,0,0,5"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Cursor" Value="Hand"/>
         </Style>
 
         <!-- Slider Style -->
@@ -40,7 +85,7 @@
             <Setter Property="Margin" Value="4,2"/>
         </Style>
 
-        <!-- TabControl Style -->
+        <!-- TabControl Style for Side Panel -->
         <Style TargetType="TabControl">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -49,20 +94,20 @@
         <Style TargetType="TabItem">
             <Setter Property="Foreground" Value="#94A3B8"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Padding" Value="14,8"/>
-            <Setter Property="Margin" Value="0,0,4,0"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Margin" Value="0,0,2,0"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TabItem">
-                        <Border x:Name="TabBorder" Background="#161E2E" BorderBrush="#222D42" BorderThickness="1,1,1,0" CornerRadius="5,5,0,0" Padding="{TemplateBinding Padding}">
+                        <Border x:Name="TabBorder" Background="#111A2E" BorderBrush="#1E2B45" BorderThickness="1,1,1,0" CornerRadius="4,4,0,0" Padding="{TemplateBinding Padding}">
                             <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="TabBorder" Property="Background" Value="#1E293B"/>
                                 <Setter TargetName="TabBorder" Property="BorderBrush" Value="#00E5FF"/>
-                                <Setter TargetName="TabBorder" Property="BorderThickness" Value="1.5,2,1.5,0"/>
+                                <Setter TargetName="TabBorder" Property="BorderThickness" Value="1,2,1,0"/>
                                 <Setter Property="Foreground" Value="#00E5FF"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -73,745 +118,1266 @@
                 </Setter.Value>
             </Setter>
         </Style>
-    </Window.Resources>
 
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="52"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="36"/>
-        </Grid.RowDefinitions>
+        <!-- Broadcast Rundown DataGrid Styles -->
+        <Style x:Key="RundownDataGridStyle" TargetType="DataGrid">
+            <Setter Property="Background" Value="#0A0F1D"/>
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="BorderBrush" Value="#1E293B"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="RowBackground" Value="#0D1424"/>
+            <Setter Property="AlternatingRowBackground" Value="#10182B"/>
+            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="#1E293B"/>
+            <Setter Property="VerticalGridLinesBrush" Value="Transparent"/>
+            <Setter Property="HeadersVisibility" Value="Column"/>
+            <Setter Property="AutoGenerateColumns" Value="False"/>
+            <Setter Property="CanUserAddRows" Value="False"/>
+            <Setter Property="CanUserDeleteRows" Value="False"/>
+            <Setter Property="CanUserResizeRows" Value="False"/>
+            <Setter Property="SelectionMode" Value="Single"/>
+            <Setter Property="SelectionUnit" Value="FullRow"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="RowHeight" Value="28"/>
+        </Style>
 
-        <!-- TOP BAR: Application Header & Global Status -->
-        <Border Grid.Row="0" Background="#0F1420" BorderBrush="#1E293B" BorderThickness="0,0,0,1" Padding="14,6">
-            <Grid>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Background="#EF4444" CornerRadius="4" Padding="8,4" Margin="0,0,10,0">
-                        <TextBlock Text="ON AIR" FontWeight="Black" FontSize="11" Foreground="#FFFFFF"/>
-                    </Border>
-                    <TextBlock Text="OME PLAYOUT" FontWeight="Black" FontSize="16" Foreground="#FFFFFF" VerticalAlignment="Center"/>
-                    <TextBlock Text="MASTER PRODUCTION ENGINE" FontWeight="Bold" FontSize="11" Foreground="#00E5FF" VerticalAlignment="Center" Margin="8,2,0,0"/>
-                    <Border Background="#1E293B" CornerRadius="3" Padding="6,2" Margin="12,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="v3.0 MATRIX EDITION" FontSize="10" Foreground="#94A3B8" FontWeight="SemiBold"/>
-                    </Border>
-                </StackPanel>
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#141E33"/>
+            <Setter Property="Foreground" Value="#94A3B8"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+            <Setter Property="BorderBrush" Value="#1E293B"/>
+        </Style>
 
-                <!-- Right Clock & Source Sync Badge -->
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <Border x:Name="BadgeRouterSync" Background="#0F2D1F" BorderBrush="#00E676" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,12,0">
-                        <StackPanel Orientation="Horizontal">
-                            <Ellipse x:Name="DotRouterSync" Width="7" Height="7" Fill="#00E676" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="TxtRouterSyncStatus" Text="MATRIX ROUTER: SYNCED (0ms)" FontSize="10.5" FontWeight="Bold" Foreground="#00E676"/>
-                        </StackPanel>
-                    </Border>
-                    <TextBlock x:Name="TxtMasterClock" Text="12:00:00:00" FontFamily="Consolas" FontSize="16" FontWeight="Bold" Foreground="#F8FAFC" VerticalAlignment="Center"/>
-                </StackPanel>
-            </Grid>
-        </Border>
+        <Style TargetType="DataGridRow">
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#1E3A5F"/>
+                    <Setter Property="Foreground" Value="#FFFFFF"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
 
-        <!-- MAIN BODY: Left Monitors Area + Right Controls Area -->
-        <Grid Grid.Row="1" Margin="10">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="620" MinWidth="480"/>
-                <ColumnDefinition Width="6"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
+        <Style TargetType="DataGridCell">
+            <Setter Property="Padding" Value="6,2"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridCell">
+                        <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
-            <!-- ══════════════════════════════════════════════════════ -->
-            <!-- LEFT AREA: 2 BROADCAST MONITORS + STEREO AUDIO METERS  -->
-            <!-- ══════════════════════════════════════════════════════ -->
-            <Grid Grid.Column="0">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="64"/>
-                </Grid.RowDefinitions>
-
-                <!-- TOP MONITOR: MASTER OUT (Clean/Dirty Program) -->
-                <Border Grid.Row="0" Style="{StaticResource CardStyle}" BorderBrush="#EF4444" BorderThickness="1.5" Margin="0,0,0,6" Padding="6">
-                    <Grid>
-                        <Image x:Name="ImgMasterOut" Stretch="Uniform" RenderOptions.BitmapScalingMode="LowQuality"/>
-                        
-                        <!-- Top Monitor Header Overlay -->
-                        <Grid VerticalAlignment="Top" Margin="8">
-                            <Border Background="#CC0F172A" CornerRadius="3" Padding="6,2" HorizontalAlignment="Left">
-                                <StackPanel Orientation="Horizontal">
-                                    <Ellipse Width="6" Height="6" Fill="#EF4444" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                    <TextBlock Text="MASTER OUT (FINAL ON-AIR PROGRAM)" FontWeight="Bold" FontSize="10.5" Foreground="#FFFFFF"/>
-                                </StackPanel>
-                            </Border>
-                            <Border x:Name="BadgeFailSafeStatus" Background="#2A1B1B" BorderBrush="#EF4444" BorderThickness="1" CornerRadius="3" Padding="6,2" HorizontalAlignment="Right" Visibility="Collapsed">
-                                <TextBlock x:Name="TxtFailSafeBadge" Text="⚠️ FAIL-SAFE ACTIVE: SMPTE BARS" FontWeight="Bold" FontSize="10" Foreground="#EF4444"/>
-                            </Border>
-                        </Grid>
-                    </Grid>
-                </Border>
-
-                <!-- BOTTOM MONITOR: PGM IN (ROUTER FEED) -->
-                <Border Grid.Row="1" Style="{StaticResource CardStyle}" BorderBrush="#0284C7" Margin="0,0,0,6" Padding="6">
-                    <Grid>
-                        <Image x:Name="ImgPgmIn" Stretch="Uniform" RenderOptions.BitmapScalingMode="LowQuality"/>
-                        <Border Background="#CC0F172A" CornerRadius="3" Padding="6,2" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8">
-                            <StackPanel Orientation="Horizontal">
-                                <Ellipse x:Name="DotPgmInStatus" Width="6" Height="6" Fill="#00E676" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="TxtPgmInStatus" Text="PGM IN (ROUTER FEED)" FontWeight="Bold" FontSize="10.5" Foreground="#38BDF8"/>
+        <!-- Modern Broadcast GridSplitter Styles (Cho phép Scale co giãn đa chiều) -->
+        <Style x:Key="VerticalSplitterStyle" TargetType="GridSplitter">
+            <Setter Property="Width" Value="6"/>
+            <Setter Property="Background" Value="#090E1A"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Stretch"/>
+            <Setter Property="Cursor" Value="SizeWE"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="GridSplitter">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="#1E293B" BorderThickness="1,0,1,0">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="2">
+                                <Border Height="16" Width="2" Background="#334155" CornerRadius="1"/>
                             </StackPanel>
                         </Border>
-                    </Grid>
-                </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#0284C7"/>
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter Property="Background" Value="#00E5FF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
-                <!-- BOTTOM AUDIO PEAK / VU METERS -->
-                <Border Grid.Row="2" Style="{StaticResource CardStyle}" Background="#0F1522" BorderBrush="#1E293B" Padding="8,4">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
-
-                        <!-- Header & dBFS values -->
-                        <Grid Grid.Row="0" Margin="0,0,0,2">
-                            <TextBlock Text="AUDIO STEREO dBFS (EBU R128)" FontSize="9.5" FontWeight="Bold" Foreground="#94A3B8"/>
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                <TextBlock x:Name="TxtMeterL" Text="L: -60.0 dBFS" FontSize="9.5" FontFamily="Consolas" Foreground="#38BDF8" Margin="0,0,10,0"/>
-                                <TextBlock x:Name="TxtMeterR" Text="R: -60.0 dBFS" FontSize="9.5" FontFamily="Consolas" Foreground="#38BDF8" Margin="0,0,10,0"/>
-                                <Border x:Name="BadgeClip" Background="#3B1219" BorderBrush="#EF4444" BorderThickness="1" CornerRadius="2" Padding="4,0">
-                                    <TextBlock Text="CLIP" FontWeight="Black" FontSize="9" Foreground="#EF4444"/>
-                                </Border>
+        <Style x:Key="HorizontalSplitterStyle" TargetType="GridSplitter">
+            <Setter Property="Height" Value="6"/>
+            <Setter Property="Background" Value="#090E1A"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="SizeNS"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="GridSplitter">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="#1E293B" BorderThickness="0,1,0,1">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Height="2" Orientation="Horizontal">
+                                <Border Width="24" Height="2" Background="#334155" CornerRadius="1"/>
                             </StackPanel>
-                        </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#0284C7"/>
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter Property="Background" Value="#00E5FF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
 
-                        <!-- Dual Channel Bars (L & R) -->
-                        <Grid Grid.Row="1" Margin="0,2,0,0">
+    <Grid x:Name="RootLayoutGrid">
+        <Grid.LayoutTransform>
+            <ScaleTransform x:Name="MasterUiScale" ScaleX="1.0" ScaleY="1.0"/>
+        </Grid.LayoutTransform>
+
+        <Grid.ColumnDefinitions>
+            <!-- Column 0: Left Side Panel: PREVIEW IP & PREVIEW NDI (Resizable Width) -->
+            <ColumnDefinition x:Name="ColLeftPanel" Width="390" MinWidth="260" MaxWidth="680"/>
+            <!-- Column 1: Vertical Splitter (Left <-> Center) -->
+            <ColumnDefinition Width="Auto"/>
+            <!-- Column 2: Main Master Playout Workspace (Zones 1 to 5, Flexible) -->
+            <ColumnDefinition x:Name="ColCenterWorkspace" Width="*" MinWidth="600"/>
+            <!-- Column 3: Vertical Splitter (Center <-> Right) -->
+            <ColumnDefinition Width="Auto"/>
+            <!-- Column 4: Zone 6 - Tools Side Panel (Router IP, CCU, Scopes, DVE, SDI, CG, FailSafe, LipSync) -->
+            <ColumnDefinition x:Name="ColRightPanel" Width="450" MinWidth="300" MaxWidth="720"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- LEFT PANEL: PREVIEW IP & PREVIEW NDI MATRIX (COLUMN 0)          -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <Border x:Name="LeftPreviewDrawer" Grid.Column="0" HorizontalAlignment="Stretch"
+                Background="#0D1322" BorderBrush="#1E293B" BorderThickness="0,0,1,0"
+                Visibility="Visible">
+            <Grid Margin="8,10,8,10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="36"/>
+                    <!-- Header -->
+                    <RowDefinition Height="*"/>
+                    <!-- Content Tabs -->
+                </Grid.RowDefinitions>
+
+                <!-- Left Panel Header -->
+                <Grid Grid.Row="0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Background="#00E5FF" Width="4" Height="16" CornerRadius="2" Margin="0,0,6,0"/>
+                        <TextBlock Text="📺 PREVIEW IP &amp; NDI" FontWeight="Bold" FontSize="11" Foreground="#00E5FF" VerticalAlignment="Center"/>
+                        <Border Background="#111E33" BorderBrush="#00E5FF" BorderThickness="1" CornerRadius="3" Padding="4,1" Margin="4,0,0,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="TxtLeftPanelBadge" Text="IP: 0 • NDI: 0" FontSize="9" FontWeight="Bold" Foreground="#38BDF8"/>
+                        </Border>
+
+                        <!-- Card Zoom / Scale Slider -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,0">
+                            <TextBlock Text="🔍" FontSize="9" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,2,0"/>
+                            <Slider x:Name="SliderCardScale" Width="50" Minimum="0.8" Maximum="1.3" Value="1.0" SmallChange="0.05" ValueChanged="SliderCardScale_ValueChanged" ToolTip="Phóng to / thu nhỏ kích thước thẻ Card xem trước"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <Button x:Name="BtnCloseLeftDrawer" Content="◀ Thu Gọn" Click="BtnToggleLeftPreview_Click"
+                            Background="#1E293B" Foreground="#94A3B8" FontWeight="Bold" FontSize="10" Padding="6,3" HorizontalAlignment="Right" Cursor="Hand"
+                            ToolTip="Thu gọn layout giám sát xem trước bên trái"/>
+                </Grid>
+
+                <!-- 2 Tabs: Preview IP & Preview NDI -->
+                <TabControl x:Name="TabsLeftPreview" Grid.Row="1" Margin="0,6,0,0">
+
+                    <!-- TAB 1: PREVIEW IP (ROUTER MATRIX IPC 0MS) -->
+                    <TabItem x:Name="TabItemPreviewIp" Header="📺 Preview IP">
+                        <Grid Margin="0,6,0,0">
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
 
-                            <!-- Ch 1 (Left) -->
-                            <ProgressBar x:Name="BarAudioL" Grid.Row="0" Height="10" Minimum="0" Maximum="1" Value="0" Background="#1A2234" Foreground="#00E676" Margin="0,1"/>
+                            <!-- IP Scanner Control Bar -->
+                            <Border Grid.Row="0" Background="#111A2E" BorderBrush="#1E2B45" BorderThickness="1" CornerRadius="4" Padding="8,6" Margin="0,0,0,6">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,5">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Border Background="#00E5FF" CornerRadius="3" Padding="5,1" Margin="0,0,6,0">
+                                                <TextBlock Text="ROUTER IPC" FontWeight="Bold" FontSize="9" Foreground="#0B0F19"/>
+                                            </Border>
+                                            <TextBlock x:Name="TxtIpScanSummary" Text="32 CỔNG MATRIX ZERO-COPY VRAM" FontWeight="Bold" FontSize="10.5" Foreground="#FFFFFF" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                            <Button x:Name="BtnRescanIp" Content="🔄 Quét Ngay" Click="BtnRescanIp_Click" Style="{StaticResource ToolBtnStyle}" Padding="6,2" FontSize="9.5"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <Grid Margin="0,2,0,0">
+                                        <CheckBox x:Name="ChkAutoScanIp" Content="Tự động dò (1s)" IsChecked="True" Foreground="#A0AEC0" FontSize="10" VerticalAlignment="Center" Click="ChkAutoScanIp_Click"/>
+                                        <ComboBox x:Name="CmbFilterIp" Width="170" HorizontalAlignment="Right" SelectionChanged="CmbFilterIp_SelectionChanged" FontSize="9.5">
+                                            <ComboBoxItem Content="⭐ Đã gán CAM có tín hiệu" IsSelected="True"/>
+                                            <ComboBoxItem Content="Tất cả nguồn Online"/>
+                                            <ComboBoxItem Content="SRT Decode"/>
+                                            <ComboBoxItem Content="WebRTC Decode"/>
+                                            <ComboBoxItem Content="Tất cả 32 Slot"/>
+                                        </ComboBox>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
 
-                            <!-- Ch 2 (Right) -->
-                            <ProgressBar x:Name="BarAudioR" Grid.Row="1" Height="10" Minimum="0" Maximum="1" Value="0" Background="#1A2234" Foreground="#00E676" Margin="0,1"/>
+                            <!-- IP Cards Scroll List -->
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl x:Name="ListIpPreviewSources">
+                                    <ItemsControl.LayoutTransform>
+                                        <ScaleTransform x:Name="ScaleTransformLeftCards" ScaleX="1.0" ScaleY="1.0"/>
+                                    </ItemsControl.LayoutTransform>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="#0D1424" BorderBrush="#1E2B45" BorderThickness="1" CornerRadius="5" Padding="7,6" Margin="0,0,2,6">
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="24"/>
+                                                        <RowDefinition Height="114"/>
+                                                        <RowDefinition Height="32"/>
+                                                    </Grid.RowDefinitions>
+
+                                                    <!-- Header -->
+                                                    <Grid Grid.Row="0">
+                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <Border Background="{Binding OriginBadgeColor}" CornerRadius="3" Padding="4,1" Margin="0,0,6,0">
+                                                                <TextBlock Text="{Binding Origin}" FontWeight="Bold" FontSize="9" Foreground="#0A0E1A"/>
+                                                            </Border>
+                                                            <TextBlock Text="{Binding DisplayName}" FontWeight="Bold" FontSize="11" Foreground="#FFFFFF" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="150"/>
+                                                        </StackPanel>
+                                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                            <Border Background="{Binding AssignedPortBadgeColor}" BorderBrush="{Binding AssignedPortBorderColor}" BorderThickness="1" CornerRadius="3" Padding="5,1" Margin="0,0,4,0">
+                                                                <TextBlock Text="{Binding AssignedPortText}" FontWeight="Bold" FontSize="9" Foreground="{Binding AssignedPortTextColor}"/>
+                                                            </Border>
+                                                            <Border Background="#141E33" BorderBrush="#253552" BorderThickness="1" CornerRadius="3" Padding="5,1">
+                                                                <TextBlock Text="{Binding StatusText}" FontWeight="Bold" FontSize="9" Foreground="{Binding StatusColor}"/>
+                                                            </Border>
+                                                        </StackPanel>
+                                                    </Grid>
+
+                                                    <!-- Video Preview Frame -->
+                                                    <Border Grid.Row="1" Background="Black" CornerRadius="3" ClipToBounds="True" Margin="0,4,0,4">
+                                                        <Grid>
+                                                            <Image Source="{Binding ThumbnailBitmap}" Stretch="Uniform" RenderOptions.BitmapScalingMode="LowQuality"/>
+                                                            <Border VerticalAlignment="Bottom" Background="#D9080C14" Padding="6,2">
+                                                                <Grid>
+                                                                    <TextBlock Text="{Binding ResolutionText}" FontSize="9" Foreground="#38BDF8"/>
+                                                                    <TextBlock Text="{Binding AssignedPortText}" FontSize="9" FontWeight="Bold" Foreground="#00E676" HorizontalAlignment="Right"/>
+                                                                </Grid>
+                                                            </Border>
+                                                        </Grid>
+                                                    </Border>
+
+                                                    <!-- Action Bar (Đưa vào Playout & Chọn Gán Port) -->
+                                                    <Grid Grid.Row="2">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="1.2*"/>
+                                                            <ColumnDefinition Width="1.2*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Button Grid.Column="0" Content="▶ CUE" Tag="{Binding}" Click="BtnCueIpItem_Click" Style="{StaticResource ToolBtnStyle}" Foreground="#00E676" Margin="1" ToolTip="Nạp vào màn hình NEXT (CUE)"/>
+                                                        <Button Grid.Column="1" Content="🔴 TAKE" Tag="{Binding}" Click="BtnTakeIpItem_Click" Style="{StaticResource ToolBtnStyle}" Foreground="#EF4444" Margin="1" ToolTip="Cắt trực tiếp lên sóng ON-AIR"/>
+                                                        <Button Grid.Column="2" Content="➕ Rundown" Tag="{Binding}" Click="BtnAddIpToRundown_Click" Style="{StaticResource ToolBtnStyle}" Foreground="#38BDF8" Margin="1" ToolTip="Thêm vào danh sách phát 24/7"/>
+                                                        <Button Grid.Column="3" Content="🔀 Gán Port" Tag="{Binding}" Click="BtnAssignIpPort_Click" Style="{StaticResource ToolBtnStyle}" Foreground="#F59E0B" Margin="1" ToolTip="Gán luân phiên vào cổng Router Playout (1..10)"/>
+                                                    </Grid>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
                         </Grid>
+                    </TabItem>
+
+                    <!-- TAB 2: PREVIEW NDI (LAN NETWORK DISCOVERY) -->
+                    <TabItem x:Name="TabItemPreviewNdi" Header="🌐 Preview NDI">
+                        <Grid Margin="0,6,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- NDI Scanner Control Bar -->
+                            <Border Grid.Row="0" Background="#111A2E" BorderBrush="#1E2B45" BorderThickness="1" CornerRadius="4" Padding="8,6" Margin="0,0,0,6">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,5">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Border Background="#2563EB" CornerRadius="3" Padding="5,1" Margin="0,0,6,0">
+                                                <TextBlock Text="NDI LAN" FontWeight="Bold" FontSize="9" Foreground="#FFFFFF"/>
+                                            </Border>
+                                            <TextBlock x:Name="TxtNdiScanSummary" Text="MẠNG GIGABIT LAN" FontWeight="Bold" FontSize="10.5" Foreground="#FFFFFF" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <Button x:Name="BtnRescanNdi" Content="🔍 Dò NDI" Click="BtnRescanNdi_Click" Style="{StaticResource ToolBtnStyle}" HorizontalAlignment="Right" Padding="6,2" FontSize="9.5"/>
+                                    </Grid>
+                                    <CheckBox x:Name="ChkAutoScanNdi" Content="Tự động dò LAN (Auto 3.5s)" IsChecked="True" Foreground="#A0AEC0" FontSize="10" VerticalAlignment="Center" Click="ChkAutoScanNdi_Click"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- NDI Cards Scroll List -->
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl x:Name="ListNdiPreviewSources">
+                                    <ItemsControl.LayoutTransform>
+                                        <ScaleTransform x:Name="ScaleTransformNdiCards" ScaleX="1.0" ScaleY="1.0"/>
+                                    </ItemsControl.LayoutTransform>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="#0D1424" BorderBrush="#1E2B45" BorderThickness="1" CornerRadius="5" Padding="7,6" Margin="0,0,2,6">
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="24"/>
+                                                        <RowDefinition Height="114"/>
+                                                        <RowDefinition Height="32"/>
+                                                    </Grid.RowDefinitions>
+
+                                                    <!-- Header -->
+                                                    <Grid Grid.Row="0">
+                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <Border Background="#3B82F6" CornerRadius="3" Padding="4,1" Margin="0,0,6,0">
+                                                                <TextBlock Text="NDI" FontWeight="Bold" FontSize="9" Foreground="White"/>
+                                                            </Border>
+                                                            <TextBlock Text="{Binding StreamName}" FontWeight="Bold" FontSize="11" Foreground="#FFFFFF" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="190"/>
+                                                        </StackPanel>
+                                                        <Border Background="#141E33" BorderBrush="#253552" BorderThickness="1" CornerRadius="3" Padding="5,1" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding StatusText}" FontWeight="Bold" FontSize="9" Foreground="{Binding StatusColor}"/>
+                                                        </Border>
+                                                    </Grid>
+
+                                                    <!-- Video Preview Frame -->
+                                                    <Border Grid.Row="1" Background="Black" CornerRadius="3" ClipToBounds="True" Margin="0,4,0,4">
+                                                        <Grid>
+                                                            <Image Source="{Binding ThumbnailBitmap}" Stretch="Uniform" RenderOptions.BitmapScalingMode="LowQuality"/>
+                                                            <Border VerticalAlignment="Bottom" Background="#D9080C14" Padding="6,2">
+                                                                <Grid>
+                                                                    <TextBlock Text="{Binding Format}" FontSize="9" Foreground="#38BDF8"/>
+                                                                    <TextBlock Text="{Binding MachineName}" FontSize="9" Foreground="#94A3B8" HorizontalAlignment="Right"/>
+                                                                </Grid>
+                                                            </Border>
+                                                        </Grid>
+                                                    </Border>
+
+                                                    <!-- Action Bar (Đưa vào Playout) -->
+                                                    <Grid Grid.Row="2">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="1.3*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Button Grid.Column="0" Content="▶ CUE" Tag="{Binding}" Click="BtnCueNdiItem_Click" Style="{StaticResource ToolBtnStyle}" Foreground="#00E676" Margin="1" ToolTip="Nạp vào màn hình NEXT (CUE)"/>
+                                                        <Button Grid.Column="1" Content="🔴 TAKE" Tag="{Binding}" Click="BtnTakeNdiItem_Click" Style="{StaticResource ToolBtnStyle}" Foreground="#EF4444" Margin="1" ToolTip="Cắt trực tiếp lên sóng ON-AIR"/>
+                                                        <Button Grid.Column="2" Content="➕ Rundown" Tag="{Binding}" Click="BtnAddNdiToRundown_Click" Style="{StaticResource ToolBtnStyle}" Foreground="#38BDF8" Margin="1" ToolTip="Thêm vào danh sách phát 24/7"/>
+                                                    </Grid>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </Border>
+
+        <!-- Vertical Splitter between Left Panel & Main Workspace -->
+        <GridSplitter x:Name="SplitterLeft" Grid.Column="1" Style="{StaticResource VerticalSplitterStyle}" ShowsPreview="False"/>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- MAIN WORKSPACE (COLUMN 2)                                       -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <Grid Grid.Column="2">
+            <Grid.RowDefinitions>
+                <!-- Row 0: ZONE 1 - Top Master Header & C-REM Countdown (58px) -->
+                <RowDefinition Height="58"/>
+                <!-- Row 1: Top Control Deck (Dual Bay + Action Rail + Transport) -->
+                <RowDefinition x:Name="RowTopControlDeck" Height="*" MinHeight="100"/>
+                <!-- Row 2: Horizontal Splitter between Top Deck & Rundown -->
+                <RowDefinition Height="Auto"/>
+                <!-- Row 3: ZONE 4 - 24/7 Rundown Playlist Grid -->
+                <RowDefinition x:Name="RowRundownPlaylist" Height="260" MinHeight="80"/>
+                <!-- Row 4: Master Telemetry & Status Bar (26px) -->
+                <RowDefinition Height="26"/>
+            </Grid.RowDefinitions>
+
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <!-- ZONE 1: TOP MASTER HEADER & TIME CONTROLS                   -->
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <Border Grid.Row="0" Background="#0A0E1A" BorderBrush="#1E293B" BorderThickness="0,0,0,1" Padding="12,4">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <!-- Station Brand & Master Clock -->
+                        <ColumnDefinition Width="280"/>
+                        <!-- C-REM: CLIP REMAINING TIME (Big Countdown) -->
+                        <ColumnDefinition Width="*"/>
+                        <!-- Hardware Status, Scale & Automation Mode -->
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Left: Station Brand & LTC Clock -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Background="#2563EB" CornerRadius="4" Padding="6,4" Margin="0,0,10,0">
+                            <TextBlock Text="OME CiaB" FontWeight="Black" FontSize="13" Foreground="White"/>
+                        </Border>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="LTC MASTER TIMECODE" FontSize="9.5" FontWeight="Bold" Foreground="#64748B"/>
+                            <TextBlock x:Name="TxtMasterClock" Text="19:00:00:00" FontFamily="Consolas, monospace" FontSize="18" FontWeight="Bold" Foreground="#F8FAFC"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Center: CLIP REMAINING COUNTDOWN (C-REM) - Visible from 2 Meters -->
+                    <Grid Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <!-- C-REM (Remaining) -->
+                            <Border Background="#060911" BorderBrush="#1E293B" BorderThickness="1.5" CornerRadius="6" Padding="14,2" Margin="0,0,12,0">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <StackPanel VerticalAlignment="Center" Margin="0,0,10,0">
+                                        <TextBlock Text="C-REM" FontSize="10" FontWeight="Black" Foreground="#64748B"/>
+                                        <TextBlock Text="COUNTDOWN" FontSize="8" FontWeight="Bold" Foreground="#475569"/>
+                                    </StackPanel>
+                                    <TextBlock x:Name="TxtClipRemaining" Text="-02:30:15" FontFamily="Consolas, monospace" FontSize="30" FontWeight="Black" Foreground="#00E676" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- C-ELAP (Elapsed) -->
+                            <Border Background="#060911" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="5" Padding="10,2" Margin="0,0,12,0">
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="C-ELAPSED" FontSize="8.5" FontWeight="Bold" Foreground="#64748B"/>
+                                    <TextBlock x:Name="TxtClipElapsed" Text="00:45:00" FontFamily="Consolas, monospace" FontSize="17" FontWeight="Bold" Foreground="#94A3B8"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- SCHEDULE DELTA BADGE -->
+                            <Border x:Name="BadgeScheduleDelta" Background="#064E3B" BorderBrush="#00E676" BorderThickness="1" CornerRadius="4" Padding="8,4" VerticalAlignment="Center">
+                                <TextBlock x:Name="TxtScheduleDelta" Text="DELTA: ON TIME" FontSize="10.5" FontWeight="Bold" Foreground="#00E676"/>
+                            </Border>
+                        </StackPanel>
                     </Grid>
+
+                    <!-- Right: Hardware Badges & Automation Status -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <!-- Auto/Manual Mode Badge -->
+                        <Button x:Name="BtnAutoModeToggle" Click="BtnAutoModeToggle_Click" Background="#064E3B" BorderBrush="#059669" BorderThickness="1" Padding="8,4" Margin="0,0,6,0" Cursor="Hand">
+                            <TextBlock x:Name="TxtAutoBadge" Text="AUTO 🟢" FontSize="10" FontWeight="Bold" Foreground="#34D399"/>
+                        </Button>
+
+                        <!-- Hardware SDI Badge -->
+                        <Border x:Name="BadgeSdiStatus" Background="#111827" BorderBrush="#334155" BorderThickness="1" CornerRadius="4" Padding="5,3" Margin="0,0,5,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="TxtSdiHardwareStatus" Text="SDI: OFFLINE" FontSize="9" FontWeight="Bold" Foreground="#94A3B8"/>
+                        </Border>
+
+                        <!-- Router IPC Badge -->
+                        <Border x:Name="BadgeRouterSync" Background="#111827" BorderBrush="#059669" BorderThickness="1" CornerRadius="4" Padding="5,3" Margin="0,0,6,0" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse x:Name="DotRouterSync" Width="6" Height="6" Fill="#00E676" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TxtRouterSyncStatus" Text="IPC: 32 CH" FontSize="9" FontWeight="Bold" Foreground="#34D399"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Master UI Scale Control -->
+                        <Border Background="#111827" BorderBrush="#334155" BorderThickness="1" CornerRadius="4" Padding="4,2" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Tỷ lệ thu phóng toàn bộ giao diện (Master UI Zoom)">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="🔍" FontSize="9" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                <ComboBox x:Name="CmbMasterUiScale" SelectedIndex="1" SelectionChanged="CmbMasterUiScale_SelectionChanged" Background="#0F172A" Foreground="#38BDF8" FontSize="9.5" FontWeight="Bold" Width="68" Height="22" BorderThickness="0" Cursor="Hand">
+                                    <ComboBoxItem Content="90%"/>
+                                    <ComboBoxItem Content="100%"/>
+                                    <ComboBoxItem Content="115%"/>
+                                    <ComboBoxItem Content="125%"/>
+                                </ComboBox>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Reset Layout Button -->
+                        <Button x:Name="BtnResetLayout" Click="BtnResetLayout_Click" Background="#1E293B" BorderBrush="#475569" BorderThickness="1" Foreground="#94A3B8" FontSize="9.5" FontWeight="Bold" Padding="6,4" Margin="0,0,6,0" Cursor="Hand" ToolTip="Khôi phục kích thước các khung bố cục về mặc định">
+                            <TextBlock Text="🔄 Mặc Định" FontSize="9.5"/>
+                        </Button>
+
+                        <!-- Left Preview Panel Toggle Button -->
+                        <Button x:Name="BtnToggleLeftPreview" Click="BtnToggleLeftPreview_Click" Background="#141E33" BorderBrush="#00E5FF" BorderThickness="1" Foreground="#00E5FF" FontWeight="Bold" FontSize="10.5" Padding="8,4" Margin="0,0,5,0" Cursor="Hand" ToolTip="Ẩn / Hiện thanh giám sát Preview IP và NDI bên trái">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="◀ PREVIEW" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <Border Background="#0C1527" CornerRadius="3" Padding="4,1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="TxtHeaderPreviewBadge" Text="0 IP" FontSize="9" FontWeight="Bold" Foreground="#38BDF8"/>
+                                </Border>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Right Tools Panel Toggle Button -->
+                        <Button x:Name="BtnToggleSideTools" Click="BtnToggleSideTools_Click" Background="#1E293B" BorderBrush="#3B82F6" BorderThickness="1" Foreground="#E2E8F0" FontWeight="Bold" FontSize="10.5" Padding="8,4" Cursor="Hand" ToolTip="Ẩn / Hiện thanh công cụ kỹ thuật và Router IP bên phải">
+                            <TextBlock Text="⚙️ CÔNG CỤ ▶" FontWeight="Bold" VerticalAlignment="Center"/>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <!-- ROW 1: TOP CONTROL DECK (DUAL BAY + ACTION RAIL + TRANSPORT)-->
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <Grid Grid.Row="1">
+                <Grid.RowDefinitions>
+                    <!-- Dual Broadcast Bay & Action Rail -->
+                    <RowDefinition Height="*" MinHeight="60"/>
+                    <!-- Transport Bar (MCR Playout Controls) -->
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- ─────────────────────────────────────────────────────────── -->
+                <!-- ZONE 2 & ZONE 3: DUAL BROADCAST BAY & ACTION RAIL           -->
+                <!-- ─────────────────────────────────────────────────────────── -->
+                <Grid Grid.Row="0" Margin="8,4,8,2">
+                    <Grid.ColumnDefinitions>
+                        <!-- ZONE 2: Dual Broadcast Monitors (CURRENT & NEXT) -->
+                        <ColumnDefinition Width="*"/>
+                        <!-- ZONE 3: Right Action Rail (DSK, SCTE-35, VU Meter) -->
+                        <ColumnDefinition Width="170"/>
+                    </Grid.ColumnDefinitions>
+
+                <!-- ─────────────────────────────────────────────────────────── -->
+                <!-- ZONE 2: DUAL BROADCAST BAY (CURRENT ON-AIR & NEXT CUED)     -->
+                <!-- ─────────────────────────────────────────────────────────── -->
+                <Grid Grid.Column="0" Margin="0,0,8,0">
+                    <Grid.ColumnDefinitions>
+                        <!-- Left Monitor: CURRENT (ON-AIR) -->
+                        <ColumnDefinition Width="*"/>
+                        <!-- Splitter space -->
+                        <ColumnDefinition Width="8"/>
+                        <!-- Right Monitor: NEXT (CUED / STANDBY) -->
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- CURRENT (ON-AIR) MONITOR - BORDER RED #EF4444 -->
+                    <Border Grid.Column="0" Background="#050810" BorderBrush="#EF4444" BorderThickness="2" CornerRadius="6">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="30"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="6"/>
+                                <RowDefinition Height="26"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Monitor Header Bar -->
+                            <Grid Grid.Row="0" Background="#180C0E" Margin="2,2,2,0">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
+                                    <Border Background="#EF4444" CornerRadius="3" Padding="5,2" Margin="0,0,8,0">
+                                        <TextBlock Text="● CURRENT (ON-AIR)" FontWeight="Black" FontSize="10" Foreground="White"/>
+                                    </Border>
+                                    <TextBlock x:Name="TxtCurrentHouseId" Text="LIVE-STU-01" FontSize="10" FontWeight="Bold" Foreground="#EF4444" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="TxtCurrentSourceBadge" Text="[📡 LIVE CAM 01]" FontSize="9.5" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <TextBlock x:Name="TxtPgmOutFormat" Text="1080p 59.94 | BT.709" FontSize="9.5" Foreground="#64748B" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="8,0"/>
+                            </Grid>
+
+                            <!-- Program Video Image Frame -->
+                            <Border Grid.Row="1" Background="Black" ClipToBounds="True">
+                                <Image x:Name="ImgMasterOut" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            </Border>
+
+                            <!-- On-Air Clip Progress Bar -->
+                            <ProgressBar x:Name="BarOnAirProgress" Grid.Row="2" Minimum="0" Maximum="1" Value="0.35" Foreground="#EF4444" Background="#1E293B" BorderThickness="0"/>
+
+                            <!-- Monitor Footer: Current Event Title -->
+                            <Grid Grid.Row="3" Background="#0C1220" Margin="2,0,2,2">
+                                <TextBlock x:Name="TxtCurrentEventTitle" Text="BẢN TIN THỜI SỰ TRỰC TIẾP 19H (MASTER INGEST)" FontWeight="Bold" FontSize="11" Foreground="#F8FAFC" VerticalAlignment="Center" Margin="8,0" TextTrimming="CharacterEllipsis"/>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <!-- NEXT (CUED / STANDBY) MONITOR - BORDER GREEN #00E676 -->
+                    <Border Grid.Column="2" Background="#050810" BorderBrush="#00E676" BorderThickness="2" CornerRadius="6">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="30"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="6"/>
+                                <RowDefinition Height="26"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Monitor Header Bar -->
+                            <Grid Grid.Row="0" Background="#0B1914" Margin="2,2,2,0">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
+                                    <Border Background="#00E676" CornerRadius="3" Padding="5,2" Margin="0,0,8,0">
+                                        <TextBlock Text="⏳ NEXT (CUED / STANDBY)" FontWeight="Black" FontSize="10" Foreground="Black"/>
+                                    </Border>
+                                    <TextBlock x:Name="TxtNextHouseId" Text="REP-2026-088" FontSize="10" FontWeight="Bold" Foreground="#00E676" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="TxtNextSourceBadge" Text="[📁 CLIP FILE]" FontSize="9.5" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <TextBlock x:Name="TxtPreRollStatus" Text="PRE-ROLL: BUFFERED 60F ✔" FontSize="9.5" Foreground="#00E676" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="8,0"/>
+                            </Grid>
+
+                            <!-- Preview Video Image Frame -->
+                            <Border Grid.Row="1" Background="Black" ClipToBounds="True">
+                                <Image x:Name="ImgPgmIn" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            </Border>
+
+                            <!-- Standby Static Indicator Line -->
+                            <Border Grid.Row="2" Background="#00E676" Opacity="0.4"/>
+
+                            <!-- Monitor Footer: Next Event Title -->
+                            <Grid Grid.Row="3" Background="#0C1220" Margin="2,0,2,2">
+                                <TextBlock x:Name="TxtNextEventTitle" Text="PHÓNG SỰ: CÔNG NGHỆ TRUYỀN HÌNH AI &amp; MATRIX ROUTER" FontWeight="Bold" FontSize="11" Foreground="#38BDF8" VerticalAlignment="Center" Margin="8,0" TextTrimming="CharacterEllipsis"/>
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <!-- ─────────────────────────────────────────────────────────── -->
+                <!-- ZONE 3: RIGHT ACTION RAIL (DSK, SCTE-35, EBU R128 VU)       -->
+                <!-- ─────────────────────────────────────────────────────────── -->
+                <Border Grid.Column="1" Style="{StaticResource CardStyle}" Padding="4">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <!-- DSK Keyer Master Controls -->
+                                <RowDefinition Height="Auto"/>
+                                <!-- SCTE-35 Trigger -->
+                                <RowDefinition Height="Auto"/>
+                                <!-- EBU R128 Audio Loudness Meters -->
+                                <RowDefinition Height="*"/>
+                                <!-- Quick Tool Launch Buttons -->
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- DSK Keyer Buttons -->
+                            <StackPanel Grid.Row="0" Margin="0,0,0,6">
+                                <TextBlock Text="MASTER CG / DSK" FontSize="9.5" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,4"/>
+                                <Button x:Name="BtnDskLogo" Content="DSK 1: LOGO 🟢" Click="BtnDskLogo_Click" Style="{StaticResource DskBtnStyle}" Background="#1E3A5F" Foreground="#38BDF8"/>
+                                <Button x:Name="BtnDskLowerThird" Content="DSK 2: LOWER-3RD" Click="BtnDskLowerThird_Click" Style="{StaticResource DskBtnStyle}"/>
+                                <Button x:Name="BtnDskTicker" Content="DSK 3: TICKER 60F 🟢" Click="BtnDskTicker_Click" Style="{StaticResource DskBtnStyle}" Background="#1E3A5F" Foreground="#38BDF8"/>
+                                <Button x:Name="BtnDskRating" Content="DSK 4: RATING 16+" Click="BtnDskRating_Click" Style="{StaticResource DskBtnStyle}"/>
+                            </StackPanel>
+
+                            <!-- SCTE-35 Commercial Ad Splice Trigger -->
+                            <StackPanel Grid.Row="1" Margin="0,0,0,8">
+                                <Button x:Name="BtnScte35Trigger" Click="BtnScte35Trigger_Click" Background="#78350F" BorderBrush="#F59E0B" BorderThickness="1.5" Padding="4,6" Cursor="Hand">
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                        <TextBlock Text="📡 SCTE-35 TRIGGER" FontWeight="Black" FontSize="10.5" Foreground="#FDE68A"/>
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+
+                            <!-- EBU R128 Audio Loudness Meter -->
+                            <Border Grid.Row="2" Style="{StaticResource SubCardStyle}" Margin="0,0,0,6" Padding="6,4">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock Grid.Row="0" Text="EBU R128 AUDIO" FontSize="9" FontWeight="Bold" Foreground="#64748B" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+
+                                    <!-- Stereo L/R Meters + LUFS Bar -->
+                                    <Grid Grid.Row="1">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="12"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Channel L -->
+                                        <ProgressBar x:Name="BarAudioL" Grid.Column="0" Orientation="Vertical" Minimum="0" Maximum="1" Value="0.65" Background="#0B1322" Foreground="#00E676" BorderThickness="0" Margin="1,0"/>
+                                        <!-- Channel R -->
+                                        <ProgressBar x:Name="BarAudioR" Grid.Column="1" Orientation="Vertical" Minimum="0" Maximum="1" Value="0.63" Background="#0B1322" Foreground="#00E676" BorderThickness="0" Margin="1,0"/>
+
+                                        <!-- Target -23 LUFS Reference Line -->
+                                        <Border Grid.Column="2" Background="#1E293B" Width="2" HorizontalAlignment="Center"/>
+
+                                        <!-- LUFS Loudness Bar -->
+                                        <ProgressBar x:Name="BarAudioLufs" Grid.Column="3" Orientation="Vertical" Minimum="0" Maximum="1" Value="0.56" Background="#0B1322" Foreground="#00E5FF" BorderThickness="0" Margin="1,0"/>
+                                    </Grid>
+
+                                    <!-- Text Readings -->
+                                    <StackPanel Grid.Row="2" Margin="0,4,0,0">
+                                        <Grid>
+                                            <TextBlock x:Name="TxtMeterL" Text="L: -18.2" FontSize="8.5" Foreground="#94A3B8"/>
+                                            <TextBlock x:Name="TxtMeterR" Text="R: -19.0" FontSize="8.5" Foreground="#94A3B8" HorizontalAlignment="Right"/>
+                                        </Grid>
+                                        <TextBlock x:Name="TxtLufsValue" Text="-23.0 LUFS" FontSize="10" FontWeight="Bold" Foreground="#00E5FF" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                        <TextBlock x:Name="TxtTruePeakValue" Text="-1.2 dBTP" FontSize="8.5" Foreground="#64748B" HorizontalAlignment="Center"/>
+
+                                        <!-- KIỂM ÂM NỘI BỘ (PC AUDIO MONITOR) -->
+                                        <Grid Margin="0,4,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Button x:Name="BtnToggleAudioMonitor" Content="🔊" Click="BtnToggleAudioMonitor_Click"
+                                                    Style="{StaticResource ToolBtnStyle}" Padding="4,1" FontSize="9" Margin="0,0,3,0"
+                                                    ToolTip="Bật / Tắt kiểm âm loa hoặc tai nghe máy tính"/>
+                                            <Slider x:Name="SliderMonitorVolume" Grid.Column="1" Minimum="0" Maximum="1.5" Value="1.0"
+                                                    SmallChange="0.05" VerticalAlignment="Center" ValueChanged="SliderMonitorVolume_ValueChanged"
+                                                    ToolTip="Âm lượng kiểm âm loa máy tính"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- Quick Side Tool Launcher -->
+                            <StackPanel Grid.Row="3">
+                                <TextBlock Text="CÔNG CỤ KỸ THUẬT" FontSize="8.5" FontWeight="Bold" Foreground="#64748B" Margin="0,0,0,2"/>
+                                <UniformGrid Columns="3">
+                                    <Button Content="🔌 1. PGM" Click="BtnDrawerBroadcastOut_Click" Style="{StaticResource ToolBtnStyle}" FontSize="8.5" Margin="1" ToolTip="1. PGM OUTPUT (SDI &amp; NDI Out)"/>
+                                    <Button Content="🏷️ 2. CG" Click="BtnDrawerCg_Click" Style="{StaticResource ToolBtnStyle}" FontSize="8.5" Margin="1" ToolTip="2. CG Overlays &amp; Logo"/>
+                                    <Button Content="🎨 3. CCU" Click="BtnDrawerCcu_Click" Style="{StaticResource ToolBtnStyle}" FontSize="8.5" Margin="1" ToolTip="3. CCU / LUT &amp; Broadcast Scopes"/>
+                                    <Button Content="⏱️ 4. SYNC" Click="BtnDrawerLipSync_Click" Style="{StaticResource ToolBtnStyle}" FontSize="8.5" Margin="1" ToolTip="4. LipSync Delay"/>
+                                    <Button Content="🛡️ 5. FAIL" Click="BtnDrawerFailSafe_Click" Style="{StaticResource ToolBtnStyle}" FontSize="8.5" Margin="1" ToolTip="5. Emergency Fail-Safe"/>
+                                    <Button Content="🔀 6. ROUTER" Click="BtnDrawerRouter_Click" Style="{StaticResource ToolBtnStyle}" FontSize="8.5" Margin="1" ToolTip="6. Router IP Matrix"/>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Grid>
+                    </ScrollViewer>
                 </Border>
             </Grid>
 
-            <!-- SPLITTER -->
-            <GridSplitter Grid.Column="1" Width="6" Background="#1E293B" HorizontalAlignment="Stretch" Cursor="SizeWE"/>
+            <!-- ZONE 5: TRANSPORT BAR (MCR PLAYOUT CONTROLS) INSIDE TOP DECK -->
+            <Border Grid.Row="1" Background="#0A0F1D" BorderBrush="#1E293B" BorderThickness="0,1,0,0" Padding="12,3">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <!-- Main Transport Action Buttons -->
+                        <ColumnDefinition Width="Auto"/>
+                        <!-- Center Spacer / Mini T-Bar -->
+                        <ColumnDefinition Width="*"/>
+                        <!-- Emergency Panic Button -->
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
 
-            <!-- ══════════════════════════════════════════════════════ -->
-            <!-- RIGHT AREA: PIPELINE CONTROL TABS (6 TABS)            -->
-            <!-- ══════════════════════════════════════════════════════ -->
-            <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="6">
-                <TabControl x:Name="TabsPlayoutControl">
+                    <!-- Transport Buttons: TAKE, HOLD, SKIP, CUE -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- BIG TAKE BUTTON (SPACE / F12) -->
+                        <Button x:Name="BtnMasterTake" Content="⚡ TAKE (SPACE / F12)" Click="BtnMasterTake_Click"
+                                Background="#EF4444" Foreground="White" FontWeight="Black" FontSize="13"
+                                Padding="18,8" Margin="0,0,10,0" Cursor="Hand" BorderThickness="0">
+                            <Button.Effect>
+                                <DropShadowEffect Color="#EF4444" BlurRadius="12" ShadowDepth="0" Opacity="0.5"/>
+                            </Button.Effect>
+                        </Button>
 
-                    <!-- TAB 1: MATRIX INGEST SELECTOR -->
-                    <TabItem Header="1. Ingest Matrix">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
-                            <StackPanel>
-                                <Border Style="{StaticResource SubCardStyle}">
-                                    <StackPanel>
-                                        <TextBlock Text="🔌 IP MATRIX ROUTER INGEST SOURCE" FontWeight="Bold" FontSize="12.5" Foreground="#00E5FF" Margin="0,0,0,4"/>
-                                        <TextBlock Text="Chọn luồng nền video chính từ bàn đạo diễn (PGM Master) hoặc bắt trực tiếp nguồn hình sạch từ 1 trong 10 luồng IP:" FontSize="11" Foreground="#94A3B8" Margin="0,0,0,10"/>
+                        <!-- HOLD / PAUSE -->
+                        <Button x:Name="BtnMasterHold" Content="⏸ HOLD" Click="BtnMasterHold_Click"
+                                Background="#1E293B" Foreground="#F59E0B" FontWeight="Bold" FontSize="11"
+                                Padding="12,8" Margin="0,0,6,0" Cursor="Hand" BorderBrush="#F59E0B" BorderThickness="1"/>
 
-                                        <!-- PGM Master Button -->
-                                        <Button x:Name="BtnSelectPgm" Content="🔴 PORT 0: PROGRAM MASTER (Bàn cắt chuyển cảnh)" Click="BtnSelectPgm_Click"
-                                                Background="#2563EB" Foreground="White" FontWeight="Bold" FontSize="12" Padding="12,8" Margin="0,0,0,10" Cursor="Hand"/>
+                        <!-- SKIP NEXT -->
+                        <Button x:Name="BtnMasterSkip" Content="⏭ SKIP" Click="BtnMasterSkip_Click"
+                                Background="#1A2234" Foreground="#E2E8F0" FontWeight="SemiBold" FontSize="11"
+                                Padding="12,8" Margin="0,0,6,0" Cursor="Hand" Style="{StaticResource ToolBtnStyle}"/>
 
-                                        <!-- 10 IP Buttons -->
-                                        <TextBlock Text="Nguồn Trực Tiếp Từng Kênh (10 IP Feeds):" FontWeight="SemiBold" FontSize="11" Foreground="#E2E8F0" Margin="0,0,0,6"/>
-                                        <UniformGrid Columns="2">
-                                            <Button x:Name="BtnIso1" Tag="1" Content="IP 1 (Port 1)" Click="BtnSelectIso_Click" Background="#1E293B" Foreground="#38BDF8" FontWeight="Bold" Padding="8,6" Margin="2" Cursor="Hand"/>
-                                            <Button x:Name="BtnIso2" Tag="2" Content="IP 2 (Port 2)" Click="BtnSelectIso_Click" Background="#1E293B" Foreground="#38BDF8" FontWeight="Bold" Padding="8,6" Margin="2" Cursor="Hand"/>
-                                            <Button x:Name="BtnIso3" Tag="3" Content="IP 3 (Port 3)" Click="BtnSelectIso_Click" Background="#1E293B" Foreground="#38BDF8" FontWeight="Bold" Padding="8,6" Margin="2" Cursor="Hand"/>
-                                            <Button x:Name="BtnIso4" Tag="4" Content="IP 4 (Port 4)" Click="BtnSelectIso_Click" Background="#1E293B" Foreground="#38BDF8" FontWeight="Bold" Padding="8,6" Margin="2" Cursor="Hand"/>
-                                            <Button x:Name="BtnIso5" Tag="5" Content="IP 5 (Port 5)" Click="BtnSelectIso_Click" Background="#1E293B" Foreground="#38BDF8" FontWeight="Bold" Padding="8,6" Margin="2" Cursor="Hand"/>
-                                            <Button x:Name="BtnIso6" Tag="6" Content="IP 6 (Port 6)" Click="BtnSelectIso_Click" Background="#1E293B" Foreground="#38BDF8" FontWeight="Bold" Padding="8,6" Margin="2" Cursor="Hand"/>
-                                            <Button x:Name="BtnIso7" Tag="7" Content="IP 7 (Port 7)" Click="BtnSelectIso_Click" Background="#1E293B" Foreground="#38BDF8" FontWeight="Bold" Padding="8,6" Margin="2" Cursor="Hand"/>
-                                            <Button x:Name="BtnIso8" Tag="8" Content="IP 8 (Port 8)" Click="BtnSelectIso_Click" Background="#1E293B" Foreground="#38BDF8" FontWeight="Bold" Padding="8,6" Margin="2" Cursor="Hand"/>
-                                            <Button x:Name="BtnIso9" Tag="9" Content="IP 9 (Port 9)" Click="BtnSelectIso_Click" Background="#1E293B" Foreground="#38BDF8" FontWeight="Bold" Padding="8,6" Margin="2" Cursor="Hand"/>
-                                            <Button x:Name="BtnIso10" Tag="10" Content="IP 10 (Port 10)" Click="BtnSelectIso_Click" Background="#1E293B" Foreground="#38BDF8" FontWeight="Bold" Padding="8,6" Margin="2" Cursor="Hand"/>
-                                        </UniformGrid>
-                                    </StackPanel>
-                                </Border>
+                        <!-- CUE SELECTED -->
+                        <Button x:Name="BtnMasterCue" Content="🔁 CUE CHỌN" Click="BtnMasterCue_Click"
+                                Background="#1A2234" Foreground="#00E676" FontWeight="SemiBold" FontSize="11"
+                                Padding="12,8" Margin="0,0,6,0" Cursor="Hand" Style="{StaticResource ToolBtnStyle}"/>
+
+                        <!-- FADE TO BLACK -->
+                        <Button x:Name="BtnMasterFtb" Content="FTB (BLACK)" Click="BtnFtb_Click"
+                                Background="#1E293B" Foreground="#EF4444" FontWeight="Bold" FontSize="10.5"
+                                Padding="10,8" Margin="0,0,6,0" Cursor="Hand" BorderBrush="#334155" BorderThickness="1"/>
+                    </StackPanel>
+
+                    <!-- Center: Quick Transition Fade / Cut Selector & T-Bar -->
+                    <Grid Grid.Column="1" VerticalAlignment="Center" Margin="8,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*" MinWidth="60" MaxWidth="180"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Button Grid.Column="0" x:Name="BtnQuickCut" Content="CUT" Click="BtnCut_Click" Style="{StaticResource ToolBtnStyle}" Padding="10,6" Margin="0,0,4,0"/>
+                        <Button Grid.Column="1" x:Name="BtnQuickFade" Content="AUTO MIX (1s)" Click="BtnFade_Click" Style="{StaticResource ToolBtnStyle}" Padding="10,6" Margin="0,0,10,0"/>
+
+                        <!-- T-Bar Slider (auto-scales to available space) -->
+                        <TextBlock Grid.Column="2" Text="T-BAR:" FontSize="10" Foreground="#64748B" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <Slider Grid.Column="3" x:Name="SliderTBar" Minimum="0" Maximum="100" Value="0" VerticalAlignment="Center"
+                                ValueChanged="SliderTBar_ValueChanged" SmallChange="1" LargeChange="10" IsMoveToPointEnabled="True"/>
+                        <TextBlock Grid.Column="4" x:Name="TxtTBarPercent" Text="0%" FontSize="10" Foreground="#00E5FF" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                    </Grid>
+
+                    <!-- Emergency Fail-Safe SMPTE Bars Kill Switch -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="BtnEmergencyBars" Click="BtnEmergencyBars_Click" Background="#450A0A" BorderBrush="#EF4444" BorderThickness="1.5" Padding="12,7" Cursor="Hand">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="🚨 SMPTE BARS KHẨN CẤP" FontWeight="Black" FontSize="11" Foreground="#EF4444"/>
                             </StackPanel>
-                        </ScrollViewer>
-                    </TabItem>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
 
-                    <!-- TAB 2: BROADCAST CG (CHARACTER GENERATOR / LOGO) -->
-                    <TabItem Header="2. CG">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- HORIZONTAL SPLITTER (ROW 2)                                 -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <GridSplitter x:Name="SplitterCenterHorizontal" Grid.Row="2" Style="{StaticResource HorizontalSplitterStyle}" ShowsPreview="False" ResizeDirection="Rows"/>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- ZONE 4: 24/7 RUNDOWN PLAYLIST GRID (ROW 3)                  -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="3" Background="#080C14" Padding="10,6,10,2">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <!-- Rundown Header Controls -->
+                    <RowDefinition Height="28"/>
+                    <!-- Rundown DataGrid -->
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Rundown Header Toolbar -->
+                <Grid Grid.Row="0" Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Left Group: Title & Add Event Operations -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="📋 RUNDOWN PLAYLIST (DYNAMIC)" FontWeight="Bold" FontSize="11.5" Foreground="#38BDF8" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <Button Content="➕ Thêm Video..." Click="BtnAddClipToRundown_Click" Style="{StaticResource ToolBtnStyle}" FontSize="10" Padding="7,3"/>
+                        <Button Content="📡 Thêm Live Cam" Click="BtnAddLiveCam_Click" Style="{StaticResource ToolBtnStyle}" FontSize="10" Padding="7,3"/>
+                        <Button Content="📊 Thêm Bars" Click="BtnAddBars_Click" Style="{StaticResource ToolBtnStyle}" FontSize="10" Padding="7,3"/>
+                        <Button Content="📢 Thêm Break" Click="BtnAddBreak_Click" Style="{StaticResource ToolBtnStyle}" FontSize="10" Padding="7,3"/>
+                    </StackPanel>
+
+                    <!-- Middle Group: Item Edit & Order Operations -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+                        <Button Content="⬆️ Lên" Click="BtnMoveUp_Click" Style="{StaticResource ToolBtnStyle}" FontSize="10" Padding="6,3"/>
+                        <Button Content="⬇️ Xuống" Click="BtnMoveDown_Click" Style="{StaticResource ToolBtnStyle}" FontSize="10" Padding="6,3"/>
+                        <Button Content="🗑️ Xóa Mục" Click="BtnRemoveItem_Click" Style="{StaticResource ToolBtnStyle}" FontSize="10" Padding="6,3"/>
+                        <Button Content="🧹 Xóa Hết" Click="BtnClearRundown_Click" Style="{StaticResource ToolBtnStyle}" FontSize="10" Padding="6,3"/>
+                        <Border Width="1" Background="#334155" Margin="4,3"/>
+                        <Button Content="📂 Mở Playlist" Click="BtnLoadPlaylist_Click" Style="{StaticResource ToolBtnStyle}" FontSize="10" Padding="6,3"/>
+                        <Button Content="💾 Lưu Playlist" Click="BtnSavePlaylist_Click" Style="{StaticResource ToolBtnStyle}" FontSize="10" Padding="6,3"/>
+                    </StackPanel>
+
+                    <!-- Right Info & Layout Scale Selector -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- Quick Layout Presets -->
+                        <Border Background="#0F172A" BorderBrush="#334155" BorderThickness="1" CornerRadius="3" Padding="2" Margin="0,0,8,0" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button Content="📋 Mở Rộng List" Click="BtnLayoutExpandList_Click" Style="{StaticResource ToolBtnStyle}" FontSize="9" Padding="6,2" Margin="1,0" ToolTip="Thu hẹp tối đa preview PGM/CUE để mở rộng bảng danh sách phát"/>
+                                <Button Content="🔲 Cân Bằng" Click="BtnLayoutBalance_Click" Style="{StaticResource ToolBtnStyle}" FontSize="9" Padding="6,2" Margin="1,0" ToolTip="Cân bằng tỷ lệ giữa Preview và Danh sách phát"/>
+                                <Button Content="📺 Mở Rộng Preview" Click="BtnLayoutExpandPreview_Click" Style="{StaticResource ToolBtnStyle}" FontSize="9" Padding="6,2" Margin="1,0" ToolTip="Mở rộng tối đa màn hình Preview PGM/CUE"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="#111827" BorderBrush="#334155" BorderThickness="1" CornerRadius="3" Padding="4,1" Margin="0,0,8,0" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="Cỡ hàng:" FontSize="9" Foreground="#94A3B8" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                <ComboBox x:Name="CmbPlaylistRowScale" SelectedIndex="1" SelectionChanged="CmbPlaylistRowScale_SelectionChanged" Background="#0F172A" Foreground="#00E676" FontSize="9" FontWeight="Bold" Width="78" Height="20" BorderThickness="0" Cursor="Hand" ToolTip="Điều chỉnh độ cao hàng trong danh sách phát Rundown">
+                                    <ComboBoxItem Content="Nhỏ (24px)"/>
+                                    <ComboBoxItem Content="Chuẩn (30px)"/>
+                                    <ComboBoxItem Content="Lớn (38px)"/>
+                                </ComboBox>
+                            </StackPanel>
+                        </Border>
+                        <TextBlock Text="Kéo thả file vào bảng • Nhấp đúp chuột để CUE" FontSize="9.5" Foreground="#00E676" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Rundown DataGrid -->
+                <DataGrid x:Name="GridRundown" Grid.Row="1"
+                          Style="{StaticResource RundownDataGridStyle}"
+                          AllowDrop="True"
+                          Drop="GridRundown_Drop"
+                          DragEnter="GridRundown_DragEnter"
+                          MouseDoubleClick="GridRundown_MouseDoubleClick"
+                          SelectionChanged="GridRundown_SelectionChanged">
+                    <DataGrid.Columns>
+                        <!-- STATUS -->
+                        <DataGridTemplateColumn Header="TRẠNG THÁI" Width="95">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border Background="{Binding StatusColor}" CornerRadius="3" Padding="4,2" HorizontalAlignment="Center">
+                                        <TextBlock Text="{Binding StatusBadge}" FontWeight="Bold" FontSize="9.5" Foreground="White"/>
+                                    </Border>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- SCHEDULED TIME -->
+                        <DataGridTextColumn Header="GIỜ PHÁT" Binding="{Binding ScheduledTimeStr}" Width="75" FontWeight="SemiBold"/>
+
+                        <!-- HOUSE ID -->
+                        <DataGridTextColumn Header="HOUSE ID" Binding="{Binding HouseId}" Width="110" Foreground="#38BDF8" FontWeight="SemiBold"/>
+
+                        <!-- EVENT TITLE -->
+                        <DataGridTextColumn Header="TIÊU ĐỀ NỘI DUNG / TÊN FILE CLIP" Binding="{Binding Title}" Width="*" FontWeight="Bold"/>
+
+                        <!-- SOURCE TYPE -->
+                        <DataGridTextColumn Header="LOẠI NGUỒN" Binding="{Binding SourceBadge}" Width="130" Foreground="#F59E0B"/>
+
+                        <!-- DURATION -->
+                        <DataGridTextColumn Header="THỜI LƯỢNG" Binding="{Binding DurationTimecode}" Width="95" FontFamily="Consolas" Foreground="#00E676"/>
+
+                        <!-- SECONDARY EVENTS (DSK) -->
+                        <DataGridTemplateColumn Header="DSK" Width="100">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                        <TextBlock Text="[LOGO]" FontSize="8.5" Foreground="#38BDF8" Margin="1,0" Visibility="{Binding IsDskLogo, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"/>
+                                        <TextBlock Text="[L3RD]" FontSize="8.5" Foreground="#F59E0B" Margin="1,0" Visibility="{Binding IsDskLowerThird, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"/>
+                                        <TextBlock Text="[TICKER]" FontSize="8.5" Foreground="#00E676" Margin="1,0" Visibility="{Binding IsDskTicker, Converter={x:Static local:BooleanToVisibilityConverter.Instance}}"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- AUDIO LAYOUT -->
+                        <DataGridTextColumn Header="AUDIO" Binding="{Binding AudioLayout}" Width="110" Foreground="#94A3B8"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <!-- STATUS / TELEMETRY BAR (ROW 4)                              -->
+        <!-- ═══════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="4" Background="#060911" BorderBrush="#1E293B" BorderThickness="0,1,0,0" Padding="12,2">
+                <Grid>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="ENGINE:" FontSize="9.5" Foreground="#64748B" Margin="0,0,4,0"/>
+                        <TextBlock x:Name="TxtEngineFps" Text="59.94 FPS" FontWeight="Bold" FontSize="9.5" Foreground="#00E676" Margin="0,0,14,0"/>
+
+                        <TextBlock Text="DROP:" FontSize="9.5" Foreground="#64748B" Margin="0,0,4,0"/>
+                        <TextBlock x:Name="TxtDropFrames" Text="0" FontWeight="Bold" FontSize="9.5" Foreground="#F8FAFC" Margin="0,0,14,0"/>
+
+                        <TextBlock Text="VRAM:" FontSize="9.5" Foreground="#64748B" Margin="0,0,4,0"/>
+                        <TextBlock x:Name="TxtVramUsage" Text="142.5 MB" FontWeight="Bold" FontSize="9.5" Foreground="#38BDF8" Margin="0,0,14,0"/>
+
+                        <TextBlock Text="LIP-SYNC DELAY:" FontSize="9.5" Foreground="#64748B" Margin="0,0,4,0"/>
+                        <TextBlock x:Name="TxtFooterDelay" Text="0 ms (DIRECT 0ms)" FontWeight="Bold" FontSize="9.5" Foreground="#34D399" Margin="0,0,14,0"/>
+                    </StackPanel>
+
+                    <!-- FailSafe Alert Badge in status bar -->
+                    <Border x:Name="BadgeFailSafeStatus" Background="#2A1B1B" BorderBrush="#EF4444" BorderThickness="1" CornerRadius="3" Padding="8,1" HorizontalAlignment="Center" Visibility="Collapsed">
+                        <TextBlock x:Name="TxtFailSafeBadge" Text="⚠️ FAIL-SAFE ACTIVE: SMPTE BARS" FontWeight="Bold" FontSize="9.5" Foreground="#EF4444"/>
+                    </Border>
+
+                    <TextBlock Text="OME MASTER CONTROL PLAYOUT &amp; CHANNEL-IN-A-BOX • DIRECT3D11 ZERO-COPY IPC" FontSize="9.5" Foreground="#475569" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Vertical Splitter between Main Workspace & Right Panel -->
+        <GridSplitter x:Name="SplitterRight" Grid.Column="3" Style="{StaticResource VerticalSplitterStyle}" ShowsPreview="False"/>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- ZONE 6: COLLAPSIBLE TOOLS SIDE PANEL (COLUMN 4)                 -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <Border x:Name="DrawerContainer" Grid.Column="4"
+                Background="#0D1322" BorderBrush="#1E293B" BorderThickness="1,0,0,0"
+                HorizontalAlignment="Stretch"
+                Visibility="Visible">
+            <Grid Margin="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="36"/>
+                    <!-- Header -->
+                    <RowDefinition Height="*"/>
+                    <!-- Content Tabs -->
+                </Grid.RowDefinitions>
+
+                <!-- Side Panel Header -->
+                <Grid Grid.Row="0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Background="#3B82F6" Width="4" Height="16" CornerRadius="2" Margin="0,0,8,0"/>
+                        <TextBlock x:Name="TxtDrawerTitle" Text="⚙️ CÔNG CỤ KỸ THUẬT &amp; ROUTER" FontWeight="Bold" FontSize="12" Foreground="#38BDF8" VerticalAlignment="Center"/>
+                        <Border Background="#111E33" BorderBrush="#2563EB" BorderThickness="1" CornerRadius="3" Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="TxtRightPanelBadge" Text="ROUTER • CCU • SDI" FontSize="9.5" FontWeight="Bold" Foreground="#60A5FA"/>
+                        </Border>
+                    </StackPanel>
+                    <Button x:Name="BtnCloseDrawer" Content="✖ Thu Gọn" Click="BtnCloseDrawer_Click"
+                            Background="#1E293B" Foreground="#EF4444" FontWeight="Bold" FontSize="11" Padding="10,4" HorizontalAlignment="Right" Cursor="Hand"
+                            ToolTip="Thu gọn thanh công cụ bên phải"/>
+                </Grid>
+
+                <!-- Side Panel Tabs -->
+                <TabControl x:Name="TabsPlayoutControl" Grid.Row="1" Margin="0,8,0,0">
+
+                    <!-- TAB 1: PGM OUTPUT (SDI & NDI MASTER OUT) -->
+                    <TabItem x:Name="TabItemBroadcastOut" Header="1. PGM OUTPUT">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
                             <StackPanel>
-                                <!-- Logo / Station Bug Layer -->
                                 <Border Style="{StaticResource SubCardStyle}">
                                     <StackPanel>
-                                        <Grid Margin="0,0,0,8">
-                                            <TextBlock Text="🏷️ BROADCAST GRAPHICS: STATION LOGO / WATERMARK (CG)" FontWeight="Bold" FontSize="12.5" Foreground="#38BDF8" VerticalAlignment="Center"/>
-                                            <Button x:Name="BtnToggleLogo" Content="DSK LOGO ON AIR 🟢" Click="BtnToggleLogo_Click" Background="#22C55E" Foreground="Black" FontWeight="Bold" FontSize="10.5" Padding="10,4" HorizontalAlignment="Right" Cursor="Hand"/>
+                                        <Grid Margin="0,0,0,6">
+                                            <TextBlock Text="🔌 DECKLINK SDI HARDWARE OUT" FontWeight="Bold" FontSize="11" Foreground="#00E5FF"/>
+                                            <Button x:Name="BtnToggleSdiOut" Content="Bật SDI (NONE CARD)" Click="BtnToggleSdiOut_Click" Background="#2563EB" Foreground="#94A3B8" FontWeight="Bold" Padding="8,3" FontSize="10" HorizontalAlignment="Right" Cursor="Hand" IsEnabled="False" ToolTip="Không phát hiện card SDI Blackmagic/DeckLink phần cứng trên máy tính."/>
                                         </Grid>
-                                        
-                                        <!-- File selection -->
-                                        <Grid Margin="0,0,0,10">
+
+                                        <TextBlock Text="Thiết Bị SDI:" FontSize="10" Foreground="#94A3B8"/>
+                                        <Grid Margin="0,2,0,6">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock x:Name="TxtLogoFile" Text="File: Default OME HD Logo" FontSize="11" Foreground="#94A3B8" VerticalAlignment="Center"/>
-                                            <Button x:Name="BtnBrowseLogo" Grid.Column="1" Content="📁 Nạp Logo PNG..." Click="BtnBrowseLogo_Click" Background="#2563EB" Foreground="White" FontWeight="Bold" Padding="10,4" FontSize="10.5" Cursor="Hand"/>
+                                            <ComboBox x:Name="CmbSdiDevice" Grid.Column="0"/>
+                                            <Button x:Name="BtnScanSdi" Grid.Column="1" Content="🔍 Scan SDI" Click="BtnScanSdi_Click" Style="{StaticResource ToolBtnStyle}" Margin="4,0,0,0" Padding="8,3" ToolTip="Quét các cổng SDI Output phần cứng (DeckLink / AJA)"/>
                                         </Grid>
 
-                                        <!-- Position Presets -->
-                                        <TextBlock Text="Vị trí góc phát sóng chuẩn (Corner Presets):" FontSize="10.5" FontWeight="SemiBold" Foreground="#E2E8F0" Margin="0,0,0,6"/>
-                                        <UniformGrid Columns="4" Margin="0,0,0,10">
-                                            <Button x:Name="BtnLogoPosTr" Tag="TR" Content="Góc Trên Phải (TR)" Click="BtnLogoPos_Click" Background="#2563EB" Foreground="White" FontWeight="Bold" Padding="6,6" Margin="2" Cursor="Hand"/>
-                                            <Button x:Name="BtnLogoPosTl" Tag="TL" Content="Góc Trên Trái (TL)" Click="BtnLogoPos_Click" Background="#1E293B" Foreground="#E2E8F0" FontWeight="Bold" Padding="6,6" Margin="2" Cursor="Hand"/>
-                                            <Button x:Name="BtnLogoPosBr" Tag="BR" Content="Góc Dưới Phải (BR)" Click="BtnLogoPos_Click" Background="#1E293B" Foreground="#E2E8F0" FontWeight="Bold" Padding="6,6" Margin="2" Cursor="Hand"/>
-                                            <Button x:Name="BtnLogoPosBl" Tag="BL" Content="Góc Dưới Trái (BL)" Click="BtnLogoPos_Click" Background="#1E293B" Foreground="#E2E8F0" FontWeight="Bold" Padding="6,6" Margin="2" Cursor="Hand"/>
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Margin="0,0,3,0">
+                                                <TextBlock Text="Chuẩn SDI (Độ Phân Giải):" FontSize="10" Foreground="#94A3B8"/>
+                                                <ComboBox x:Name="CmbSdiResolution">
+                                                    <ComboBoxItem Content="1080p (1920x1080 Progressive)" IsSelected="True"/>
+                                                    <ComboBoxItem Content="1080i (1920x1080 Interlaced)"/>
+                                                    <ComboBoxItem Content="720p (1280x720 Progressive)"/>
+                                                    <ComboBoxItem Content="720i (1280x720 Interlaced)"/>
+                                                    <ComboBoxItem Content="2K DCI (2048x1080p)"/>
+                                                    <ComboBoxItem Content="2K DCI (2048x1080i)"/>
+                                                    <ComboBoxItem Content="2K QHD (2560x1440p)"/>
+                                                    <ComboBoxItem Content="2K QHD (2560x1440i)"/>
+                                                    <ComboBoxItem Content="2160p (4K UHD 3840x2160p)"/>
+                                                    <ComboBoxItem Content="2160i (4K UHD 3840x2160i)"/>
+                                                </ComboBox>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="3,0,0,0">
+                                                <TextBlock Text="Tần Số Quét (FPS):" FontSize="10" Foreground="#94A3B8"/>
+                                                <ComboBox x:Name="CmbSdiFps">
+                                                    <ComboBoxItem Content="60.00 fps" IsSelected="True"/>
+                                                    <ComboBoxItem Content="50.00 fps"/>
+                                                    <ComboBoxItem Content="30.00 fps"/>
+                                                    <ComboBoxItem Content="25.00 fps"/>
+                                                    <ComboBoxItem Content="24.00 fps"/>
+                                                </ComboBox>
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource SubCardStyle}">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,6">
+                                            <TextBlock Text="🌐 NDI NETWORK MASTER OUT" FontWeight="Bold" FontSize="11" Foreground="#00E5FF"/>
+                                            <Button x:Name="BtnToggleNdiOut" Content="BẬT NDI OUT" Click="BtnToggleNdiOut_Click" Background="#2563EB" Foreground="White" FontWeight="Bold" Padding="8,3" FontSize="10" HorizontalAlignment="Right" Cursor="Hand" ToolTip="Bật / Tắt luồng phát NDI Master ra mạng LAN"/>
+                                        </Grid>
+                                        <TextBlock Text="Tên Luồng NDI Master (Tùy chỉnh):" FontSize="10" Foreground="#94A3B8" Margin="0,0,0,2"/>
+                                        <TextBox x:Name="TxtNdiStreamName" Text="OME Playout Master HD" Background="#0B1322" Foreground="#00E5FF" BorderBrush="#1E293B" Padding="5,4" FontSize="10.5" FontWeight="SemiBold" Margin="0,0,0,4" ToolTip="Nhập hoặc chỉnh sửa tên luồng NDI phát sóng ra mạng LAN"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Codec config selectors needed for code-behind bindings -->
+                                <ComboBox x:Name="CmbMasterRes" Visibility="Collapsed"/>
+                                <ComboBox x:Name="CmbMasterCodec" Visibility="Collapsed"/>
+                                <ComboBox x:Name="CmbMasterBitrate" Visibility="Collapsed"/>
+                                <ComboBox x:Name="CmbMasterFps" Visibility="Collapsed"/>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- TAB 2: CG OVERLAYS (STATION LOGO & BROADCAST GRAPHICS) -->
+                    <TabItem x:Name="TabItemCg" Header="2. CG Overlays">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+                            <StackPanel>
+                                <Border Style="{StaticResource SubCardStyle}">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,6">
+                                            <TextBlock Text="🏷️ STATION LOGO / WATERMARK" FontWeight="Bold" FontSize="11" Foreground="#00E5FF"/>
+                                            <Button x:Name="BtnToggleLogo" Content="DSK LOGO ON AIR 🟢" Click="BtnToggleLogo_Click" Background="#22C55E" Foreground="Black" FontWeight="Bold" FontSize="10" Padding="8,3" HorizontalAlignment="Right" Cursor="Hand"/>
+                                        </Grid>
+
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock x:Name="TxtLogoFile" Text="File: Default OME HD Logo" FontSize="10" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                                            <Button x:Name="BtnBrowseLogo" Grid.Column="1" Content="📁 Nạp PNG..." Click="BtnBrowseLogo_Click" Style="{StaticResource ToolBtnStyle}" ToolTip="Nạp file logo PNG có kênh trong suốt (Alpha Channel)"/>
+                                        </Grid>
+
+                                        <TextBlock Text="Vị Trí Cố Định Nhanh:" FontSize="9.5" Foreground="#64748B" Margin="0,0,0,2"/>
+                                        <UniformGrid Columns="4" Margin="0,0,0,6">
+                                            <Button x:Name="BtnLogoPosTr" Tag="TR" Content="Phải Trên" Click="BtnLogoPos_Click" Style="{StaticResource ToolBtnStyle}"/>
+                                            <Button x:Name="BtnLogoPosTl" Tag="TL" Content="Trái Trên" Click="BtnLogoPos_Click" Style="{StaticResource ToolBtnStyle}"/>
+                                            <Button x:Name="BtnLogoPosBr" Tag="BR" Content="Phải Dưới" Click="BtnLogoPos_Click" Style="{StaticResource ToolBtnStyle}"/>
+                                            <Button x:Name="BtnLogoPosBl" Tag="BL" Content="Trái Dưới" Click="BtnLogoPos_Click" Style="{StaticResource ToolBtnStyle}"/>
                                         </UniformGrid>
 
-                                        <!-- Fine Sliders -->
-                                        <Grid Margin="0,0,0,8">
+                                        <!-- Tọa độ X và Y tùy biến -->
+                                        <Grid Margin="0,2,0,6">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Grid.Column="0" Margin="2">
-                                                <TextBlock Text="Kích thước Logo (Scale):" FontSize="10.5" Foreground="#94A3B8"/>
-                                                <Slider x:Name="SliderLogoScale" Minimum="0.3" Maximum="2.5" Value="1.0" ValueChanged="SliderLogo_ValueChanged"/>
+                                                <Grid>
+                                                    <TextBlock Text="Tọa độ X (Ngang):" FontSize="10" Foreground="#94A3B8"/>
+                                                    <TextBlock x:Name="TxtLogoXVal" Text="88%" FontSize="9.5" Foreground="#00E5FF" HorizontalAlignment="Right"/>
+                                                </Grid>
+                                                <Slider x:Name="SliderLogoX" Minimum="0.0" Maximum="1.0" Value="0.88" SmallChange="0.01" ValueChanged="SliderLogoPos_ValueChanged"/>
                                             </StackPanel>
                                             <StackPanel Grid.Column="1" Margin="2">
-                                                <TextBlock Text="Độ trong suốt (Opacity):" FontSize="10.5" Foreground="#94A3B8"/>
-                                                <Slider x:Name="SliderLogoOpacity" Minimum="0.1" Maximum="1.0" Value="0.9" ValueChanged="SliderLogo_ValueChanged"/>
+                                                <Grid>
+                                                    <TextBlock Text="Tọa độ Y (Dọc):" FontSize="10" Foreground="#94A3B8"/>
+                                                    <TextBlock x:Name="TxtLogoYVal" Text="8%" FontSize="9.5" Foreground="#00E5FF" HorizontalAlignment="Right"/>
+                                                </Grid>
+                                                <Slider x:Name="SliderLogoY" Minimum="0.0" Maximum="1.0" Value="0.08" SmallChange="0.01" ValueChanged="SliderLogoPos_ValueChanged"/>
                                             </StackPanel>
                                         </Grid>
 
+                                        <!-- Kích thước và Độ trong suốt -->
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Grid.Column="0" Margin="2">
-                                                <TextBlock Text="Dịch ngang X (Normalized X):" FontSize="10.5" Foreground="#94A3B8"/>
-                                                <Slider x:Name="SliderLogoX" Minimum="0.0" Maximum="1.0" Value="0.88" ValueChanged="SliderLogoPos_ValueChanged"/>
+                                                <TextBlock Text="Scale (Tỷ lệ):" FontSize="10" Foreground="#94A3B8"/>
+                                                <Slider x:Name="SliderLogoScale" Minimum="0.3" Maximum="2.5" Value="1.0" ValueChanged="SliderLogo_ValueChanged"/>
                                             </StackPanel>
                                             <StackPanel Grid.Column="1" Margin="2">
-                                                <TextBlock Text="Dịch dọc Y (Normalized Y):" FontSize="10.5" Foreground="#94A3B8"/>
-                                                <Slider x:Name="SliderLogoY" Minimum="0.0" Maximum="1.0" Value="0.08" ValueChanged="SliderLogoPos_ValueChanged"/>
+                                                <TextBlock Text="Opacity (Độ mờ):" FontSize="10" Foreground="#94A3B8"/>
+                                                <Slider x:Name="SliderLogoOpacity" Minimum="0.1" Maximum="1.0" Value="0.9" ValueChanged="SliderLogo_ValueChanged"/>
                                             </StackPanel>
                                         </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Lower-Third Text Config -->
+                                <Border Style="{StaticResource SubCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="👤 LOWER-THIRD TIÊU ĐỀ &amp; TÊN DIỄN GIẢ" FontWeight="Bold" FontSize="11" Foreground="#00E5FF" Margin="0,0,0,6"/>
+                                        <TextBlock Text="Tiêu đề chính:" FontSize="10" Foreground="#94A3B8"/>
+                                        <TextBox x:Name="TxtEditLtTitle" Text="MC TRẦN ANH" Background="#0B1322" Foreground="White" BorderBrush="#1E293B" Padding="4" Margin="0,2,0,6"/>
+                                        <TextBlock Text="Phụ đề:" FontSize="10" Foreground="#94A3B8"/>
+                                        <TextBox x:Name="TxtEditLtSubtitle" Text="BẢN TIN THỜI SỰ TRỰC TIẾP 19H" Background="#0B1322" Foreground="White" BorderBrush="#1E293B" Padding="4" Margin="0,2,0,6"/>
+                                        <Button Content="Cập Nhật Lower-Third" Click="BtnApplyLtText_Click" Style="{StaticResource ToolBtnStyle}"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Ticker Text Config -->
+                                <Border Style="{StaticResource SubCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="📰 NEWS CRAWL TICKER TEXT" FontWeight="Bold" FontSize="11" Foreground="#00E5FF" Margin="0,0,0,6"/>
+                                        <TextBox x:Name="TxtEditTickerText" Text="🔴 [BẢN TIN OME HD] PHÁT SÓNG TRUYỀN HÌNH CHẤT LƯỢNG CAO 4K/FULL HD 60 FPS • HỆ THỐNG MASTER CONTROL PLAYOUT &amp; CHANNEL-IN-A-BOX TỰ ĐỘNG HÓA RUNDOWN 24/7 •" Background="#0B1322" Foreground="White" BorderBrush="#1E293B" TextWrapping="Wrap" Height="60" Padding="4" Margin="0,2,0,6"/>
+                                        <Button Content="Cập Nhật Dải Chữ Ticker" Click="BtnApplyTickerText_Click" Style="{StaticResource ToolBtnStyle}"/>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
 
-                    <!-- TAB 3: COLOR CORRECTION & BROADCAST SCOPES -->
-                    <TabItem Header="3. CCU &amp; 3D LUT">
-                        <Grid Margin="0,6,0,0">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="370" MinHeight="180"/>
-                                <RowDefinition Height="8"/>
-                                <RowDefinition Height="*" MinHeight="140"/>
-                            </Grid.RowDefinitions>
-
-                            <!-- ROW 0: BROADCAST COLOR SCOPES (THANG ĐO MÀU TRUYỀN HÌNH) -->
-                            <Border Grid.Row="0" Style="{StaticResource SubCardStyle}" BorderBrush="#00E5FF" Padding="6">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="*"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-
-                                    <!-- Scope Header -->
-                                    <Grid Grid.Row="0" Margin="0,0,0,6">
-                                        <TextBlock Text="📈 BỘ THANG ĐO MÀU TRUYỀN HÌNH CHUẨN (BROADCAST SCOPES)" FontWeight="Bold" FontSize="12" Foreground="#00E5FF" VerticalAlignment="Center"/>
-                                        <Border Background="#0F2D1F" BorderBrush="#00E676" BorderThickness="1" CornerRadius="3" Padding="6,2" HorizontalAlignment="Right">
-                                            <TextBlock x:Name="TxtScopeGamutStatus" Text="LEGAL (BT.709)" FontSize="9.5" FontWeight="Bold" Foreground="#00E676"/>
-                                        </Border>
-                                    </Grid>
-
-                                    <!-- Scope Selector Toolbar -->
-                                    <UniformGrid Grid.Row="1" Columns="5" Margin="0,0,0,6">
-                                        <Button x:Name="BtnScopeWaveform" Tag="0" Content="1. Waveform (IRE)" Click="BtnSelectScope_Click" Background="#2563EB" Foreground="White" FontWeight="Bold" FontSize="10" Padding="3,5" Margin="1" Cursor="Hand"/>
-                                        <Button x:Name="BtnScopeParade" Tag="1" Content="2. RGB Parade" Click="BtnSelectScope_Click" Background="#1E293B" Foreground="#E2E8F0" FontWeight="Bold" FontSize="10" Padding="3,5" Margin="1" Cursor="Hand"/>
-                                        <Button x:Name="BtnScopeVectorscope" Tag="2" Content="3. Vectorscope" Click="BtnSelectScope_Click" Background="#1E293B" Foreground="#E2E8F0" FontWeight="Bold" FontSize="10" Padding="3,5" Margin="1" Cursor="Hand"/>
-                                        <Button x:Name="BtnScopeHistogram" Tag="3" Content="4. Histogram" Click="BtnSelectScope_Click" Background="#1E293B" Foreground="#E2E8F0" FontWeight="Bold" FontSize="10" Padding="3,5" Margin="1" Cursor="Hand"/>
-                                        <Button x:Name="BtnScopeCie" Tag="4" Content="5. CIE 1931" Click="BtnSelectScope_Click" Background="#1E293B" Foreground="#E2E8F0" FontWeight="Bold" FontSize="10" Padding="3,5" Margin="1" Cursor="Hand"/>
-                                    </UniformGrid>
-
-                                    <!-- Real-time Scope Monitor Display (Auto-scaling with no hard-coded bounds) -->
-                                    <Border Grid.Row="2" Background="#0B0F17" BorderBrush="#1E293B" BorderThickness="1" CornerRadius="4" Padding="2" Margin="0,0,0,6">
-                                        <Image x:Name="ImgBroadcastScope" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
-                                    </Border>
-
-                                    <!-- Live Telemetry Badges -->
-                                    <UniformGrid Grid.Row="3" Columns="4">
-                                        <Border Background="#131926" BorderBrush="#222D42" BorderThickness="1" CornerRadius="3" Padding="6,3" Margin="2">
-                                            <StackPanel>
-                                                <TextBlock Text="MAX WHITE (IRE):" FontSize="8.5" FontWeight="Bold" Foreground="#94A3B8"/>
-                                                <TextBlock x:Name="TxtScopeMaxIre" Text="98.2 IRE" FontFamily="Consolas" FontWeight="Bold" FontSize="11" Foreground="#00E676"/>
-                                            </StackPanel>
-                                        </Border>
-                                        <Border Background="#131926" BorderBrush="#222D42" BorderThickness="1" CornerRadius="3" Padding="6,3" Margin="2">
-                                            <StackPanel>
-                                                <TextBlock Text="MIN BLACK (IRE):" FontSize="8.5" FontWeight="Bold" Foreground="#94A3B8"/>
-                                                <TextBlock x:Name="TxtScopeMinIre" Text="0.8 IRE" FontFamily="Consolas" FontWeight="Bold" FontSize="11" Foreground="#00E676"/>
-                                            </StackPanel>
-                                        </Border>
-                                        <Border Background="#131926" BorderBrush="#222D42" BorderThickness="1" CornerRadius="3" Padding="6,3" Margin="2">
-                                            <StackPanel>
-                                                <TextBlock Text="ESTIMATED CCT:" FontSize="8.5" FontWeight="Bold" Foreground="#94A3B8"/>
-                                                <TextBlock x:Name="TxtScopeCct" Text="5600K Daylight" FontFamily="Consolas" FontWeight="Bold" FontSize="11" Foreground="#38BDF8"/>
-                                            </StackPanel>
-                                        </Border>
-                                        <Border Background="#131926" BorderBrush="#222D42" BorderThickness="1" CornerRadius="3" Padding="6,3" Margin="2">
-                                            <StackPanel>
-                                                <TextBlock Text="DOMINANT TINT:" FontSize="8.5" FontWeight="Bold" Foreground="#94A3B8"/>
-                                                <TextBlock x:Name="TxtScopeTint" Text="Neutral" FontFamily="Consolas" FontWeight="Bold" FontSize="11" Foreground="#F59E0B"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </UniformGrid>
-                                </Grid>
-                            </Border>
-
-                            <!-- ROW 1: VERTICAL RESIZING SPLITTER -->
-                            <GridSplitter Grid.Row="1" Height="8" Background="#1E293B" HorizontalAlignment="Stretch" VerticalAlignment="Center" Cursor="SizeNS" ToolTip="Kéo thả lên/xuống để co giãn kích thước cửa sổ thang đo màu"/>
-
-                            <!-- ROW 2: CCU CONTROLS & 3D LUT (SCROLLVIEWER) -->
-                            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="0,2,0,0">
-                                <StackPanel>
-                                    <!-- CCU COLOR CORRECTION -->
-                                    <Border Style="{StaticResource SubCardStyle}">
-                                        <StackPanel>
-                                            <Grid Margin="0,0,0,8">
-                                                <TextBlock Text="🎨 CCU COLOR CORRECTION (LIFT, GAMMA, GAIN)" FontWeight="Bold" FontSize="12.5" Foreground="#00E676" VerticalAlignment="Center"/>
-                                                <Button x:Name="BtnResetColor" Content="Reset Màu Chuẩn" Click="BtnResetColor_Click" Background="#1E293B" Foreground="#94A3B8" FontSize="10" Padding="8,3" HorizontalAlignment="Right" Cursor="Hand"/>
-                                            </Grid>
-
-                                            <!-- Lift (Shadows) -->
-                                            <TextBlock Text="Lift (Shadows / Blacks):" FontSize="10.5" FontWeight="SemiBold" Foreground="#94A3B8"/>
-                                            <Slider x:Name="SliderLift" Minimum="-0.5" Maximum="0.5" Value="0.0" ValueChanged="ColorSliders_ValueChanged"/>
-
-                                            <!-- Gamma (Midtones) -->
-                                            <TextBlock Text="Gamma (Midtones):" FontSize="10.5" FontWeight="SemiBold" Foreground="#94A3B8" Margin="0,6,0,0"/>
-                                            <Slider x:Name="SliderGamma" Minimum="0.5" Maximum="2.5" Value="1.0" ValueChanged="ColorSliders_ValueChanged"/>
-
-                                            <!-- Gain (Highlights) -->
-                                            <TextBlock Text="Gain (Highlights / Whites):" FontSize="10.5" FontWeight="SemiBold" Foreground="#94A3B8" Margin="0,6,0,0"/>
-                                            <Slider x:Name="SliderGain" Minimum="0.2" Maximum="2.5" Value="1.0" ValueChanged="ColorSliders_ValueChanged"/>
-
-                                            <!-- Saturation, Contrast, Brightness -->
-                                            <Grid Margin="0,10,0,0">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="0" Margin="2">
-                                                    <TextBlock Text="Saturation:" FontSize="10" Foreground="#94A3B8"/>
-                                                    <Slider x:Name="SliderSaturation" Minimum="0.0" Maximum="2.0" Value="1.0" ValueChanged="ColorSliders_ValueChanged"/>
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="1" Margin="2">
-                                                    <TextBlock Text="Contrast:" FontSize="10" Foreground="#94A3B8"/>
-                                                    <Slider x:Name="SliderContrast" Minimum="0.5" Maximum="2.0" Value="1.0" ValueChanged="ColorSliders_ValueChanged"/>
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="2" Margin="2">
-                                                    <TextBlock Text="Brightness:" FontSize="10" Foreground="#94A3B8"/>
-                                                    <Slider x:Name="SliderBrightness" Minimum="-0.5" Maximum="0.5" Value="0.0" ValueChanged="ColorSliders_ValueChanged"/>
-                                                </StackPanel>
-                                            </Grid>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <!-- 3D LUT Loader -->
-                                    <Border Style="{StaticResource SubCardStyle}">
-                                        <StackPanel>
-                                            <TextBlock Text="🎞️ BỘ NẠP 3D LUT (CUBE FILE PRESETS)" FontWeight="Bold" FontSize="11.5" Foreground="#F59E0B" Margin="0,0,0,6"/>
-                                            <TextBlock Text="Áp bộ màu điện ảnh Rec.709 / Log cho khung hình phát sóng thông qua bảng tra mẫu màu 3D trilinear:" FontSize="10.5" Foreground="#94A3B8" Margin="0,0,0,8"/>
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock x:Name="TxtLutName" Text="LUT: Chưa nạp file .cube" FontSize="11" Foreground="#E2E8F0" VerticalAlignment="Center"/>
-                                                <Button x:Name="BtnLoadLut" Grid.Column="1" Content="Load .cube File..." Click="BtnLoadLut_Click" Background="#2563EB" Foreground="White" FontWeight="Bold" Padding="10,4" Margin="6,0" Cursor="Hand"/>
-                                                <Button x:Name="BtnUnloadLut" Grid.Column="2" Content="Tắt LUT" Click="BtnUnloadLut_Click" Background="#1E293B" Foreground="#EF4444" Padding="8,4" Cursor="Hand"/>
-                                            </Grid>
-                                        </StackPanel>
-                                    </Border>
-                                </StackPanel>
-                            </ScrollViewer>
-                        </Grid>
-                    </TabItem>
-
-                    <!-- TAB 4: LIP-SYNC & DELAY ENGINE -->
-                    <TabItem Header="4. Lip-Sync Delay">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                    <!-- TAB 3: CCU / LUT & BROADCAST SCOPES (SCOPES ON TOP) -->
+                    <TabItem x:Name="TabItemCcuScopes" Header="3. CCU/LUT Scopes">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
                             <StackPanel>
-                                <Border Style="{StaticResource SubCardStyle}">
-                                    <StackPanel>
-                                        <Grid Margin="0,0,0,8">
-                                            <TextBlock Text="⏱️ ĐỒNG BỘ LIP-SYNC &amp; BÙ TRỄ TÍN HIỆU" FontWeight="Bold" FontSize="12.5" Foreground="#38BDF8" VerticalAlignment="Center"/>
-                                            <CheckBox x:Name="ChkLinkAv" Content="Khóa Link A/V Delay" Foreground="#E2E8F0" FontWeight="Bold" VerticalAlignment="Center" HorizontalAlignment="Right" Click="ChkLinkAv_Click"/>
-                                        </Grid>
-                                        <TextBlock Text="Bộ đệm Ring Buffer mượt mà không gây rách hình (tearing) trên VRAM và RAM PCM audio:" FontSize="10.5" Foreground="#94A3B8" Margin="0,0,0,12"/>
-
-                                        <!-- Video Delay Slider -->
-                                        <Grid Margin="0,0,0,4">
-                                            <TextBlock Text="Video Frame Delay:" FontSize="11" FontWeight="SemiBold" Foreground="#E2E8F0"/>
-                                            <TextBlock x:Name="TxtVideoDelayMs" Text="0 ms (0 frames @ 59.94 fps)" FontSize="11" FontFamily="Consolas" Foreground="#00E5FF" HorizontalAlignment="Right"/>
-                                        </Grid>
-                                        <Slider x:Name="SliderVideoDelay" Minimum="0" Maximum="2000" Value="0" SmallChange="10" LargeChange="100" ValueChanged="SliderVideoDelay_ValueChanged" Margin="0,0,0,14"/>
-
-                                        <!-- Audio Delay Slider -->
-                                        <Grid Margin="0,0,0,4">
-                                            <TextBlock Text="Audio PCM Delay:" FontSize="11" FontWeight="SemiBold" Foreground="#E2E8F0"/>
-                                            <TextBlock x:Name="TxtAudioDelayMs" Text="0 ms" FontSize="11" FontFamily="Consolas" Foreground="#00E5FF" HorizontalAlignment="Right"/>
-                                        </Grid>
-                                        <Slider x:Name="SliderAudioDelay" Minimum="0" Maximum="2000" Value="0" SmallChange="10" LargeChange="100" ValueChanged="SliderAudioDelay_ValueChanged" Margin="0,0,0,10"/>
-
-                                        <!-- Reset Delay -->
-                                        <Button x:Name="BtnResetDelay" Content="Đặt Lại 0ms (Zero-Delay)" Click="BtnResetDelay_Click" Background="#1E293B" Foreground="#94A3B8" Padding="10,5" HorizontalAlignment="Left" Cursor="Hand"/>
-                                    </StackPanel>
-                                </Border>
-                            </StackPanel>
-                        </ScrollViewer>
-                    </TabItem>
-
-                    <!-- TAB 5: MASTER BROADCAST OUT & FAIL-SAFE -->
-                    <TabItem Header="5. Broadcast Out">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
-                            <StackPanel>
-                                <!-- 1. Master Video Codec Configuration -->
-                                <Border Style="{StaticResource SubCardStyle}">
-                                    <StackPanel>
-                                        <TextBlock Text="🎛️ CẤU HÌNH MASTER VIDEO CODEC &amp; ĐỊNH DẠNG PHÁT" FontWeight="Bold" FontSize="12.5" Foreground="#38BDF8" Margin="0,0,0,8"/>
-                                        <Grid Margin="0,0,0,6">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
-                                            <StackPanel Grid.Column="0" Margin="0,0,6,0">
-                                                <TextBlock Text="Độ Phân Giải (Master Resolution):" FontSize="10.5" FontWeight="SemiBold" Foreground="#94A3B8" Margin="0,0,0,3"/>
-                                                <ComboBox x:Name="CmbMasterRes">
-                                                    <ComboBoxItem Content="1080p (1920x1080 Full HD)" IsSelected="True"/>
-                                                    <ComboBoxItem Content="1080i (1920x1080 Interlaced)"/>
-                                                    <ComboBoxItem Content="1440p (2560x1440 2K QHD)"/>
-                                                    <ComboBoxItem Content="1440i (2560x1440 2K Interlaced)"/>
-                                                    <ComboBoxItem Content="2160p (3840x2160 4K UHD)"/>
-                                                    <ComboBoxItem Content="2160i (3840x2160 4K Interlaced)"/>
-                                                    <ComboBoxItem Content="720p (1280x720 HD)"/>
-                                                </ComboBox>
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="1" Margin="6,0,0,0">
-                                                <TextBlock Text="Chuẩn Nén Video Codec:" FontSize="10.5" FontWeight="SemiBold" Foreground="#94A3B8" Margin="0,0,0,3"/>
-                                                <ComboBox x:Name="CmbMasterCodec">
-                                                    <ComboBoxItem Content="Uncompressed UYVY 4:2:2 (Direct SDI)" IsSelected="True"/>
-                                                    <ComboBoxItem Content="H.264 / AVC (NVENC Hardware)"/>
-                                                    <ComboBoxItem Content="H.265 / HEVC (NVENC Hardware)"/>
-                                                    <ComboBoxItem Content="Apple ProRes 422 HQ (Broadcast Master)"/>
-                                                    <ComboBoxItem Content="Avid DNxHD / DNxHR (10-bit Production)"/>
-                                                </ComboBox>
-                                            </StackPanel>
-                                        </Grid>
-
-                                        <Grid Margin="0,4,0,0">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
-                                            <StackPanel Grid.Column="0" Margin="0,0,6,0">
-                                                <TextBlock Text="Bitrate Nén (Dung lượng):" FontSize="10.5" FontWeight="SemiBold" Foreground="#94A3B8" Margin="0,0,0,3"/>
-                                                <ComboBox x:Name="CmbMasterBitrate">
-                                                    <ComboBoxItem Content="Uncompressed / Auto (SDI Native)" IsSelected="True"/>
-                                                    <ComboBoxItem Content="8 Mbps (Broadcast Standard)"/>
-                                                    <ComboBoxItem Content="15 Mbps (High Quality)"/>
-                                                    <ComboBoxItem Content="25 Mbps (Pro Studio)"/>
-                                                    <ComboBoxItem Content="50 Mbps (Master Clean)"/>
-                                                    <ComboBoxItem Content="100 Mbps (Archive Master)"/>
-                                                </ComboBox>
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="1" Margin="6,0,0,0">
-                                                <TextBlock Text="Tốc Độ Khung Hình (Master FPS):" FontSize="10.5" FontWeight="SemiBold" Foreground="#94A3B8" Margin="0,0,0,3"/>
-                                                <ComboBox x:Name="CmbMasterFps">
-                                                    <ComboBoxItem Content="59.94 fps (Broadcast Standard)" IsSelected="True"/>
-                                                    <ComboBoxItem Content="60 fps (60.00 fps)"/>
-                                                    <ComboBoxItem Content="50 fps (PAL Broadcast)"/>
-                                                    <ComboBoxItem Content="30 fps (29.97 / 30.00 fps)"/>
-                                                    <ComboBoxItem Content="25 fps (PAL Standard)"/>
-                                                    <ComboBoxItem Content="24 fps (Cinema 24.00 / 23.98 fps)"/>
-                                                </ComboBox>
-                                            </StackPanel>
-                                        </Grid>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- 2. Playout Target Ports -->
-                                <Border Style="{StaticResource SubCardStyle}">
-                                    <StackPanel>
-                                        <TextBlock Text="📡 CỔNG PHÁT SÓNG MASTER PLAYOUT" FontWeight="Bold" FontSize="12.5" Foreground="#EF4444" Margin="0,0,0,8"/>
-
-                                        <!-- NDI Master Out Toggle -->
-                                        <Border Background="#1E2433" BorderBrush="#2563EB" BorderThickness="1" CornerRadius="4" Padding="12,10" Margin="0,0,0,8">
-                                            <Grid>
-                                                <StackPanel VerticalAlignment="Center">
-                                                    <TextBlock Text="NDI Master Out (Kênh Phát Đài: OME MASTER BROADCAST)" FontWeight="Bold" FontSize="11.5" Foreground="#FFFFFF"/>
-                                                    <TextBlock Text="Phát luồng Master hoàn chỉnh (Dirty Program) ra mạng LAN" FontSize="10" Foreground="#94A3B8"/>
-                                                </StackPanel>
-                                                <Button x:Name="BtnToggleNdiMaster" Content="BẬT NDI OUT ⚪" Click="BtnToggleNdiMaster_Click" Background="#2563EB" Foreground="White" FontWeight="Bold" Padding="14,6" HorizontalAlignment="Right" Cursor="Hand"/>
-                                            </Grid>
-                                        </Border>
-
-                                        <!-- SDI Hardware Out Card -->
-                                        <Border Background="#1E2433" BorderBrush="#00E5FF" BorderThickness="1" CornerRadius="4" Padding="12,10" Margin="0,0,0,4">
-                                            <StackPanel>
-                                                <Grid Margin="0,0,0,8">
-                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                        <TextBlock Text="📡 CỔNG PHÁT SÓNG SDI PHẦN CỨNG" FontWeight="Bold" FontSize="12" Foreground="#FFFFFF"/>
-                                                        <TextBlock Text=" (DeckLink / AJA / Magewell)" FontSize="10.5" Foreground="#94A3B8" Margin="4,0,0,0" VerticalAlignment="Center"/>
-                                                    </StackPanel>
-                                                    <Border x:Name="BadgeSdiStatus" Background="#1E293B" BorderBrush="#64748B" BorderThickness="1" CornerRadius="3" Padding="8,2" HorizontalAlignment="Right">
-                                                        <TextBlock x:Name="TxtSdiStatusBadge" Text="STANDBY" FontSize="10" FontWeight="Bold" Foreground="#94A3B8"/>
-                                                    </Border>
-                                                </Grid>
-
-                                                <!-- Device Selection -->
-                                                <Grid Margin="0,0,0,8">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <StackPanel Grid.Column="0" Margin="0,0,6,0">
-                                                        <TextBlock Text="Thiết Bị Card Xuất SDI:" FontSize="10.5" FontWeight="SemiBold" Foreground="#94A3B8" Margin="0,0,0,3"/>
-                                                        <ComboBox x:Name="CmbSdiDevice">
-                                                            <ComboBoxItem Content="[Nhấn 'Scan SDI' để quét thiết bị]" IsSelected="True"/>
-                                                        </ComboBox>
-                                                    </StackPanel>
-                                                    <Button x:Name="BtnScanSdi" Grid.Column="1" Content="🔄 Scan SDI" Click="BtnScanSdi_Click" Background="#1E293B" Foreground="#00E5FF" FontWeight="Bold" Padding="10,5" VerticalAlignment="Bottom" Cursor="Hand" ToolTip="Quét lại các card SDI DeckLink / AJA phần cứng"/>
-                                                </Grid>
-
-                                                <!-- SDI Mode Selection: 1080i, 1080p, 1440i, 1440p, 2160i, 2160p + FPS: 25, 30, 50, 60 -->
-                                                <Grid Margin="0,0,0,8">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <StackPanel Grid.Column="0" Margin="0,0,6,0">
-                                                        <TextBlock Text="Chế Độ Xuất SDI (Resolution / Mode):" FontSize="10.5" FontWeight="SemiBold" Foreground="#94A3B8" Margin="0,0,0,3"/>
-                                                        <ComboBox x:Name="CmbSdiResolution">
-                                                            <ComboBoxItem Content="1080p (Full HD Progressive)" IsSelected="True"/>
-                                                            <ComboBoxItem Content="1080i (Full HD Interlaced)"/>
-                                                            <ComboBoxItem Content="1440p (2K Progressive)"/>
-                                                            <ComboBoxItem Content="1440i (2K Interlaced)"/>
-                                                            <ComboBoxItem Content="2160p (4K UHD Progressive / 12G-SDI)"/>
-                                                            <ComboBoxItem Content="2160i (4K UHD Interlaced)"/>
-                                                            <ComboBoxItem Content="720p (HD Progressive)"/>
-                                                        </ComboBox>
-                                                    </StackPanel>
-                                                    <StackPanel Grid.Column="1" Margin="6,0,0,0">
-                                                        <TextBlock Text="Lựa Chọn Tốc Độ FPS (SDI Frame Rate):" FontSize="10.5" FontWeight="SemiBold" Foreground="#94A3B8" Margin="0,0,0,3"/>
-                                                        <ComboBox x:Name="CmbSdiFps">
-                                                            <ComboBoxItem Content="60 fps (59.94 / 60.00 fps)" IsSelected="True"/>
-                                                            <ComboBoxItem Content="50 fps (PAL Broadcast 50.00 fps)"/>
-                                                            <ComboBoxItem Content="30 fps (29.97 / 30.00 fps)"/>
-                                                            <ComboBoxItem Content="25 fps (PAL Standard 25.00 fps)"/>
-                                                            <ComboBoxItem Content="24 fps (Cinema 23.98 / 24.00 fps)"/>
-                                                        </ComboBox>
-                                                    </StackPanel>
-                                                </Grid>
-
-                                                <!-- SDI Combined Mode / Output Presets & Action Button -->
-                                                <Grid Margin="0,0,0,4">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <StackPanel Grid.Column="0" Margin="0,0,6,0">
-                                                        <TextBlock Text="SDI Output Preset / Profile:" FontSize="10.5" FontWeight="SemiBold" Foreground="#94A3B8" Margin="0,0,0,3"/>
-                                                        <ComboBox x:Name="CmbSdiMode">
-                                                            <ComboBoxItem Content="1080p59.94 (Fill + Key / Standard)" IsSelected="True"/>
-                                                            <ComboBoxItem Content="1080p60 (High Frame Rate)"/>
-                                                            <ComboBoxItem Content="1080p50 (PAL Progressive)"/>
-                                                            <ComboBoxItem Content="1080p30"/>
-                                                            <ComboBoxItem Content="1080p25"/>
-                                                            <ComboBoxItem Content="1080i59.94 (NTSC Interlaced)"/>
-                                                            <ComboBoxItem Content="1080i50 (PAL Interlaced)"/>
-                                                            <ComboBoxItem Content="1080i60"/>
-                                                            <ComboBoxItem Content="1440p59.94 (2K QHD)"/>
-                                                            <ComboBoxItem Content="1440p60"/>
-                                                            <ComboBoxItem Content="1440p50"/>
-                                                            <ComboBoxItem Content="1440p30"/>
-                                                            <ComboBoxItem Content="1440p25"/>
-                                                            <ComboBoxItem Content="1440i59.94 (2K Interlaced)"/>
-                                                            <ComboBoxItem Content="1440i50"/>
-                                                            <ComboBoxItem Content="2160p59.94 (12G-SDI 4K UHD)"/>
-                                                            <ComboBoxItem Content="2160p60 (12G-SDI 4K Ultra HD)"/>
-                                                            <ComboBoxItem Content="2160p50 (12G-SDI PAL)"/>
-                                                            <ComboBoxItem Content="2160p30"/>
-                                                            <ComboBoxItem Content="2160p25"/>
-                                                            <ComboBoxItem Content="2160i59.94 (4K Interlaced)"/>
-                                                            <ComboBoxItem Content="2160i50"/>
-                                                            <ComboBoxItem Content="720p59.94"/>
-                                                            <ComboBoxItem Content="720p50"/>
-                                                        </ComboBox>
-                                                    </StackPanel>
-                                                    <StackPanel Grid.Column="1" Margin="6,0,0,0">
-                                                        <TextBlock Text="Thao Tác Điều Khiển:" FontSize="10.5" FontWeight="SemiBold" Foreground="#94A3B8" Margin="0,0,0,3"/>
-                                                        <Button x:Name="BtnToggleSdiMaster" Content="BẬT SDI OUT ⚪" Click="BtnToggleSdiMaster_Click" Background="#2563EB" Foreground="White" FontWeight="Bold" Padding="12,6" Cursor="Hand"/>
-                                                    </StackPanel>
-                                                </Grid>
-                                            </StackPanel>
-                                        </Border>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- Emergency Fail-Safe (Bảo vệ sóng tự động) -->
-                                <Border Style="{StaticResource SubCardStyle}" BorderBrush="#EF4444">
+                                <!-- 1. BROADCAST COLOR SCOPES (ĐƯA LÊN ĐẦU TAB THEO YÊU CẦU) -->
+                                <Border Style="{StaticResource SubCardStyle}" Margin="0,0,0,6">
                                     <StackPanel>
                                         <Grid Margin="0,0,0,6">
-                                            <TextBlock Text="🛡️ BẢO VỆ SÓNG TỰ ĐỘNG (EMERGENCY FAIL-SAFE FALLBACK)" FontWeight="Bold" FontSize="11.5" Foreground="#EF4444" VerticalAlignment="Center"/>
-                                            <CheckBox x:Name="ChkFailSafeEnabled" Content="Kích Hoạt Bảo Vệ" Foreground="#E2E8F0" IsChecked="True" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center" Click="ChkFailSafeEnabled_Click"/>
+                                            <TextBlock Text="📊 BROADCAST COLOR SCOPES" FontWeight="Bold" FontSize="11" Foreground="#00E5FF" VerticalAlignment="Center"/>
+                                            <ComboBox x:Name="CmbScopeMode" Width="120" HorizontalAlignment="Right" SelectionChanged="CmbScopeMode_SelectionChanged" FontSize="9.5">
+                                                <ComboBoxItem Content="Waveform (IRE)" IsSelected="True"/>
+                                                <ComboBoxItem Content="RGB Parade"/>
+                                                <ComboBoxItem Content="Vectorscope"/>
+                                                <ComboBoxItem Content="Histogram"/>
+                                            </ComboBox>
                                         </Grid>
-                                        
-                                        <TextBlock Text="Tự động cứu sóng khi tín hiệu bị mất hoặc gián đoạn để tránh đen sóng trên luồng Master:" 
-                                                   FontSize="10.5" Foreground="#94A3B8" TextWrapping="Wrap" Margin="0,0,0,8"/>
 
-                                        <!-- Mode selection: 2 options -->
-                                        <TextBlock Text="Chế Độ Cứu Sóng Khẩn Cấp (Fallback Action):" FontSize="10.5" FontWeight="SemiBold" Foreground="#E2E8F0" Margin="0,0,0,3"/>
-                                        <ComboBox x:Name="CmbFailSafeMode" Margin="0,0,0,8">
-                                            <ComboBoxItem Content="1. Bảng Màu Chuẩn SMPTE Color Bars (Kèm Tone 1kHz)" IsSelected="True"/>
-                                            <ComboBoxItem Content="2. Tự Động Chuyển Sang Cổng IP Dự Phòng (Backup Port)"/>
+                                        <!-- Scope Image Display -->
+                                        <Border Height="185" Background="Black" CornerRadius="4" BorderBrush="#1E293B" BorderThickness="1">
+                                            <Image x:Name="ImgBroadcastScope" Stretch="Uniform"/>
+                                        </Border>
+
+                                        <!-- Scope Metrics -->
+                                        <UniformGrid Columns="3" Margin="0,6,0,0">
+                                            <StackPanel>
+                                                <TextBlock Text="Max IRE:" FontSize="9.5" Foreground="#64748B"/>
+                                                <TextBlock x:Name="TxtScopeMaxIre" Text="98.5 IRE" FontWeight="Bold" FontSize="11" Foreground="#00E676"/>
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="Min IRE:" FontSize="9.5" Foreground="#64748B"/>
+                                                <TextBlock x:Name="TxtScopeMinIre" Text="1.2 IRE" FontWeight="Bold" FontSize="11" Foreground="#00E676"/>
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="Gamut:" FontSize="9.5" Foreground="#64748B"/>
+                                                <TextBlock x:Name="TxtScopeGamutStatus" Text="LEGAL" FontWeight="Bold" FontSize="11" Foreground="#00E676"/>
+                                            </StackPanel>
+                                        </UniformGrid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- 2. CCU COLOR CORRECTION (LIFT / GAMMA / GAIN) VỚI MENU CHỌN KÊNH -->
+                                <Border Style="{StaticResource SubCardStyle}" Margin="0,0,0,6">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,6">
+                                            <TextBlock Text="🎨 CCU COLOR CORRECTION" FontWeight="Bold" FontSize="11" Foreground="#00E5FF" VerticalAlignment="Center"/>
+                                            <Button Content="🔄 Reset CCU" Click="BtnResetCcu_Click" Style="{StaticResource ToolBtnStyle}" HorizontalAlignment="Right" Padding="6,2" FontSize="9.5"/>
+                                        </Grid>
+
+                                        <!-- Menu lựa chọn kênh màu tác động -->
+                                        <TextBlock Text="Menu lựa chọn kênh màu tác động:" FontSize="10" Foreground="#94A3B8" Margin="0,0,0,2"/>
+                                        <ComboBox x:Name="CmbCcuTargetChannel" SelectionChanged="CmbCcuTargetChannel_SelectionChanged" Margin="0,0,0,6">
+                                            <ComboBoxItem Content="● PGM Master (ON-AIR - Màn hình chính)" IsSelected="True" Tag="-1"/>
+                                            <ComboBoxItem Content="🎯 Theo dòng Playlist Rundown (Auto Follow)" Tag="-2"/>
+                                            <ComboBoxItem Content="Slot 01: Live Ingest 01 (Cam 01)" Tag="1"/>
+                                            <ComboBoxItem Content="Slot 02: Live Ingest 02 (Cam 02)" Tag="2"/>
+                                            <ComboBoxItem Content="Slot 03: Live Ingest 03 (Cam 03)" Tag="3"/>
+                                            <ComboBoxItem Content="Slot 04: Live Ingest 04 (Cam 04)" Tag="4"/>
+                                            <ComboBoxItem Content="Slot 05: Live Ingest 05 (Cam 05)" Tag="5"/>
+                                            <ComboBoxItem Content="Slot 06: Live Ingest 06 (Cam 06)" Tag="6"/>
+                                            <ComboBoxItem Content="Slot 07: Live Ingest 07 (Cam 07)" Tag="7"/>
+                                            <ComboBoxItem Content="Slot 08: Live Ingest 08 (Cam 08)" Tag="8"/>
+                                            <ComboBoxItem Content="Slot 09: Live Ingest 09 (Cam 09)" Tag="9"/>
+                                            <ComboBoxItem Content="Slot 10: Live Ingest 10 (Cam 10)" Tag="10"/>
                                         </ComboBox>
 
-                                        <Grid Margin="0,0,0,8">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
-                                            
-                                            <!-- Backup Port selection -->
-                                            <StackPanel Grid.Column="0" Margin="0,0,4,0">
-                                                <TextBlock Text="Cổng IP Cứu Sóng (Backup Port):" FontSize="10.5" FontWeight="SemiBold" Foreground="#94A3B8" Margin="0,0,0,3"/>
-                                                <ComboBox x:Name="CmbFailSafeBackupPort">
-                                                    <ComboBoxItem Content="IP 1 (Port 1)" IsSelected="True"/>
-                                                    <ComboBoxItem Content="IP 2 (Port 2)"/>
-                                                    <ComboBoxItem Content="IP 3 (Port 3)"/>
-                                                    <ComboBoxItem Content="IP 4 (Port 4)"/>
-                                                    <ComboBoxItem Content="IP 5 (Port 5)"/>
-                                                    <ComboBoxItem Content="IP 6 (Port 6)"/>
-                                                    <ComboBoxItem Content="IP 7 (Port 7)"/>
-                                                    <ComboBoxItem Content="IP 8 (Port 8)"/>
-                                                    <ComboBoxItem Content="IP 9 (Port 9)"/>
-                                                    <ComboBoxItem Content="IP 10 (Port 10)"/>
-                                                </ComboBox>
-                                            </StackPanel>
+                                        <!-- Badge thông tin mục tiêu đang tác động -->
+                                        <Border Background="#0C1424" BorderBrush="#1E2B45" BorderThickness="1" CornerRadius="3" Padding="6,3" Margin="0,0,0,6">
+                                            <TextBlock x:Name="TxtCcuTargetInfo" Text="🎯 Đang tác động: PGM Master (ON-AIR Màn hình chính)" FontSize="9.5" FontWeight="Bold" Foreground="#38BDF8"/>
+                                        </Border>
 
-                                            <!-- Timeout setting -->
-                                            <StackPanel Grid.Column="1" Margin="4,0,0,0">
-                                                <TextBlock Text="Thời Gian Chờ Mất Sóng (Timeout):" FontSize="10.5" FontWeight="SemiBold" Foreground="#94A3B8" Margin="0,0,0,3"/>
-                                                <ComboBox x:Name="CmbFailSafeTimeout">
-                                                    <ComboBoxItem Content="0.5 giây (Cực nhanh)"/>
-                                                    <ComboBoxItem Content="1.0 giây (Nhanh)"/>
-                                                    <ComboBoxItem Content="1.5 giây (Tiêu chuẩn)" IsSelected="True"/>
-                                                    <ComboBoxItem Content="2.0 giây"/>
-                                                    <ComboBoxItem Content="3.0 giây"/>
-                                                    <ComboBoxItem Content="5.0 giây"/>
-                                                </ComboBox>
-                                            </StackPanel>
+                                        <Grid Margin="0,0,0,2">
+                                            <TextBlock Text="Gain (Highlights / Vùng sáng):" FontSize="10" Foreground="#94A3B8"/>
+                                            <TextBlock x:Name="TxtCcuGainVal" Text="1.00" FontSize="9.5" Foreground="#00E5FF" HorizontalAlignment="Right"/>
                                         </Grid>
+                                        <Slider x:Name="SliderGain" Minimum="0.5" Maximum="2.0" Value="1.0" SmallChange="0.01" ValueChanged="SliderCcu_ValueChanged" Margin="0,0,0,4"/>
 
-                                        <Button x:Name="BtnTestFailSafe" Content="🚨 BẬT THỬ NGHIỆM CỨU SÓNG KHẨN CẤP" Click="BtnTestFailSafe_Click" Background="#7F1D1D" Foreground="#FCA5A5" FontWeight="Bold" Padding="10,6" Cursor="Hand"/>
+                                        <Grid Margin="0,0,0,2">
+                                            <TextBlock Text="Gamma (Midtones / Trung gian):" FontSize="10" Foreground="#94A3B8"/>
+                                            <TextBlock x:Name="TxtCcuGammaVal" Text="1.00" FontSize="9.5" Foreground="#00E5FF" HorizontalAlignment="Right"/>
+                                        </Grid>
+                                        <Slider x:Name="SliderGamma" Minimum="0.5" Maximum="2.0" Value="1.0" SmallChange="0.01" ValueChanged="SliderCcu_ValueChanged" Margin="0,0,0,4"/>
+
+                                        <Grid Margin="0,0,0,2">
+                                            <TextBlock Text="Lift (Shadows / Vùng tối):" FontSize="10" Foreground="#94A3B8"/>
+                                            <TextBlock x:Name="TxtCcuLiftVal" Text="0.00" FontSize="9.5" Foreground="#00E5FF" HorizontalAlignment="Right"/>
+                                        </Grid>
+                                        <Slider x:Name="SliderLift" Minimum="-0.5" Maximum="0.5" Value="0.0" SmallChange="0.01" ValueChanged="SliderCcu_ValueChanged" Margin="0,0,0,4"/>
+
+                                        <Grid Margin="0,0,0,2">
+                                            <TextBlock Text="Saturation (Độ bão hòa màu):" FontSize="10" Foreground="#94A3B8"/>
+                                            <TextBlock x:Name="TxtCcuSatVal" Text="1.00" FontSize="9.5" Foreground="#00E5FF" HorizontalAlignment="Right"/>
+                                        </Grid>
+                                        <Slider x:Name="SliderSaturation" Minimum="0.0" Maximum="2.0" Value="1.0" SmallChange="0.01" ValueChanged="SliderCcu_ValueChanged"/>
                                     </StackPanel>
                                 </Border>
-                            </StackPanel>
-                        </ScrollViewer>
-                    </TabItem>
 
-                    <!-- TAB 6: ROUTER IP (MA TRẬN ĐỊNH TUYẾN) -->
-                    <TabItem Header="6. Router IP">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
-                            <StackPanel>
-                                <!-- BÀN ĐỊNH TUYẾN MA TRẬN IP (CROSSPOINT ROUTER & GATEWAY) -->
+                                <!-- 3. 3D LUT PRESETS & CUSTOM FILE LOADER -->
                                 <Border Style="{StaticResource SubCardStyle}">
                                     <StackPanel>
-                                        <Grid Margin="0,0,0,8">
-                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                <TextBlock Text="🔀 MA TRẬN ĐỊNH TUYẾN (CROSSPOINT ROUTER &amp; GATEWAY)" FontWeight="Bold" FontSize="12" Foreground="#00E5FF"/>
-                                                <TextBlock Text=" (Patch Bay 32 Slots)" FontSize="10.5" Foreground="#94A3B8" Margin="4,0,0,0" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                            <Button x:Name="BtnRefreshRouterSources" Content="🔄 Quét Nguồn IP" Click="BtnRefreshRouterSources_Click" 
-                                                    Background="#1E293B" Foreground="#00E5FF" FontWeight="Bold" FontSize="10.5" Padding="10,4" HorizontalAlignment="Right" Cursor="Hand" ToolTip="Quét lại các luồng SRT, WebRTC, NDI đang phát trên máy"/>
+                                        <Grid Margin="0,0,0,6">
+                                            <TextBlock Text="🎭 3D BROADCAST LUT (ÁP DỤNG PGM)" FontWeight="Bold" FontSize="11" Foreground="#00E5FF"/>
+                                            <TextBlock x:Name="TxtActiveLutName" Text="LUT: Bypass" FontSize="9.5" FontWeight="Bold" Foreground="#34D399" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                         </Grid>
 
-                                        <TextBlock Text="Gán nguồn video IP Matrix (SRT, WebRTC, NDI...) vào từng cổng phát sóng của Playout:" FontSize="10.5" Foreground="#94A3B8" Margin="0,0,0,8"/>
-
-                                        <!-- Crosspoint Routing Grid -->
-                                        <!-- Port 0 (PGM In) -->
-                                        <Grid Margin="0,0,0,5">
+                                        <Grid Margin="0,0,0,6">
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="130"/>
                                                 <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="Port 0 (PGM Master):" FontSize="11" FontWeight="SemiBold" Foreground="#EF4444" VerticalAlignment="Center"/>
-                                            <ComboBox x:Name="CmbRoutePort0" Grid.Column="1" Tag="0"/>
+                                            <Button x:Name="BtnLoadCustomLut" Grid.Column="0" Content="📁 Nạp File LUT (.cube)..." Click="BtnLoadCustomLut_Click" Style="{StaticResource ToolBtnStyle}" Margin="0,0,4,0" ToolTip="Nạp file màu 3D LUT định dạng .cube tác động trực tiếp lên PGM"/>
+                                            <Button x:Name="BtnClearLut" Grid.Column="1" Content="✖ Tắt LUT" Click="BtnClearLut_Click" Style="{StaticResource ToolBtnStyle}" Foreground="#EF4444" ToolTip="Tắt 3D LUT và quay về màu gốc"/>
                                         </Grid>
 
-                                        <!-- Port 1..10 (IP 1..10) in 2 columns -->
-                                        <UniformGrid Columns="2" Margin="0,4,0,0">
-                                            <!-- Port 1 -->
-                                            <StackPanel Margin="0,0,4,6">
-                                                <TextBlock Text="Cổng 1 (IP 1):" FontSize="10" FontWeight="SemiBold" Foreground="#38BDF8" Margin="0,0,0,2"/>
-                                                <ComboBox x:Name="CmbRoutePort1" Tag="1"/>
-                                            </StackPanel>
-                                            <!-- Port 2 -->
-                                            <StackPanel Margin="4,0,0,6">
-                                                <TextBlock Text="Cổng 2 (IP 2):" FontSize="10" FontWeight="SemiBold" Foreground="#38BDF8" Margin="0,0,0,2"/>
-                                                <ComboBox x:Name="CmbRoutePort2" Tag="2"/>
-                                            </StackPanel>
-                                            <!-- Port 3 -->
-                                            <StackPanel Margin="0,0,4,6">
-                                                <TextBlock Text="Cổng 3 (IP 3):" FontSize="10" FontWeight="SemiBold" Foreground="#38BDF8" Margin="0,0,0,2"/>
-                                                <ComboBox x:Name="CmbRoutePort3" Tag="3"/>
-                                            </StackPanel>
-                                            <!-- Port 4 -->
-                                            <StackPanel Margin="4,0,0,6">
-                                                <TextBlock Text="Cổng 4 (IP 4):" FontSize="10" FontWeight="SemiBold" Foreground="#38BDF8" Margin="0,0,0,2"/>
-                                                <ComboBox x:Name="CmbRoutePort4" Tag="4"/>
-                                            </StackPanel>
-                                            <!-- Port 5 -->
-                                            <StackPanel Margin="0,0,4,6">
-                                                <TextBlock Text="Cổng 5 (IP 5):" FontSize="10" FontWeight="SemiBold" Foreground="#38BDF8" Margin="0,0,0,2"/>
-                                                <ComboBox x:Name="CmbRoutePort5" Tag="5"/>
-                                            </StackPanel>
-                                            <!-- Port 6 -->
-                                            <StackPanel Margin="4,0,0,6">
-                                                <TextBlock Text="Cổng 6 (IP 6):" FontSize="10" FontWeight="SemiBold" Foreground="#38BDF8" Margin="0,0,0,2"/>
-                                                <ComboBox x:Name="CmbRoutePort6" Tag="6"/>
-                                            </StackPanel>
-                                            <!-- Port 7 -->
-                                            <StackPanel Margin="0,0,4,6">
-                                                <TextBlock Text="Cổng 7 (IP 7):" FontSize="10" FontWeight="SemiBold" Foreground="#38BDF8" Margin="0,0,0,2"/>
-                                                <ComboBox x:Name="CmbRoutePort7" Tag="7"/>
-                                            </StackPanel>
-                                            <!-- Port 8 -->
-                                            <StackPanel Margin="4,0,0,6">
-                                                <TextBlock Text="Cổng 8 (IP 8):" FontSize="10" FontWeight="SemiBold" Foreground="#38BDF8" Margin="0,0,0,2"/>
-                                                <ComboBox x:Name="CmbRoutePort8" Tag="8"/>
-                                            </StackPanel>
-                                            <!-- Port 9 -->
-                                            <StackPanel Margin="0,0,4,6">
-                                                <TextBlock Text="Cổng 9 (IP 9):" FontSize="10" FontWeight="SemiBold" Foreground="#38BDF8" Margin="0,0,0,2"/>
-                                                <ComboBox x:Name="CmbRoutePort9" Tag="9"/>
-                                            </StackPanel>
-                                            <!-- Port 10 -->
-                                            <StackPanel Margin="4,0,0,6">
-                                                <TextBlock Text="Cổng 10 (IP 10):" FontSize="10" FontWeight="SemiBold" Foreground="#38BDF8" Margin="0,0,0,2"/>
-                                                <ComboBox x:Name="CmbRoutePort10" Tag="10"/>
-                                            </StackPanel>
+                                        <UniformGrid Columns="4">
+                                            <Button Content="Bypass" Click="BtnLutPreset_Click" Tag="none" Style="{StaticResource ToolBtnStyle}" FontSize="9"/>
+                                            <Button Content="Rec.709" Click="BtnLutPreset_Click" Tag="rec709" Style="{StaticResource ToolBtnStyle}" FontSize="9"/>
+                                            <Button Content="Warm Studio" Click="BtnLutPreset_Click" Tag="warm" Style="{StaticResource ToolBtnStyle}" FontSize="9"/>
+                                            <Button Content="Teal/Orange" Click="BtnLutPreset_Click" Tag="teal_orange" Style="{StaticResource ToolBtnStyle}" FontSize="9"/>
                                         </UniformGrid>
                                     </StackPanel>
                                 </Border>
@@ -819,35 +1385,231 @@
                         </ScrollViewer>
                     </TabItem>
 
+                    <!-- TAB 4: LIP-SYNC DELAY -->
+                    <TabItem x:Name="TabItemLipSync" Header="4. LipSync">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+                            <StackPanel>
+                                <Border Style="{StaticResource SubCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="⏱️ ĐIỀU CHỈNH TRỄ LIP-SYNC VIDEO" FontWeight="Bold" FontSize="11" Foreground="#00E5FF" Margin="0,0,0,6"/>
+                                        <TextBlock x:Name="TxtEffectiveDelay" Text="Độ trễ Video: 0 ms" FontSize="10" Foreground="#94A3B8"/>
+                                        <Slider x:Name="SliderVideoDelay" Minimum="0" Maximum="500" Value="0" ValueChanged="SliderVideoDelay_ValueChanged"/>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- TAB 5: FAIL-SAFE EMERGENCY -->
+                    <TabItem x:Name="TabItemFailSafe" Header="5. Fail-Safe">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+                            <StackPanel>
+                                <Border Style="{StaticResource SubCardStyle}" BorderBrush="#EF4444">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,6">
+                                            <TextBlock Text="🛡️ BẢO VỆ SÓNG TỰ ĐỘNG (FAIL-SAFE)" FontWeight="Bold" FontSize="11" Foreground="#EF4444" VerticalAlignment="Center"/>
+                                            <CheckBox x:Name="ChkFailSafeEnabled" Content="Kích Hoạt" Foreground="#E2E8F0" IsChecked="True" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center" Click="ChkFailSafeEnabled_Click"/>
+                                        </Grid>
+
+                                        <TextBlock Text="Chế Độ Cứu Sóng:" FontSize="10" Foreground="#E2E8F0" Margin="0,0,0,3"/>
+                                        <ComboBox x:Name="CmbFailSafeMode" Margin="0,0,0,6">
+                                            <ComboBoxItem Content="1. Bảng Màu SMPTE Bars (Kèm Tone 1kHz)" IsSelected="True"/>
+                                            <ComboBoxItem Content="2. Tự Động Chuyển Cổng IP Dự Phòng"/>
+                                        </ComboBox>
+
+                                        <TextBlock Text="Cổng IP Dự Phòng:" FontSize="10" Foreground="#94A3B8"/>
+                                        <ComboBox x:Name="CmbFailSafeBackupPort" Margin="0,2,0,6">
+                                            <ComboBoxItem Content="CAM 01 (Port 1)" IsSelected="True"/>
+                                            <ComboBoxItem Content="CAM 02 (Port 2)"/>
+                                            <ComboBoxItem Content="CAM 03 (Port 3)"/>
+                                            <ComboBoxItem Content="CAM 04 (Port 4)"/>
+                                        </ComboBox>
+
+                                        <TextBlock Text="Thời Gian Chờ Mất Sóng:" FontSize="10" Foreground="#94A3B8"/>
+                                        <ComboBox x:Name="CmbFailSafeTimeout">
+                                            <ComboBoxItem Content="0.5 giây"/>
+                                            <ComboBoxItem Content="1.0 giây"/>
+                                            <ComboBoxItem Content="1.5 giây (Chuẩn)" IsSelected="True"/>
+                                            <ComboBoxItem Content="2.0 giây"/>
+                                        </ComboBox>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- TAB 6: ROUTER CROSSPOINT & AUTO-SCAN TOOLS -->
+                    <TabItem x:Name="TabItemRouter" Header="6. Router IP">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+                            <StackPanel>
+                                <Border Style="{StaticResource SubCardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="🔀 CROSSPOINT MATRIX ROUTER (PORT ➔ SLOT)" FontWeight="Bold" FontSize="11" Foreground="#00E5FF" Margin="0,0,0,6"/>
+
+                                        <!-- Nút Thao Tác: Quét 32 Cổng MATRIX, Dò NDI LAN, và Quét Lại IP Đang Đổi (giữ slot) -->
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Button x:Name="BtnScan32MatrixPorts" Grid.Column="0" Content="⚡ Quét 32 Cổng MATRIX" Click="BtnScan32MatrixPorts_Click"
+                                                    Background="#0284C7" Foreground="White" FontWeight="Bold" FontSize="10" Padding="5,5" Margin="0,0,2,0" Cursor="Hand"
+                                                    ToolTip="Quét toàn bộ 32 slot VRAM Direct3D11 Shared Texture từ SRT và WebRTC"/>
+                                            <Button x:Name="BtnScanNdiInRouter" Grid.Column="1" Content="🌐 Dò NDI LAN" Click="BtnScanNdiInRouter_Click"
+                                                    Background="#2563EB" Foreground="White" FontWeight="Bold" FontSize="10" Padding="5,5" Margin="2,0,0,0" Cursor="Hand"
+                                                    ToolTip="Dò tìm các nguồn video NDI đang phát trên mạng LAN"/>
+                                        </Grid>
+
+                                        <!-- Nút Quét lại IP đang đổi mà không ảnh hưởng đến các slot đang hiển thị -->
+                                        <Button x:Name="BtnRescanChangingIps" Content="🔄 Quét Lại IP Đang Đổi (Giữ Slot Hiện Hành)" Click="BtnRescanChangingIps_Click"
+                                                Background="#0F766E" Foreground="#A7F3D0" BorderBrush="#14B8A6" BorderThickness="1" FontWeight="Bold" FontSize="10" Padding="6,5" Margin="0,0,0,6" Cursor="Hand"
+                                                ToolTip="Cập nhật lại trạng thái các IP/SRT/WebRTC đang thay đổi mà không làm thay đổi các slot và cổng Router đang hiển thị"/>
+
+                                        <!-- Trạng thái quét & Nút đồng bộ sang Preview Trái -->
+                                        <Border Background="#0B1322" BorderBrush="#1E2B45" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,8">
+                                            <Grid>
+                                                <TextBlock x:Name="TxtRouterMatrixSummary" Text="32 Slot VRAM • 11 Cổng Playout sẵn sàng" FontSize="9.5" Foreground="#38BDF8" VerticalAlignment="Center"/>
+                                                <Button x:Name="BtnSyncToLeftPreview" Content="🔄 Đồng Bộ Preview Trái" Click="BtnSyncToLeftPreview_Click"
+                                                        Style="{StaticResource ToolBtnStyle}" HorizontalAlignment="Right" Padding="6,2" FontSize="9"
+                                                        ToolTip="Đồng bộ ngay các slot đã gán sang Layout Preview bên trái"/>
+                                            </Grid>
+                                        </Border>
+
+                                        <!-- BẢNG ĐỊNH TUYẾN 11 SLOTS: CHỌN TÍN HIỆU IP MATRIX (SRT & WEBRTC DECODE) -->
+                                        <Border Background="#070C16" BorderBrush="#1E2B45" BorderThickness="1" CornerRadius="5" Padding="4,6" Margin="0,0,0,8">
+                                            <StackPanel>
+                                                <!-- Tiêu đề 2 Cột -->
+                                                <Grid Background="#0F172A" Margin="0,0,0,4">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="110"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="0" Padding="8,5">
+                                                        <TextBlock Text="SLOT #" FontWeight="Bold" FontSize="10" Foreground="#00E5FF"/>
+                                                    </Border>
+                                                    <Border Grid.Column="1" Padding="8,5" BorderBrush="#1E293B" BorderThickness="1,0,0,0">
+                                                        <TextBlock Text="TÍN HIỆU IP MATRIX (SRT &amp; WEBRTC DECODE)" FontWeight="Bold" FontSize="10" Foreground="#38BDF8"/>
+                                                    </Border>
+                                                </Grid>
+
+                                                <!-- Bảng 11 Dòng: Slot 00..10 tương ứng với Cột chọn tín hiệu Matrix -->
+                                                <ItemsControl x:Name="ListRouter11Slots">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border BorderBrush="#1E293B" BorderThickness="0,0,0,1" Padding="6,5" Background="#0A101E">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="110"/>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                    </Grid.ColumnDefinitions>
+
+                                                                    <!-- CỘT 1: 11 SLOT (Slot 00 .. Slot 10) -->
+                                                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="2,0,6,0">
+                                                                        <Border Background="{Binding SlotBadgeColor}" CornerRadius="3" Padding="5,2" HorizontalAlignment="Left">
+                                                                            <TextBlock Text="{Binding SlotName}" FontWeight="Bold" FontSize="10" Foreground="#FFFFFF"/>
+                                                                        </Border>
+                                                                        <TextBlock Text="{Binding SlotRole}" FontSize="8.5" Foreground="#94A3B8" Margin="1,2,0,0"/>
+                                                                    </StackPanel>
+
+                                                                    <!-- CỘT 2: BẢNG CHỌN TÍN HIỆU IP MATRIX TỪ SRT DECODE VÀ WEBRTC DECODE -->
+                                                                    <Grid Grid.Column="1" VerticalAlignment="Center">
+                                                                        <Grid.RowDefinitions>
+                                                                            <RowDefinition Height="Auto"/>
+                                                                            <RowDefinition Height="Auto"/>
+                                                                        </Grid.RowDefinitions>
+
+                                                                        <ComboBox x:Name="CmbRouterSlotSource" Grid.Row="0" Tag="{Binding SlotIndex}"
+                                                                                  Loaded="CmbRouterSlotSource_Loaded"
+                                                                                  SelectionChanged="CmbRouterSlotSource_SelectionChanged"
+                                                                                  FontSize="10" Height="25" Background="#0B1322" Foreground="#38BDF8" FontWeight="SemiBold"
+                                                                                  ToolTip="Chọn nguồn tín hiệu IP Matrix từ SRT Decode (1 PGM + 10 CAM) hoặc WebRTC Decode (1 PGM + 10 CAM) cho Slot này"/>
+
+                                                                        <!-- Dòng trạng thái tín hiệu thời gian thực -->
+                                                                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="2,3,0,0">
+                                                                            <Ellipse Width="6" Height="6" Fill="{Binding SignalDotColor}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                                            <TextBlock Text="{Binding ResolutionText}" FontSize="8.5" Foreground="{Binding SignalDotColor}" VerticalAlignment="Center"/>
+                                                                            <TextBlock Text=" • " FontSize="8.5" Foreground="#475569" VerticalAlignment="Center" Margin="3,0"/>
+                                                                            <TextBlock Text="{Binding SignalOrigin}" FontSize="8.5" Foreground="#64748B" VerticalAlignment="Center"/>
+                                                                        </StackPanel>
+                                                                    </Grid>
+                                                                </Grid>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- TAB 7: DVE MULTI-BOX -->
+                    <TabItem x:Name="TabItemDve" Header="7. DVE">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+                            <StackPanel>
+                                <Border Style="{StaticResource SubCardStyle}">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,6">
+                                            <TextBlock Text="🎛️ DVE MULTI-BOX COMPOSITOR" FontWeight="Bold" FontSize="11" Foreground="#00E5FF"/>
+                                            <Button x:Name="BtnToggleDve" Content="BẬT DVE" Click="BtnToggleDve_Click" Background="#2563EB" Foreground="White" FontWeight="Bold" Padding="8,2" FontSize="10" HorizontalAlignment="Right" Cursor="Hand"/>
+                                        </Grid>
+
+                                        <TextBlock Text="Chế Độ Bố Cục DVE:" FontSize="10" Foreground="#94A3B8" Margin="0,0,0,3"/>
+                                        <ComboBox x:Name="CmbDveLayout" Margin="0,0,0,8" SelectionChanged="CmbDveLayout_SelectionChanged">
+                                            <ComboBoxItem Content="Single (Full Screen)" IsSelected="True"/>
+                                            <ComboBoxItem Content="Picture-in-Picture (PiP Top-Right)"/>
+                                            <ComboBoxItem Content="Picture-in-Picture (PiP Bottom-Right)"/>
+                                            <ComboBoxItem Content="Split Screen (Side-by-Side 50/50)"/>
+                                            <ComboBoxItem Content="Quad Split (4-Box Multiview)"/>
+                                        </ComboBox>
+
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Margin="0,0,3,0">
+                                                <TextBlock Text="Nguồn Box 1 (Chính):" FontSize="10" Foreground="#94A3B8"/>
+                                                <ComboBox x:Name="CmbDveBox1Port" SelectionChanged="CmbDveBox_SelectionChanged"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="3,0,0,0">
+                                                <TextBlock Text="Nguồn Box 2 (Phụ):" FontSize="10" Foreground="#94A3B8"/>
+                                                <ComboBox x:Name="CmbDveBox2Port" SelectionChanged="CmbDveBox_SelectionChanged"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
                 </TabControl>
-            </Border>
-        </Grid>
-
-        <!-- MASTER STATUS BAR (Bottom) -->
-        <Border Grid.Row="2" Background="#0A0D14" BorderBrush="#1E293B" BorderThickness="0,1,0,0" Padding="14,0">
-            <Grid VerticalAlignment="Center">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="ENGINE FPS:" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,4,0"/>
-                    <TextBlock x:Name="TxtEngineFps" Text="59.94 FPS" FontSize="10.5" FontWeight="Bold" Foreground="#00E676" Margin="0,0,16,0"/>
-
-                    <TextBlock Text="DROPPED FRAMES:" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,4,0"/>
-                    <TextBlock x:Name="TxtDropFrames" Text="0" FontSize="10.5" FontWeight="Bold" Foreground="#F8FAFC" Margin="0,0,16,0"/>
-
-                    <TextBlock Text="VRAM USAGE:" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,4,0"/>
-                    <TextBlock x:Name="TxtVramUsage" Text="142.5 MB" FontSize="10.5" FontWeight="Bold" Foreground="#38BDF8" Margin="0,0,16,0"/>
-
-                    <TextBlock Text="AUDIO FORMAT:" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,4,0"/>
-                    <TextBlock Text="PCM 48kHz Stereo 16-bit" FontSize="10.5" Foreground="#F59E0B" Margin="0,0,16,0"/>
-
-                    <TextBlock Text="SDI OUT:" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,4,0"/>
-                    <TextBlock x:Name="TxtStatusBarSdi" Text="STANDBY" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,16,0"/>
-
-                    <TextBlock Text="CODEC:" FontSize="10.5" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,4,0"/>
-                    <TextBlock x:Name="TxtStatusBarCodec" Text="UYVY 4:2:2" FontSize="10.5" FontWeight="Bold" Foreground="#38BDF8" Margin="0,0,16,0"/>
-                </StackPanel>
-
-                <TextBlock Text="OME BROADCAST ENGINE • MATRIX ISO ROUTER IPC READY" FontSize="10" Foreground="#64748B" HorizontalAlignment="Right"/>
             </Grid>
         </Border>
+
+        <!-- Hidden legacy compatibility controls for code-behind bindings -->
+        <Grid Visibility="Collapsed">
+            <TextBlock x:Name="TxtScopeCct"/>
+            <TextBlock x:Name="TxtScopeTint"/>
+            <TextBlock x:Name="TxtPgmTitle"/>
+            <TextBlock x:Name="TxtPreviewTitle"/>
+            <TextBlock x:Name="TxtPgmSourceBadge"/>
+            <TextBlock x:Name="TxtPreviewSourceBadge"/>
+            <Border x:Name="BadgeClip"/>
+            <Image x:Name="ImgThumb0"/>
+            <Image x:Name="ImgThumb1"/>
+            <Button x:Name="BtnSelectPgm"/>
+            <Button x:Name="BtnIso1"/>
+            <Button x:Name="BtnIso2"/>
+            <Button x:Name="BtnIso3"/>
+            <Button x:Name="BtnIso4"/>
+            <Button x:Name="BtnIso5"/>
+            <Button x:Name="BtnIso6"/>
+            <Button x:Name="BtnIso7"/>
+            <Button x:Name="BtnIso8"/>
+            <Button x:Name="BtnIso9"/>
+            <Button x:Name="BtnIso10"/>
+        </Grid>
     </Grid>
 </Window>

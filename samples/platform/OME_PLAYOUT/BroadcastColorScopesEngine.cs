@@ -150,9 +150,9 @@ namespace OME_PLAYOUT
                             byte g = pRow[sx * 4 + 1];
                             byte r = pRow[sx * 4 + 2];
 
-                            // BT.709 Luma
-                            double luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-                            double ire = (luma / 255.0) * 100.0;
+                            // Fast integer BT.709 Luma
+                            int luma = (54 * r + 183 * g + 18 * b) >> 8;
+                            double ire = (luma * 100) / 255.0;
 
                             if (ire > maxIre) maxIre = ire;
                             if (ire < minIre) minIre = ire;
@@ -397,12 +397,12 @@ namespace OME_PLAYOUT
                             byte g = pRow[x * 4 + 1];
                             byte r = pRow[x * 4 + 2];
 
-                            // BT.709 RGB to YCbCr conversion
-                            double yVal = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-                            double cb = -0.1146 * r - 0.3854 * g + 0.5000 * b; // [-128..127]
-                            double cr = 0.5000 * r - 0.4542 * g - 0.0458 * b;
+                            // Fast integer BT.709 RGB to YCbCr conversion
+                            int yVal = (54 * r + 183 * g + 18 * b) >> 8;
+                            int cb = (-29 * r - 99 * g + 128 * b) >> 8;
+                            int cr = (128 * r - 116 * g - 12 * b) >> 8;
 
-                            double ire = (yVal / 255.0) * 100.0;
+                            double ire = (yVal * 100) / 255.0;
                             if (ire > maxIre) maxIre = ire;
                             if (ire < minIre) minIre = ire;
                             totalIre += ire;
@@ -410,7 +410,6 @@ namespace OME_PLAYOUT
                             if (ire > 100.0 || ire < 0.0) outOfGamutCount++;
 
                             // Map Cb (U) to X, Cr (V) to Y
-                            // In standard broadcast vectorscope: B-Y (Cb) is horizontal, R-Y (Cr) is vertical
                             int px = cx + (int)((cb / 128.0) * maxRadius * 1.3);
                             int py = cy - (int)((cr / 128.0) * maxRadius * 1.3);
 

@@ -39,10 +39,12 @@ namespace OME_PLAYOUT
                     var rational = BroadcastFrameRates.SnapToRational(fps > 0 ? fps : 59.94);
                     string fpsArg = BroadcastFrameRates.FormatFfmpeg(rational);
 
-                    // Clean device name from UI decoration labels
-                    string cleanDevice = sdiDevice;
-                    if (cleanDevice.Contains("[SDI HW]")) cleanDevice = cleanDevice.Replace("[SDI HW]", "").Trim();
-                    if (cleanDevice.Contains("[PORT]")) cleanDevice = cleanDevice.Replace("[PORT]", "").Trim();
+                    string cleanDevice = SdiHardwareScanner.CleanDeviceName(sdiDevice);
+                    if (string.IsNullOrWhiteSpace(cleanDevice) || cleanDevice.Contains("Không phát hiện", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Trace.WriteLine("[SdiNativeOutputWorker] Chưa chọn thiết bị SDI output hợp lệ.");
+                        return false;
+                    }
                     CurrentDevice = cleanDevice;
                     CurrentMode = sdiMode;
                     FramesSent = 0;
@@ -72,9 +74,18 @@ namespace OME_PLAYOUT
                         pixelFormatArg = "yuv422p";
                     }
 
+                    // Check for interlaced mode
+                    bool isInterlaced = sdiMode.Contains("1080i", StringComparison.OrdinalIgnoreCase) ||
+                                       sdiMode.Contains("720i", StringComparison.OrdinalIgnoreCase) ||
+                                       sdiMode.Contains("2160i", StringComparison.OrdinalIgnoreCase) ||
+                                       sdiMode.Contains("1080i)", StringComparison.OrdinalIgnoreCase) ||
+                                       sdiMode.Contains("1440i)", StringComparison.OrdinalIgnoreCase) ||
+                                       sdiMode.Contains("Interlaced", StringComparison.OrdinalIgnoreCase);
+                    string interlaceArg = isInterlaced ? "-flags +ilme+ildct -top 1 " : string.Empty;
+
                     // FFmpeg decklink output sink command:
                     // Raw BGRA32 input from compositor memory -> convert to target SDI format -> pipe to DeckLink device
-                    string args = $"-hide_banner -loglevel warning -f rawvideo -pix_fmt bgra -s {width}x{height} -r {fpsArg} -i pipe:0 {vcodecArg} -pix_fmt {pixelFormatArg} -f decklink \"{cleanDevice}\"";
+                    string args = $"-hide_banner -loglevel warning -f rawvideo -pix_fmt bgra -s {width}x{height} -r {fpsArg} -i pipe:0 {interlaceArg}{vcodecArg} -pix_fmt {pixelFormatArg} -f decklink \"{cleanDevice}\"";
 
                     var psi = new ProcessStartInfo
                     {

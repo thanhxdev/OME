@@ -722,11 +722,7 @@ namespace WEBRTC_ENCODE
                         _sdiAudioCapture = null;
                     }
 
-                    string cleanDev = deviceName;
-                    int tagIdx = cleanDev.IndexOf("]");
-                    if (tagIdx >= 0 && tagIdx < cleanDev.Length - 1) cleanDev = cleanDev.Substring(tagIdx + 1).Trim();
-                    int pIdx = cleanDev.IndexOf(" (");
-                    if (pIdx > 0) cleanDev = cleanDev.Substring(0, pIdx).Trim();
+                    string cleanDev = SdiHardwareScanner.CleanDeviceName(deviceName);
 
                     var audioDevices = AudioInputDevice.GetInputDevices();
                     int matchedDevId = -1;

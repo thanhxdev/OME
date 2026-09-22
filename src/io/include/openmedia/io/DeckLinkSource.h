@@ -28,6 +28,11 @@ public:
     void OnStateChange(core::StateChangeCallback callback) override;
     void OnError(core::ErrorCallback callback) override;
 
+    // Hardware Device Selection
+    core::VoidResult Open(const std::string& deviceNameOrId);
+    core::VoidResult Open(int deviceIndex = 0);
+    void EnableAutoFormatDetection(bool enable = true);
+
     // DeviceSource
     const DeviceInfo& GetDeviceInfo() const override;
     std::vector<DeviceFormat> GetSupportedFormats() const override;

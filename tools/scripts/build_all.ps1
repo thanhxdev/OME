@@ -83,7 +83,8 @@ try {
         "SRT_ENCODE_Setup.exe",
         "SRT_DECODE_Setup.exe",
         "WEBRTC_ENCODE_Setup.exe",
-        "WEBRTC_DECODE_Setup.exe"
+        "WEBRTC_DECODE_Setup.exe",
+        "OME_PLAYOUT_Setup.exe"
     )
 
     $summary = @()
