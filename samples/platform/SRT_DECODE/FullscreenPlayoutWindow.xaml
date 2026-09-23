@@ -32,7 +32,8 @@
             <Grid>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="🖥️" FontSize="16" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                    <TextBlock x:Name="TxtHudTitle" Text="OME FULLSCREEN PLAYOUT" FontWeight="Bold" FontSize="13" Foreground="#FFFFFF" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="TxtHudTitle" Text="OME FULLSCREEN PLAYOUT" FontWeight="Bold" FontSize="13" Foreground="#FFFFFF"
+        FontFamily="Segoe UI" VerticalAlignment="Center"/>
                     <TextBlock x:Name="TxtHudInfo" Text=" (Press ESC to exit playout)" FontSize="12" Foreground="#8E8E93" VerticalAlignment="Center" Margin="8,0,0,0"/>
                 </StackPanel>
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 using System.Threading.Tasks;
@@ -54,6 +55,7 @@ namespace SRT_DECODE
         // ─── Dynamic Metadata State ─────────────────────────────────
         private readonly string[] _channelNames = new string[MaxChannels];
         private readonly int[] _channelPorts = new int[MaxChannels];
+        private readonly List<SRTGroupMemberConfig>[] _camExtraMembers = new List<SRTGroupMemberConfig>[MaxChannels];
 
         // ─── Control Reference Arrays ───────────────────────────────
         private Border[] _cellBorders = Array.Empty<Border>();
@@ -136,6 +138,32 @@ namespace SRT_DECODE
         private CheckBox[] _chkDecrypts = Array.Empty<CheckBox>();
         private TextBox[] _txtPassphrases = Array.Empty<TextBox>();
         private ComboBox[] _cmbKeyLens = Array.Empty<ComboBox>();
+        private ComboBox[] _cmbNicCams = Array.Empty<ComboBox>();
+
+        // â”€â”€â”€ SMPTE ST 2022-7 Per-CAM Control Arrays â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        private CheckBox[] _toggleSmpteCams = Array.Empty<CheckBox>();
+        private Border[] _pnlSingleCams = Array.Empty<Border>();
+        private Border[] _pnlGroupCams = Array.Empty<Border>();
+        private TextBox[] _txtDiffDelays = Array.Empty<TextBox>();
+        private TextBox[] _txtMemberAHosts = Array.Empty<TextBox>();
+        private TextBox[] _txtMemberAPorts = Array.Empty<TextBox>();
+        private ComboBox[] _cmbMemberANics = Array.Empty<ComboBox>();
+        private TextBox[] _txtMemberBHosts = Array.Empty<TextBox>();
+        private TextBox[] _txtMemberBPorts = Array.Empty<TextBox>();
+        private ComboBox[] _cmbMemberBNics = Array.Empty<ComboBox>();
+        private TextBox[] _txtNewMemberNames = Array.Empty<TextBox>();
+        private TextBox[] _txtNewMemberHosts = Array.Empty<TextBox>();
+        private TextBox[] _txtNewMemberPorts = Array.Empty<TextBox>();
+        private ComboBox[] _cmbNewMemberNics = Array.Empty<ComboBox>();
+        private StackPanel[] _stackDynamicMembers = Array.Empty<StackPanel>();
+
+        // â”€â”€â”€ Tab 5 Telemetry HUD Arrays â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        private Border[] _pnlSmpteTelemetries = Array.Empty<Border>();
+        private TextBlock[] _txtGroupRedundancies = Array.Empty<TextBlock>();
+        private TextBlock[] _txtGroupPathAPackets = Array.Empty<TextBlock>();
+        private TextBlock[] _txtGroupPathBPackets = Array.Empty<TextBlock>();
+        private TextBlock[] _txtGroupDuplicatesDropped = Array.Empty<TextBlock>();
+        private TextBlock[] _txtGroupRecoveredPackets = Array.Empty<TextBlock>();
 
         // ─── Hardware & Display Discovery ───────────────────────────
         private List<DisplayMonitorInfo> _monitors = new();
@@ -177,6 +205,7 @@ namespace SRT_DECODE
             for (int i = 0; i < MaxChannels; i++)
             {
                 _channelFrameHolders[i] = new ChannelFrameHolder();
+                _camExtraMembers[i] = new List<SRTGroupMemberConfig>();
             }
 
             _playoutAlignmentEngine = new VideoPlayoutAlignmentEngine(_syncEngine);
@@ -416,6 +445,7 @@ namespace SRT_DECODE
                 _txtIps = new[] { TxtIpCam1, TxtIpCam2, TxtIpCam3, TxtIpCam4, TxtIpCam5, TxtIpCam6, TxtIpCam7, TxtIpCam8, TxtIpCam9, TxtIpCam10 };
                 _txtPorts = new[] { TxtPortCam1, TxtPortCam2, TxtPortCam3, TxtPortCam4, TxtPortCam5, TxtPortCam6, TxtPortCam7, TxtPortCam8, TxtPortCam9, TxtPortCam10 };
                 _cmbModes = new[] { CmbModeCam1, CmbModeCam2, CmbModeCam3, CmbModeCam4, CmbModeCam5, CmbModeCam6, CmbModeCam7, CmbModeCam8, CmbModeCam9, CmbModeCam10 };
+                _cmbNicCams = new[] { CmbNicCam1, CmbNicCam2, CmbNicCam3, CmbNicCam4, CmbNicCam5, CmbNicCam6, CmbNicCam7, CmbNicCam8, CmbNicCam9, CmbNicCam10 };
                 _txtStreamIds = new[] { TxtStreamIdCam1, TxtStreamIdCam2, TxtStreamIdCam3, TxtStreamIdCam4, TxtStreamIdCam5, TxtStreamIdCam6, TxtStreamIdCam7, TxtStreamIdCam8, TxtStreamIdCam9, TxtStreamIdCam10 };
                 _txtLatencies = new[] { TxtLatencyCam1, TxtLatencyCam2, TxtLatencyCam3, TxtLatencyCam4, TxtLatencyCam5, TxtLatencyCam6, TxtLatencyCam7, TxtLatencyCam8, TxtLatencyCam9, TxtLatencyCam10 };
                 _chkAutoLatencies = new[] { ChkAutoLatencyCam1, ChkAutoLatencyCam2, ChkAutoLatencyCam3, ChkAutoLatencyCam4, ChkAutoLatencyCam5, ChkAutoLatencyCam6, ChkAutoLatencyCam7, ChkAutoLatencyCam8, ChkAutoLatencyCam9, ChkAutoLatencyCam10 };
@@ -423,6 +453,34 @@ namespace SRT_DECODE
                 _chkDecrypts = new[] { ChkDecryptCam1, ChkDecryptCam2, ChkDecryptCam3, ChkDecryptCam4, ChkDecryptCam5, ChkDecryptCam6, ChkDecryptCam7, ChkDecryptCam8, ChkDecryptCam9, ChkDecryptCam10 };
                 _txtPassphrases = new[] { TxtPassphraseCam1, TxtPassphraseCam2, TxtPassphraseCam3, TxtPassphraseCam4, TxtPassphraseCam5, TxtPassphraseCam6, TxtPassphraseCam7, TxtPassphraseCam8, TxtPassphraseCam9, TxtPassphraseCam10 };
                 _cmbKeyLens = new[] { CmbKeyLenCam1, CmbKeyLenCam2, CmbKeyLenCam3, CmbKeyLenCam4, CmbKeyLenCam5, CmbKeyLenCam6, CmbKeyLenCam7, CmbKeyLenCam8, CmbKeyLenCam9, CmbKeyLenCam10 };
+
+                // SMPTE ST 2022-7 Per-CAM Control Arrays
+                _toggleSmpteCams = new[] { ToggleSmpteCam1, ToggleSmpteCam2, ToggleSmpteCam3, ToggleSmpteCam4, ToggleSmpteCam5, ToggleSmpteCam6, ToggleSmpteCam7, ToggleSmpteCam8, ToggleSmpteCam9, ToggleSmpteCam10 };
+                _pnlSingleCams = new[] { PnlSingleCam1, PnlSingleCam2, PnlSingleCam3, PnlSingleCam4, PnlSingleCam5, PnlSingleCam6, PnlSingleCam7, PnlSingleCam8, PnlSingleCam9, PnlSingleCam10 };
+                _pnlGroupCams = new[] { PnlGroupCam1, PnlGroupCam2, PnlGroupCam3, PnlGroupCam4, PnlGroupCam5, PnlGroupCam6, PnlGroupCam7, PnlGroupCam8, PnlGroupCam9, PnlGroupCam10 };
+                _txtDiffDelays = new[] { TxtDiffDelayCam1, TxtDiffDelayCam2, TxtDiffDelayCam3, TxtDiffDelayCam4, TxtDiffDelayCam5, TxtDiffDelayCam6, TxtDiffDelayCam7, TxtDiffDelayCam8, TxtDiffDelayCam9, TxtDiffDelayCam10 };
+                _txtMemberAHosts = new[] { TxtMemberAHostCam1, TxtMemberAHostCam2, TxtMemberAHostCam3, TxtMemberAHostCam4, TxtMemberAHostCam5, TxtMemberAHostCam6, TxtMemberAHostCam7, TxtMemberAHostCam8, TxtMemberAHostCam9, TxtMemberAHostCam10 };
+                _txtMemberAPorts = new[] { TxtMemberAPortCam1, TxtMemberAPortCam2, TxtMemberAPortCam3, TxtMemberAPortCam4, TxtMemberAPortCam5, TxtMemberAPortCam6, TxtMemberAPortCam7, TxtMemberAPortCam8, TxtMemberAPortCam9, TxtMemberAPortCam10 };
+                _cmbMemberANics = new[] { CmbMemberANicCam1, CmbMemberANicCam2, CmbMemberANicCam3, CmbMemberANicCam4, CmbMemberANicCam5, CmbMemberANicCam6, CmbMemberANicCam7, CmbMemberANicCam8, CmbMemberANicCam9, CmbMemberANicCam10 };
+                _txtMemberBHosts = new[] { TxtMemberBHostCam1, TxtMemberBHostCam2, TxtMemberBHostCam3, TxtMemberBHostCam4, TxtMemberBHostCam5, TxtMemberBHostCam6, TxtMemberBHostCam7, TxtMemberBHostCam8, TxtMemberBHostCam9, TxtMemberBHostCam10 };
+                _txtMemberBPorts = new[] { TxtMemberBPortCam1, TxtMemberBPortCam2, TxtMemberBPortCam3, TxtMemberBPortCam4, TxtMemberBPortCam5, TxtMemberBPortCam6, TxtMemberBPortCam7, TxtMemberBPortCam8, TxtMemberBPortCam9, TxtMemberBPortCam10 };
+                _cmbMemberBNics = new[] { CmbMemberBNicCam1, CmbMemberBNicCam2, CmbMemberBNicCam3, CmbMemberBNicCam4, CmbMemberBNicCam5, CmbMemberBNicCam6, CmbMemberBNicCam7, CmbMemberBNicCam8, CmbMemberBNicCam9, CmbMemberBNicCam10 };
+                _txtNewMemberNames = new[] { TxtNewMemberNameCam1, TxtNewMemberNameCam2, TxtNewMemberNameCam3, TxtNewMemberNameCam4, TxtNewMemberNameCam5, TxtNewMemberNameCam6, TxtNewMemberNameCam7, TxtNewMemberNameCam8, TxtNewMemberNameCam9, TxtNewMemberNameCam10 };
+                _txtNewMemberHosts = new[] { TxtNewMemberHostCam1, TxtNewMemberHostCam2, TxtNewMemberHostCam3, TxtNewMemberHostCam4, TxtNewMemberHostCam5, TxtNewMemberHostCam6, TxtNewMemberHostCam7, TxtNewMemberHostCam8, TxtNewMemberHostCam9, TxtNewMemberHostCam10 };
+                _txtNewMemberPorts = new[] { TxtNewMemberPortCam1, TxtNewMemberPortCam2, TxtNewMemberPortCam3, TxtNewMemberPortCam4, TxtNewMemberPortCam5, TxtNewMemberPortCam6, TxtNewMemberPortCam7, TxtNewMemberPortCam8, TxtNewMemberPortCam9, TxtNewMemberPortCam10 };
+                _cmbNewMemberNics = new[] { CmbNewMemberNicCam1, CmbNewMemberNicCam2, CmbNewMemberNicCam3, CmbNewMemberNicCam4, CmbNewMemberNicCam5, CmbNewMemberNicCam6, CmbNewMemberNicCam7, CmbNewMemberNicCam8, CmbNewMemberNicCam9, CmbNewMemberNicCam10 };
+                _stackDynamicMembers = new[] { StackDynamicMembersCam1, StackDynamicMembersCam2, StackDynamicMembersCam3, StackDynamicMembersCam4, StackDynamicMembersCam5, StackDynamicMembersCam6, StackDynamicMembersCam7, StackDynamicMembersCam8, StackDynamicMembersCam9, StackDynamicMembersCam10 };
+
+                // Tab 5 Telemetry HUD Arrays
+                _pnlSmpteTelemetries = new[] { PnlSmpteTelemetryCam1, PnlSmpteTelemetryCam2, PnlSmpteTelemetryCam3, PnlSmpteTelemetryCam4, PnlSmpteTelemetryCam5, PnlSmpteTelemetryCam6, PnlSmpteTelemetryCam7, PnlSmpteTelemetryCam8, PnlSmpteTelemetryCam9, PnlSmpteTelemetryCam10 };
+                _txtGroupRedundancies = new[] { TxtGroupRedundancyCam1, TxtGroupRedundancyCam2, TxtGroupRedundancyCam3, TxtGroupRedundancyCam4, TxtGroupRedundancyCam5, TxtGroupRedundancyCam6, TxtGroupRedundancyCam7, TxtGroupRedundancyCam8, TxtGroupRedundancyCam9, TxtGroupRedundancyCam10 };
+                _txtGroupPathAPackets = new[] { TxtGroupPathAPacketsCam1, TxtGroupPathAPacketsCam2, TxtGroupPathAPacketsCam3, TxtGroupPathAPacketsCam4, TxtGroupPathAPacketsCam5, TxtGroupPathAPacketsCam6, TxtGroupPathAPacketsCam7, TxtGroupPathAPacketsCam8, TxtGroupPathAPacketsCam9, TxtGroupPathAPacketsCam10 };
+                _txtGroupPathBPackets = new[] { TxtGroupPathBPacketsCam1, TxtGroupPathBPacketsCam2, TxtGroupPathBPacketsCam3, TxtGroupPathBPacketsCam4, TxtGroupPathBPacketsCam5, TxtGroupPathBPacketsCam6, TxtGroupPathBPacketsCam7, TxtGroupPathBPacketsCam8, TxtGroupPathBPacketsCam9, TxtGroupPathBPacketsCam10 };
+                _txtGroupDuplicatesDropped = new[] { TxtGroupDuplicatesDroppedCam1, TxtGroupDuplicatesDroppedCam2, TxtGroupDuplicatesDroppedCam3, TxtGroupDuplicatesDroppedCam4, TxtGroupDuplicatesDroppedCam5, TxtGroupDuplicatesDroppedCam6, TxtGroupDuplicatesDroppedCam7, TxtGroupDuplicatesDroppedCam8, TxtGroupDuplicatesDroppedCam9, TxtGroupDuplicatesDroppedCam10 };
+                _txtGroupRecoveredPackets = new[] { TxtGroupRecoveredPacketsCam1, TxtGroupRecoveredPacketsCam2, TxtGroupRecoveredPacketsCam3, TxtGroupRecoveredPacketsCam4, TxtGroupRecoveredPacketsCam5, TxtGroupRecoveredPacketsCam6, TxtGroupRecoveredPacketsCam7, TxtGroupRecoveredPacketsCam8, TxtGroupRecoveredPacketsCam9, TxtGroupRecoveredPacketsCam10 };
+
+                // Nạp cấu hình tự động lưu trữ từ file JSON hoặc áp dụng default
+                LoadAndApplySettings();
 
                 for (int i = 0; i < MaxChannels; i++)
                 {
@@ -582,6 +640,9 @@ namespace SRT_DECODE
 
             try
             {
+            // 0. Tự động lưu toàn bộ cấu hình UI & CAM xuống appsettings.json
+                SaveCurrentSettings();
+
                 // 1. Cancel the direct close event and hide window for immediate UX feedback
                 e.Cancel = true;
                 _isShuttingDown = true;
@@ -1106,6 +1167,72 @@ namespace SRT_DECODE
                 TxtSyncLockState.Foreground = new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA));
                 LedSyncLock.Fill = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
             }
+
+            // Update SMPTE ST 2022-7 Hitless Redundancy Telemetry for each CAM
+            int totalSmpteArmed = 0;
+            int totalSmpteActive = 0;
+
+            for (int i = 0; i < MaxChannels; i++)
+            {
+                if (_toggleSmpteCams != null && i < _toggleSmpteCams.Length && _toggleSmpteCams[i]?.IsChecked == true)
+                {
+                    totalSmpteActive++;
+                    var ch = _receiverEngine.Channels[i];
+                    var gStats = ch.GroupStats;
+
+                    if (i < _txtGroupPathAPackets.Length && _txtGroupPathAPackets[i] != null)
+                        _txtGroupPathAPackets[i].Text = gStats.PathAPackets.ToString("N0");
+                    if (i < _txtGroupPathBPackets.Length && _txtGroupPathBPackets[i] != null)
+                        _txtGroupPathBPackets[i].Text = gStats.PathBPackets.ToString("N0");
+                    if (i < _txtGroupDuplicatesDropped.Length && _txtGroupDuplicatesDropped[i] != null)
+                        _txtGroupDuplicatesDropped[i].Text = gStats.DuplicatesDropped.ToString("N0");
+                    if (i < _txtGroupRecoveredPackets.Length && _txtGroupRecoveredPackets[i] != null)
+                        _txtGroupRecoveredPackets[i].Text = gStats.RecoveredFromRedundantPath.ToString("N0");
+
+                    if (i < _txtGroupRedundancies.Length && _txtGroupRedundancies[i] != null)
+                    {
+                        if (gStats.ConnectedMembersCount >= 2)
+                        {
+                            totalSmpteArmed++;
+                            _txtGroupRedundancies[i].Text = $"100% HITLESS ARMED ({gStats.ConnectedMembersCount} Paths)";
+                            _txtGroupRedundancies[i].Foreground = new SolidColorBrush(Color.FromRgb(0x22, 0xC5, 0x5E));
+                        }
+                        else if (gStats.ConnectedMembersCount == 1)
+                        {
+                            _txtGroupRedundancies[i].Text = $"DEGRADED (1 Path - Rec: {gStats.RecoveredFromRedundantPath})";
+                            _txtGroupRedundancies[i].Foreground = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B));
+                        }
+                        else
+                        {
+                            _txtGroupRedundancies[i].Text = ch.IsRunning ? "CONNECTING PATHS..." : "STANDBY";
+                            _txtGroupRedundancies[i].Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+                        }
+                    }
+                }
+            }
+
+            // Update Top Bar Global SMPTE Status Badge
+            if (BadgeGroupSocket != null && TxtGroupSocketState != null && LedGroupSocket != null)
+            {
+                if (totalSmpteActive == 0)
+                {
+                    LedGroupSocket.Fill = new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
+                    TxtGroupSocketState.Text = "SMPTE 2022-7: STANDBY";
+                    TxtGroupSocketState.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
+                }
+                else if (totalSmpteArmed > 0)
+                {
+                    LedGroupSocket.Fill = new SolidColorBrush(Color.FromRgb(0x00, 0xE6, 0x76));
+                    TxtGroupSocketState.Text = $"SMPTE 2022-7: {totalSmpteArmed}/{totalSmpteActive} ARMED";
+                    TxtGroupSocketState.Foreground = new SolidColorBrush(Color.FromRgb(0x00, 0xFF, 0xCC));
+                }
+                else
+                {
+                    LedGroupSocket.Fill = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B));
+                    TxtGroupSocketState.Text = $"SMPTE 2022-7: {totalSmpteActive} ACTIVE";
+                    TxtGroupSocketState.Foreground = new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B));
+                }
+            }
         }
 
         #endregion
@@ -1308,6 +1435,200 @@ namespace SRT_DECODE
             return SRTMode.Caller;
         }
 
+        #endregion
+
+        #region SMPTE ST 2022-7 Per-CAM & Dynamic Hot-Plug Handlers
+
+        private void ToggleSmpteCam_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            if (sender is CheckBox chk && chk.Tag is string tagStr && int.TryParse(tagStr, out int camIdx) && camIdx >= 0 && camIdx < MaxChannels)
+            {
+                bool isGroup = chk.IsChecked == true;
+                if (camIdx < _pnlSingleCams.Length && _pnlSingleCams[camIdx] != null)
+                {
+                    _pnlSingleCams[camIdx].Visibility = isGroup ? Visibility.Collapsed : Visibility.Visible;
+                }
+                if (camIdx < _pnlGroupCams.Length && _pnlGroupCams[camIdx] != null)
+                {
+                    _pnlGroupCams[camIdx].Visibility = isGroup ? Visibility.Visible : Visibility.Collapsed;
+                }
+                if (camIdx < _pnlSmpteTelemetries.Length && _pnlSmpteTelemetries[camIdx] != null)
+                {
+                    _pnlSmpteTelemetries[camIdx].Visibility = isGroup ? Visibility.Visible : Visibility.Collapsed;
+                }
+
+            LogEvent("[SMPTE_2022-7]", $"CAM {camIdx + 1}: Chuyển sang chế độ {(isGroup ? "SMPTE 2022-7 Hitless Redundancy (Group Socket)" : "Single Socket SRT tiêu chuẩn")}.");
+            }
+        }
+
+        private void BtnScanNicCam_Click(object sender, RoutedEventArgs e)
+        {
+            var nics = NetworkInterfaceScanner.GetAvailableNetworkInterfaces();
+            if (sender is Button btn && btn.Tag is string tagStr && int.TryParse(tagStr, out int camIdx) && camIdx >= 0 && camIdx < MaxChannels)
+            {
+                if (camIdx < _cmbNicCams.Length && _cmbNicCams[camIdx] != null)
+                    NetworkInterfaceScanner.PopulateNicComboBox(_cmbNicCams[camIdx], null, nics);
+                if (camIdx < _cmbMemberANics.Length && _cmbMemberANics[camIdx] != null)
+                    NetworkInterfaceScanner.PopulateNicComboBox(_cmbMemberANics[camIdx], null, nics);
+                if (camIdx < _cmbMemberBNics.Length && _cmbMemberBNics[camIdx] != null)
+                    NetworkInterfaceScanner.PopulateNicComboBox(_cmbMemberBNics[camIdx], null, nics);
+                if (camIdx < _cmbNewMemberNics.Length && _cmbNewMemberNics[camIdx] != null)
+                    NetworkInterfaceScanner.PopulateNicComboBox(_cmbNewMemberNics[camIdx], null, nics);
+
+            LogEvent("[NIC_SCAN]", $"CAM {camIdx + 1}: Đã quét và cập nhật lại danh sách {nics.Count} Card mạng (NIC).");
+            }
+            else
+            {
+                PopulateAllCamNics(nics);
+            LogEvent("[NIC_SCAN]", $"Đã quét và cập nhật danh sách {nics.Count} Card mạng (NIC) cho toàn bộ 10 CAM.");
+            }
+        }
+
+        private void PopulateAllCamNics(List<NicInfo>? nics = null)
+        {
+            nics ??= NetworkInterfaceScanner.GetAvailableNetworkInterfaces();
+            for (int i = 0; i < MaxChannels; i++)
+            {
+                if (i < _cmbNicCams.Length && _cmbNicCams[i] != null)
+                    NetworkInterfaceScanner.PopulateNicComboBox(_cmbNicCams[i], null, nics);
+                if (i < _cmbMemberANics.Length && _cmbMemberANics[i] != null)
+                    NetworkInterfaceScanner.PopulateNicComboBox(_cmbMemberANics[i], null, nics);
+                if (i < _cmbMemberBNics.Length && _cmbMemberBNics[i] != null)
+                    NetworkInterfaceScanner.PopulateNicComboBox(_cmbMemberBNics[i], null, nics);
+                if (i < _cmbNewMemberNics.Length && _cmbNewMemberNics[i] != null)
+                    NetworkInterfaceScanner.PopulateNicComboBox(_cmbNewMemberNics[i], null, nics);
+            }
+        }
+
+        private async void BtnAddGroupMemberCam_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button btn || btn.Tag is not string tagStr || !int.TryParse(tagStr, out int camIdx) || camIdx < 0 || camIdx >= MaxChannels)
+                return;
+
+            string name = _txtNewMemberNames[camIdx]?.Text?.Trim() ?? $"Path C (5G)";
+            string host = _txtNewMemberHosts[camIdx]?.Text?.Trim() ?? "0.0.0.0";
+            if (!int.TryParse(_txtNewMemberPorts[camIdx]?.Text, out int port) || port <= 0 || port > 65535)
+            {
+                MessageBox.Show("Vui lòng nhập cổng UDP hợp lệ (1-65535).", "SRT Group Socket", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            string nicIp = (_cmbNewMemberNics[camIdx]?.SelectedValue as string) ?? string.Empty;
+            if (nicIp == NetworkInterfaceScanner.DefaultAnyIp) nicIp = string.Empty;
+
+            var newMember = new SRTGroupMemberConfig
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                Name = name,
+                Host = host,
+                Port = port,
+                LocalInterfaceIp = nicIp,
+                Weight = 10,
+                IsEnabled = true
+            };
+
+            _camExtraMembers[camIdx].Add(newMember);
+
+            // Tạo Card UI trong StackDynamicMembersCam
+            AddDynamicMemberCardToUI(camIdx, newMember);
+
+            // Gắn trực tiếp vào session đang chạy nếu có (Zero-disruption)
+            bool attached = await _receiverEngine.AddChannelMemberSocketAsync(camIdx, newMember);
+
+            LogEvent("[GROUP_HOTPLUG]", $"⚡ {(attached ? "Đã gắn thành công" : "Đã lưu cấu hình")} member socket '{name}' ({host}:{port} - NIC: {(string.IsNullOrEmpty(nicIp) ? "Auto" : nicIp)}) vào CAM {camIdx + 1} đang chạy mà không làm gián đoạn hiển thị!");
+        }
+
+        private void AddDynamicMemberCardToUI(int camIdx, SRTGroupMemberConfig member)
+        {
+            if (camIdx < 0 || camIdx >= _stackDynamicMembers.Length || _stackDynamicMembers[camIdx] == null)
+                return;
+
+            var border = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(0x1E, 0x24, 0x2E)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x02, 0x84, 0xC7)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(6, 4, 6, 4),
+                Margin = new Thickness(0, 0, 0, 4),
+                Tag = member.Id
+            };
+
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var infoPanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            infoPanel.Children.Add(new Ellipse
+            {
+                Width = 7,
+                Height = 7,
+                Fill = new SolidColorBrush(Color.FromRgb(0x38, 0xBD, 0xF8)),
+                Margin = new Thickness(0, 0, 5, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
+            string nicLabel = string.IsNullOrEmpty(member.LocalInterfaceIp) ? "Auto NIC" : member.LocalInterfaceIp;
+            infoPanel.Children.Add(new TextBlock
+            {
+                Text = $"[{member.Name}] {member.Host}:{member.Port} ({nicLabel})",
+                FontSize = 10,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xBA, 0xE6, 0xFD)),
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
+            var btnDelete = new Button
+            {
+                Content = "🗑️ Xoá Member",
+                Background = new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26)),
+                Foreground = Brushes.White,
+                FontWeight = FontWeights.Bold,
+                FontSize = 9.5,
+                Padding = new Thickness(6, 2, 6, 2),
+                Cursor = Cursors.Hand,
+                ToolTip = "Gỡ bỏ Member Socket này an toàn ngay cả khi đang chạy live (Zero-Disruption)"
+            };
+
+            btnDelete.Click += async (s, e) =>
+            {
+                await RemoveDynamicMemberAsync(camIdx, member.Id, border);
+            };
+
+            Grid.SetColumn(infoPanel, 0);
+            Grid.SetColumn(btnDelete, 1);
+            grid.Children.Add(infoPanel);
+            grid.Children.Add(btnDelete);
+            border.Child = grid;
+
+            _stackDynamicMembers[camIdx].Children.Add(border);
+        }
+
+        private async Task RemoveDynamicMemberAsync(int camIdx, string memberId, Border cardBorder)
+        {
+            if (camIdx < 0 || camIdx >= MaxChannels) return;
+
+                // Xóa khỏi UI
+            if (cardBorder != null && _stackDynamicMembers[camIdx] != null)
+            {
+                _stackDynamicMembers[camIdx].Children.Remove(cardBorder);
+            }
+
+                // Xóa khỏi danh sách cấu hình
+            var removed = _camExtraMembers[camIdx].FirstOrDefault(m => m.Id == memberId);
+            _camExtraMembers[camIdx].RemoveAll(m => m.Id == memberId);
+
+            var ch = _receiverEngine.Channels[camIdx];
+            ch.Config.GroupMembers.RemoveAll(m => m.Id == memberId);
+
+                // Gỡ bỏ trực tiếp khỏi session đang live (Zero-Disruption)
+            bool removedLive = await _receiverEngine.RemoveChannelMemberSocketAsync(camIdx, memberId);
+
+            string memberName = removed?.Name ?? memberId;
+                LogEvent("[GROUP_REDUNDANCY]", $"🗑️ Đã xóa Member Socket '{memberName}' khỏi CAM {camIdx + 1} {(removedLive ? "(Đã ngắt live zero-disruption)" : "")}.");
+        }
+
         private void ApplyFormInputsToChannel(int index)
         {
             if (index < 0 || index >= MaxChannels) return;
@@ -1319,6 +1640,50 @@ namespace SRT_DECODE
             ch.Config.StreamId = _txtStreamIds[index].Text.Trim();
             ch.Config.AutoLatency = _chkAutoLatencies[index].IsChecked == true;
             if (int.TryParse(_txtLatencies[index].Text, out int lat)) ch.Config.LatencyMs = lat;
+
+            // SMPTE ST 2022-7 & Group Socket Configuration per-CAM
+            if (_toggleSmpteCams != null && index < _toggleSmpteCams.Length && _toggleSmpteCams[index]?.IsChecked == true)
+            {
+                ch.Config.GroupSocketEnabled = true;
+                ch.Config.GroupType = SRTGroupType.Broadcast_SMPTE2022_7;
+                if (int.TryParse(_txtDiffDelays[index]?.Text, out int diffDelay))
+                {
+                    ch.Config.HitlessDifferentialDelayMs = diffDelay;
+                }
+
+                ch.Config.GroupMembers.Clear();
+
+                // Path A (Primary)
+                string hostA = _txtMemberAHosts[index]?.Text?.Trim() ?? "0.0.0.0";
+                int portA = int.TryParse(_txtMemberAPorts[index]?.Text, out int pA) ? pA : (9000 + index);
+                string nicA = (_cmbMemberANics[index]?.SelectedValue as string) ?? string.Empty;
+                if (nicA == NetworkInterfaceScanner.DefaultAnyIp) nicA = string.Empty;
+                ch.Config.GroupMembers.Add(new SRTGroupMemberConfig("Path A (Primary)", hostA, portA, nicA, 100) { Id = $"path-a-cam{index + 1}" });
+
+                // Path B (Secondary)
+                string hostB = _txtMemberBHosts[index]?.Text?.Trim() ?? "0.0.0.0";
+                int fallbackPortB = portA + 2;
+                int portB = (int.TryParse(_txtMemberBPorts[index]?.Text, out int pB) && pB > 0) ? pB : fallbackPortB;
+                string nicB = (_cmbMemberBNics[index]?.SelectedValue as string) ?? string.Empty;
+                if (nicB == NetworkInterfaceScanner.DefaultAnyIp) nicB = string.Empty;
+                ch.Config.GroupMembers.Add(new SRTGroupMemberConfig("Path B (Secondary)", hostB, portB, nicB, 100) { Id = $"path-b-cam{index + 1}" });
+
+                // Extra Hot-Plugged Members for this CAM
+                if (_camExtraMembers[index] != null)
+                {
+                    foreach (var extra in _camExtraMembers[index])
+                    {
+                        ch.Config.GroupMembers.Add(extra.Clone());
+                    }
+                }
+            }
+            else
+            {
+                ch.Config.GroupSocketEnabled = false;
+                string singleNic = (_cmbNicCams[index]?.SelectedValue as string) ?? string.Empty;
+                if (singleNic == NetworkInterfaceScanner.DefaultAnyIp) singleNic = string.Empty;
+                ch.Config.PrimaryInterfaceIp = singleNic;
+            }
 
             // Update Name
             UpdateChannelDisplayMeta(index);
@@ -1334,6 +1699,246 @@ namespace SRT_DECODE
                     else if (keyStr.Contains("192")) ch.Config.KeyLength = 24;
                     else ch.Config.KeyLength = 32;
                 }
+            }
+        }
+
+        #endregion
+
+        #region Settings Persistence (JSON)
+
+        private void LoadAndApplySettings()
+        {
+            try
+            {
+                var nics = NetworkInterfaceScanner.GetAvailableNetworkInterfaces();
+                PopulateAllCamNics(nics);
+
+                var settings = AppSettingsManager.LoadSettings();
+
+                // 1. Restore Active Streams Count
+                int activeCount = Math.Clamp(settings.ActiveStreamCount, 1, MaxChannels);
+                _activeChannelCount = activeCount;
+                UpdateActiveStreamsUI();
+
+                // 2. Restore Layout Mode
+                if (CmbLayoutMode != null && settings.LayoutModeIndex >= 0 && settings.LayoutModeIndex < CmbLayoutMode.Items.Count)
+                {
+                    CmbLayoutMode.SelectedIndex = settings.LayoutModeIndex;
+                }
+
+                // 3. Restore Master NTP
+                if (ChkMasterSync != null)
+                {
+                    ChkMasterSync.IsChecked = settings.MasterSyncEnabled;
+                }
+                if (TxtNtpServer != null && !string.IsNullOrWhiteSpace(settings.NtpServer))
+                {
+                    TxtNtpServer.Text = settings.NtpServer;
+                }
+
+                // 4. Restore 10 Channels
+                for (int i = 0; i < MaxChannels; i++)
+                {
+                    if (i >= settings.Channels.Count) break;
+                    var ch = settings.Channels[i];
+
+                    if (i < _txtNameInputs.Length && _txtNameInputs[i] != null)
+                        _txtNameInputs[i].Text = ch.DisplayName;
+
+                    if (i < _cmbModes.Length && _cmbModes[i] != null && ch.SrtModeIndex >= 0 && ch.SrtModeIndex < _cmbModes[i].Items.Count)
+                        _cmbModes[i].SelectedIndex = ch.SrtModeIndex;
+
+                    if (i < _txtIps.Length && _txtIps[i] != null)
+                        _txtIps[i].Text = ch.BindIpOrHost;
+
+                    if (i < _txtPorts.Length && _txtPorts[i] != null)
+                        _txtPorts[i].Text = ch.Port.ToString();
+
+                    if (i < _cmbNicCams.Length && _cmbNicCams[i] != null)
+                        NetworkInterfaceScanner.PopulateNicComboBox(_cmbNicCams[i], ch.SourceNicIp, nics);
+
+                    if (i < _txtStreamIds.Length && _txtStreamIds[i] != null)
+                        _txtStreamIds[i].Text = ch.StreamId;
+
+                    if (i < _txtLatencies.Length && _txtLatencies[i] != null)
+                        _txtLatencies[i].Text = ch.LatencyMs.ToString();
+
+                    if (i < _chkAutoLatencies.Length && _chkAutoLatencies[i] != null)
+                        _chkAutoLatencies[i].IsChecked = ch.AutoLatency;
+
+                    if (i < _chkDecrypts.Length && _chkDecrypts[i] != null)
+                        _chkDecrypts[i].IsChecked = ch.EncryptionEnabled;
+
+                    if (i < _txtPassphrases.Length && _txtPassphrases[i] != null)
+                        _txtPassphrases[i].Text = ch.Passphrase;
+
+                    if (i < _cmbKeyLens.Length && _cmbKeyLens[i] != null && ch.KeyLengthIndex >= 0 && ch.KeyLengthIndex < _cmbKeyLens[i].Items.Count)
+                        _cmbKeyLens[i].SelectedIndex = ch.KeyLengthIndex;
+
+                    // SMPTE ST 2022-7
+                    if (i < _toggleSmpteCams.Length && _toggleSmpteCams[i] != null)
+                        _toggleSmpteCams[i].IsChecked = ch.IsSmpte2022_7Enabled;
+
+                    if (i < _pnlSingleCams.Length && _pnlSingleCams[i] != null)
+                        _pnlSingleCams[i].Visibility = ch.IsSmpte2022_7Enabled ? Visibility.Collapsed : Visibility.Visible;
+
+                    if (i < _pnlGroupCams.Length && _pnlGroupCams[i] != null)
+                        _pnlGroupCams[i].Visibility = ch.IsSmpte2022_7Enabled ? Visibility.Visible : Visibility.Collapsed;
+
+                    if (i < _pnlSmpteTelemetries.Length && _pnlSmpteTelemetries[i] != null)
+                        _pnlSmpteTelemetries[i].Visibility = ch.IsSmpte2022_7Enabled ? Visibility.Visible : Visibility.Collapsed;
+
+                    if (i < _txtDiffDelays.Length && _txtDiffDelays[i] != null)
+                        _txtDiffDelays[i].Text = ch.DifferentialDelayMs.ToString();
+
+                    if (i < _txtMemberAHosts.Length && _txtMemberAHosts[i] != null)
+                        _txtMemberAHosts[i].Text = ch.MemberAHost;
+
+                    if (i < _txtMemberAPorts.Length && _txtMemberAPorts[i] != null)
+                        _txtMemberAPorts[i].Text = ch.MemberAPort.ToString();
+
+                    if (i < _cmbMemberANics.Length && _cmbMemberANics[i] != null)
+                        NetworkInterfaceScanner.PopulateNicComboBox(_cmbMemberANics[i], ch.MemberANicIp, nics);
+
+                    if (i < _txtMemberBHosts.Length && _txtMemberBHosts[i] != null)
+                        _txtMemberBHosts[i].Text = ch.MemberBHost;
+
+                    if (i < _txtMemberBPorts.Length && _txtMemberBPorts[i] != null)
+                    {
+                        int portBVal = ch.MemberBPort;
+                        if (portBVal == 9010 + i)
+                        {
+                            portBVal = (ch.MemberAPort > 0 ? ch.MemberAPort : ch.Port) + 2;
+                        }
+                        _txtMemberBPorts[i].Text = portBVal.ToString();
+                    }
+
+                    if (i < _cmbMemberBNics.Length && _cmbMemberBNics[i] != null)
+                        NetworkInterfaceScanner.PopulateNicComboBox(_cmbMemberBNics[i], ch.MemberBNicIp, nics);
+
+                    // Restore Dynamic Members
+                    _camExtraMembers[i].Clear();
+                    if (i < _stackDynamicMembers.Length && _stackDynamicMembers[i] != null)
+                    {
+                        _stackDynamicMembers[i].Children.Clear();
+                    }
+
+                    if (ch.DynamicMembers != null)
+                    {
+                        foreach (var dm in ch.DynamicMembers)
+                        {
+                            var memberConfig = new SRTGroupMemberConfig
+                            {
+                                Id = dm.Id,
+                                Name = dm.Name,
+                                Host = dm.Host,
+                                Port = dm.Port,
+                                LocalInterfaceIp = dm.NicIp == NetworkInterfaceScanner.DefaultAnyIp ? string.Empty : dm.NicIp,
+                                Weight = 10,
+                                IsEnabled = true
+                            };
+                            _camExtraMembers[i].Add(memberConfig);
+                            AddDynamicMemberCardToUI(i, memberConfig);
+                        }
+                    }
+
+                    // ISO Output Routing Settings (Tab 2)
+                    if (i < _chkIsoSdi.Length && _chkIsoSdi[i] != null) _chkIsoSdi[i].IsChecked = ch.SdiEnabled;
+                    if (i < _cmbIsoSdiPort.Length && _cmbIsoSdiPort[i] != null && ch.SdiPortIndex >= 0 && ch.SdiPortIndex < _cmbIsoSdiPort[i].Items.Count)
+                        _cmbIsoSdiPort[i].SelectedIndex = ch.SdiPortIndex;
+                    if (i < _chkIsoNdi.Length && _chkIsoNdi[i] != null) _chkIsoNdi[i].IsChecked = ch.NdiEnabled;
+                    if (i < _txtIsoNdiName.Length && _txtIsoNdiName[i] != null && !string.IsNullOrWhiteSpace(ch.NdiName))
+                        _txtIsoNdiName[i].Text = ch.NdiName;
+                    if (i < _chkIsoSrt.Length && _chkIsoSrt[i] != null) _chkIsoSrt[i].IsChecked = ch.SrtEnabled;
+                    if (i < _txtIsoSrtHost.Length && _txtIsoSrtHost[i] != null) _txtIsoSrtHost[i].Text = ch.SrtHost;
+                    if (i < _txtIsoSrtPort.Length && _txtIsoSrtPort[i] != null) _txtIsoSrtPort[i].Text = ch.SrtPort.ToString();
+                    if (i < _chkIsoRec.Length && _chkIsoRec[i] != null) _chkIsoRec[i].IsChecked = ch.RecEnabled;
+
+                    // Sync Ingest Engine channel
+                    ApplyFormInputsToChannel(i);
+                }
+
+                LogEvent("[SETTINGS]", $"✅ Đã nạp thành công cấu hình phiên làm việc ({activeCount} kênh Ingest).");
+            }
+            catch (Exception ex)
+            {
+                LogEvent("[WARN]", $"Không thể nạp cấu hình trước đó: {ex.Message}. Sử dụng cấu hình mặc định.");
+            }
+        }
+
+        private void SaveCurrentSettings()
+        {
+            try
+            {
+                var settings = new SrtDecodeSettings
+                {
+                    ActiveStreamCount = _activeChannelCount,
+                    LayoutModeIndex = CmbLayoutMode?.SelectedIndex ?? 0,
+                    MasterSyncEnabled = ChkMasterSync?.IsChecked == true,
+                    NtpServer = TxtNtpServer?.Text?.Trim() ?? "time.google.com"
+                };
+
+                for (int i = 0; i < MaxChannels; i++)
+                {
+                    var ch = new ChannelSettings
+                    {
+                        DisplayName = _txtNameInputs[i]?.Text?.Trim() ?? $"CAM {i + 1}",
+                        SrtModeIndex = _cmbModes[i]?.SelectedIndex ?? 0,
+                        StreamId = _txtStreamIds[i]?.Text?.Trim() ?? $"live/cam{i + 1}",
+                        LatencyMs = int.TryParse(_txtLatencies[i]?.Text, out int lat) ? lat : 300,
+                        AutoLatency = _chkAutoLatencies[i]?.IsChecked == true,
+                        EncryptionEnabled = _chkDecrypts[i]?.IsChecked == true,
+                        Passphrase = _txtPassphrases[i]?.Text?.Trim() ?? string.Empty,
+                        KeyLengthIndex = _cmbKeyLens[i]?.SelectedIndex ?? 0,
+
+                        IsSmpte2022_7Enabled = _toggleSmpteCams[i]?.IsChecked == true,
+                        BindIpOrHost = _txtIps[i]?.Text?.Trim() ?? "0.0.0.0",
+                        Port = int.TryParse(_txtPorts[i]?.Text, out int port) ? port : (9000 + i),
+                        SourceNicIp = (_cmbNicCams[i]?.SelectedValue as string) ?? NetworkInterfaceScanner.DefaultAnyIp,
+
+                        DifferentialDelayMs = int.TryParse(_txtDiffDelays[i]?.Text, out int dd) ? dd : 50,
+                        MemberAHost = _txtMemberAHosts[i]?.Text?.Trim() ?? "0.0.0.0",
+                        MemberAPort = (int.TryParse(_txtMemberAPorts[i]?.Text, out int pA) && pA > 0) ? pA : (9000 + i),
+                        MemberANicIp = (_cmbMemberANics[i]?.SelectedValue as string) ?? NetworkInterfaceScanner.DefaultAnyIp,
+                        MemberBHost = _txtMemberBHosts[i]?.Text?.Trim() ?? "0.0.0.0",
+                        MemberBPort = (int.TryParse(_txtMemberBPorts[i]?.Text, out int pB) && pB > 0) ? pB : (((int.TryParse(_txtMemberAPorts[i]?.Text, out int pA2) && pA2 > 0) ? pA2 : (9000 + i)) + 2),
+                        MemberBNicIp = (_cmbMemberBNics[i]?.SelectedValue as string) ?? NetworkInterfaceScanner.DefaultAnyIp
+                    };
+
+                    // Dynamic Members
+                    if (_camExtraMembers[i] != null)
+                    {
+                        foreach (var m in _camExtraMembers[i])
+                        {
+                            ch.DynamicMembers.Add(new DynamicMemberSetting
+                            {
+                                Id = m.Id,
+                                Name = m.Name,
+                                Host = m.Host,
+                                Port = m.Port,
+                                NicIp = string.IsNullOrEmpty(m.LocalInterfaceIp) ? NetworkInterfaceScanner.DefaultAnyIp : m.LocalInterfaceIp
+                            });
+                        }
+                    }
+
+                    // ISO Outputs
+                    if (i < _chkIsoSdi.Length && _chkIsoSdi[i] != null) ch.SdiEnabled = _chkIsoSdi[i].IsChecked == true;
+                    if (i < _cmbIsoSdiPort.Length && _cmbIsoSdiPort[i] != null) ch.SdiPortIndex = _cmbIsoSdiPort[i].SelectedIndex;
+                    if (i < _chkIsoNdi.Length && _chkIsoNdi[i] != null) ch.NdiEnabled = _chkIsoNdi[i].IsChecked == true;
+                    if (i < _txtIsoNdiName.Length && _txtIsoNdiName[i] != null) ch.NdiName = _txtIsoNdiName[i].Text.Trim();
+                    if (i < _chkIsoSrt.Length && _chkIsoSrt[i] != null) ch.SrtEnabled = _chkIsoSrt[i].IsChecked == true;
+                    if (i < _txtIsoSrtHost.Length && _txtIsoSrtHost[i] != null) ch.SrtHost = _txtIsoSrtHost[i].Text.Trim();
+                    if (i < _txtIsoSrtPort.Length && _txtIsoSrtPort[i] != null && int.TryParse(_txtIsoSrtPort[i].Text, out int srtP)) ch.SrtPort = srtP;
+                    if (i < _chkIsoRec.Length && _chkIsoRec[i] != null) ch.RecEnabled = _chkIsoRec[i].IsChecked == true;
+
+                    settings.Channels.Add(ch);
+                }
+
+                AppSettingsManager.SaveSettings(settings);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MainWindow] Lỗi lưu cấu hình: {ex.Message}");
             }
         }
 

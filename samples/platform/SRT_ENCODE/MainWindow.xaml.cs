@@ -195,6 +195,9 @@ namespace SRT_ENCODE
                 await ScanSdiDevicesAsync();
                 await ScanNdiSourcesAsync();
 
+                // Nạp cấu hình phiên làm việc đã lưu (hoặc mặc định)
+                LoadAndApplySettings();
+
                 // Setup VideoSourceManager & Initial Preview Player
                 _sourceManager.IsLoopPlayback = ChkLoopFile?.IsChecked == true;
                 _sourceManager.SetAudioMonitor(!_isAudioMuted, SldMonitorVolume?.Value ?? 0.7);
@@ -245,9 +248,10 @@ namespace SRT_ENCODE
 
             try
             {
-                // 1. Huỷ bỏ đóng trực tiếp của WPF và ẩn cửa sổ ngay lập tức để tối ưu UX
+                // 1. Huỷ bỏ đóng trực tiếp của WPF, lưu cấu hình và ẩn cửa sổ ngay lập tức để tối ưu UX
                 e.Cancel = true;
                 _isClosing = true;
+                SaveCurrentSettings();
                 Hide();
 
                 // 2. Dừng ngay toàn bộ Timers UI & Master Clock
@@ -1174,6 +1178,450 @@ namespace SRT_ENCODE
 
         #region SRT Protocol Configuration & Encryption
 
+        private readonly List<SRTGroupMemberConfig> _dynamicGroupMembers = new();
+        private List<NicInfo> _cachedNics = new();
+
+        /// <summary>
+        /// Quét danh sách Card mạng (NIC) và điền đồng bộ vào tất cả các ComboBox NIC trên form.
+        /// </summary>
+        private void RefreshAllNicLists(string? selSingle = null, string? selMemberA = null, string? selMemberB = null, string? selNewMember = null)
+        {
+            try
+            {
+                _cachedNics = NetworkInterfaceScanner.GetAvailableNetworkInterfaces();
+                NetworkInterfaceScanner.PopulateNicComboBox(CmbSingleSourceNic, selSingle, _cachedNics);
+                NetworkInterfaceScanner.PopulateNicComboBox(CmbMemberANic, selMemberA, _cachedNics);
+                NetworkInterfaceScanner.PopulateNicComboBox(CmbMemberBNic, selMemberB, _cachedNics);
+                NetworkInterfaceScanner.PopulateNicComboBox(CmbNewMemberNic, selNewMember, _cachedNics);
+            }
+            catch (Exception ex)
+            {
+                LogEvent("[WARN]", $"Quét card mạng: {ex.Message}");
+            }
+        }
+
+        private void BtnScanNic_Click(object sender, RoutedEventArgs e)
+        {
+            RefreshAllNicLists();
+            int activeNicCount = Math.Max(0, _cachedNics.Count - 1);
+            LogEvent("[NETWORK]", $"🔄 Đã quét lại danh sách Card mạng (tìm thấy {activeNicCount} NIC IPv4 đang hoạt động).");
+        }
+
+        private void ChkGroupSocket_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            bool isGroup = ChkGroupSocket?.IsChecked == true;
+            if (PnlGroupSocketConfig != null)
+            {
+                PnlGroupSocketConfig.Visibility = isGroup ? Visibility.Visible : Visibility.Collapsed;
+            }
+            if (PnlSingleStreamConfig != null)
+            {
+                PnlSingleStreamConfig.Visibility = isGroup ? Visibility.Collapsed : Visibility.Visible;
+            }
+            if (ChkGroupSocket != null)
+            {
+                ChkGroupSocket.Content = isGroup
+                    ? "🛡️ SMPTE 2022-7: BẬT"
+                    : "⚪ SMPTE 2022-7: TẮT";
+            }
+            if (BadgeGroupSocket != null)
+            {
+                BadgeGroupSocket.Visibility = isGroup ? Visibility.Visible : Visibility.Collapsed;
+            }
+            LogEvent("[SRT]", isGroup 
+                ? "🛡️ Đã BẬT cơ chế Group Socket chuẩn SMPTE 2022-7 (Đa đường truyền Hitless Redundancy & Non-disruptive dynamic member attachment)." 
+                : "🌐 Đã TẮT Group Socket, quay về chế độ Single Socket mặc định.");
+
+            SaveCurrentSettings();
+        }
+
+        private void CmbGroupType_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            string sel = (CmbGroupType?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Broadcast";
+            LogEvent("[SRT]", $"Cập nhật cơ chế Group Socket: {sel}");
+        }
+
+        private void AddDynamicMemberUiCard(SRTGroupMemberConfig member)
+        {
+            var card = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(22, 28, 36)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0, 150, 255)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(8),
+                Margin = new Thickness(0, 0, 0, 6)
+            };
+
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var spInfo = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            var header = new TextBlock
+            {
+                Text = $"MEMBER: {member.Name.ToUpper()} ({member.Host}:{member.Port})",
+                FontWeight = FontWeights.Bold,
+                FontSize = 11,
+                Foreground = new SolidColorBrush(Color.FromRgb(0, 210, 255))
+            };
+            string nicDesc = string.IsNullOrWhiteSpace(member.LocalInterfaceIp) || member.LocalInterfaceIp == "0.0.0.0"
+                ? "Card NIC: 0.0.0.0 (Mặc định - Tự động)"
+                : $"Card NIC: {member.LocalInterfaceIp}";
+            var subtext = new TextBlock
+            {
+                Text = nicDesc,
+                FontSize = 10,
+                Foreground = new SolidColorBrush(Color.FromRgb(160, 160, 160)),
+                Margin = new Thickness(0, 2, 0, 0)
+            };
+            spInfo.Children.Add(header);
+            spInfo.Children.Add(subtext);
+            Grid.SetColumn(spInfo, 0);
+            grid.Children.Add(spInfo);
+
+            var btnDelete = new Button
+            {
+                Content = "🗑️ Xoá Member",
+                Background = new SolidColorBrush(Color.FromRgb(211, 47, 47)),
+                Foreground = Brushes.White,
+                FontWeight = FontWeights.Bold,
+                FontSize = 10.5,
+                Padding = new Thickness(10, 4, 10, 4),
+                BorderThickness = new Thickness(0),
+                Cursor = System.Windows.Input.Cursors.Hand,
+                VerticalAlignment = VerticalAlignment.Center,
+                ToolTip = "Gỡ bỏ Member Socket này (ngắt an toàn kể cả khi đang phát LIVE)"
+            };
+            btnDelete.Click += async (s, ev) =>
+            {
+                await RemoveDynamicMemberAsync(member, card);
+            };
+            Grid.SetColumn(btnDelete, 1);
+            grid.Children.Add(btnDelete);
+
+            card.Child = grid;
+            StackDynamicMembers?.Children.Add(card);
+        }
+
+        private async Task RemoveDynamicMemberAsync(SRTGroupMemberConfig member, Border card)
+        {
+            _dynamicGroupMembers.Remove(member);
+            if (StackDynamicMembers != null && card != null)
+            {
+                StackDynamicMembers.Children.Remove(card);
+            }
+            LogEvent("[GROUP_SMPTE2022_7]", $"Đã xóa member socket khỏi cấu hình: {member.Name} ({member.Host}:{member.Port})");
+
+            // Nếu phiên phát sóng đang LIVE, ngắt kết nối an toàn trong thời gian thực mà KHÔNG làm gián đoạn luồng
+            if (_isStreaming && _srtStream != null && _srtStream.IsRunning)
+            {
+                LogEvent("[GROUP_SMPTE2022_7]", $"⚡ Phiên phát đang LIVE: Đang gỡ bỏ Member {member.Name} (ID: {member.Id}) khỏi Group ngầm không làm gián đoạn luồng...");
+                try
+                {
+                    bool removed = await _srtStream.RemoveMemberSocketAsync(member.Id);
+                    if (removed)
+                    {
+                        LogEvent("[GROUP_SMPTE2022_7]", $"✅ Đã ngắt kết nối an toàn Member {member.Name} khỏi phiên phát sóng.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogEvent("[ERROR]", $"Lỗi gỡ bỏ member socket khi đang phát sóng: {ex.Message}");
+                }
+            }
+
+            SaveCurrentSettings();
+        }
+
+        private async void BtnAddGroupMember_Click(object sender, RoutedEventArgs e)
+        {
+            string name = TxtNewMemberName?.Text?.Trim() ?? "Path C (Backup)";
+            string host = TxtNewMemberHost?.Text?.Trim() ?? "127.0.0.1";
+            if (!int.TryParse(TxtNewMemberPort?.Text?.Trim(), out int port))
+            {
+                port = 9004;
+            }
+            string localNic = (CmbNewMemberNic?.SelectedValue as string) ?? "";
+            if (localNic == "0.0.0.0") localNic = "";
+
+            var member = new SRTGroupMemberConfig(name, host, port, localNic);
+            _dynamicGroupMembers.Add(member);
+
+            AddDynamicMemberUiCard(member);
+
+            LogEvent("[GROUP_SMPTE2022_7]", $"Đã cấu hình thêm member socket mới: {name} ({host}:{port}) [NIC: {(string.IsNullOrEmpty(localNic) ? "0.0.0.0" : localNic)}]");
+
+            // Nếu đang phát sóng trực tiếp, tự động gắn kết nối member socket này vào Group đang chạy KHÔNG ngắt luồng
+            if (_isStreaming && _srtStream != null && _srtStream.IsRunning)
+            {
+                LogEvent("[GROUP_SMPTE2022_7]", $"⚡ Phiên phát đang LIVE: Tự động kết nối và gắn member socket {name} vào Group ngầm (Zero-Disruption)!");
+                await _srtStream.AddMemberSocketAsync(member);
+            }
+
+            SaveCurrentSettings();
+        }
+
+        /// <summary>
+        /// Nạp và khôi phục toàn bộ cấu hình từ file JSON (hoặc thiết lập mặc định nếu chạy lần đầu).
+        /// </summary>
+        private void LoadAndApplySettings()
+        {
+            try
+            {
+                var settings = AppSettingsManager.LoadSettings();
+
+                // 1. Toggle SMPTE 2022-7
+                bool isGroup = settings.IsSmpte2022_7Enabled;
+                if (ChkGroupSocket != null)
+                {
+                    ChkGroupSocket.IsChecked = isGroup;
+                    ChkGroupSocket.Content = isGroup
+                        ? "🛡️ SMPTE 2022-7: BẬT"
+                        : "⚪ SMPTE 2022-7: TẮT";
+                }
+                if (PnlGroupSocketConfig != null)
+                {
+                    PnlGroupSocketConfig.Visibility = isGroup ? Visibility.Visible : Visibility.Collapsed;
+                }
+                if (PnlSingleStreamConfig != null)
+                {
+                    PnlSingleStreamConfig.Visibility = isGroup ? Visibility.Collapsed : Visibility.Visible;
+                }
+                if (BadgeGroupSocket != null)
+                {
+                    BadgeGroupSocket.Visibility = isGroup ? Visibility.Visible : Visibility.Collapsed;
+                }
+
+                // 2. Điền và chọn Card mạng (NIC)
+                RefreshAllNicLists(settings.SingleSourceNicIp, settings.MemberANicIp, settings.MemberBNicIp);
+
+                // 3. Thông số Single Stream
+                if (TxtSrtIp != null && !string.IsNullOrEmpty(settings.SrtIp)) TxtSrtIp.Text = settings.SrtIp;
+                if (TxtSrtPort != null && settings.SrtPort > 0) TxtSrtPort.Text = settings.SrtPort.ToString();
+                if (TxtSrtStreamId != null && settings.StreamId != null) TxtSrtStreamId.Text = settings.StreamId;
+
+                // 4. Thông số SMPTE 2022-7
+                if (CmbGroupType != null && settings.GroupTypeIndex >= 0 && settings.GroupTypeIndex < CmbGroupType.Items.Count)
+                    CmbGroupType.SelectedIndex = settings.GroupTypeIndex;
+                if (TxtDifferentialDelay != null && settings.DifferentialDelayMs > 0)
+                    TxtDifferentialDelay.Text = settings.DifferentialDelayMs.ToString();
+                if (TxtMemberAHost != null && !string.IsNullOrEmpty(settings.MemberAHost)) TxtMemberAHost.Text = settings.MemberAHost;
+                if (TxtMemberAPort != null && settings.MemberAPort > 0) TxtMemberAPort.Text = settings.MemberAPort.ToString();
+                if (TxtMemberBHost != null && !string.IsNullOrEmpty(settings.MemberBHost)) TxtMemberBHost.Text = settings.MemberBHost;
+                if (TxtMemberBPort != null && settings.MemberBPort > 0) TxtMemberBPort.Text = settings.MemberBPort.ToString();
+
+                // 5. Khôi phục các Dynamic Members
+                _dynamicGroupMembers.Clear();
+                StackDynamicMembers?.Children.Clear();
+                if (settings.DynamicMembers != null)
+                {
+                    foreach (var dm in settings.DynamicMembers)
+                    {
+                        var member = new SRTGroupMemberConfig(dm.Name, dm.Host, dm.Port, dm.NicIp == "0.0.0.0" ? "" : dm.NicIp)
+                        {
+                            Id = string.IsNullOrEmpty(dm.Id) ? Guid.NewGuid().ToString("N") : dm.Id
+                        };
+                        _dynamicGroupMembers.Add(member);
+                        AddDynamicMemberUiCard(member);
+                    }
+                }
+
+                // 6. Thông số Video / Codec / Encoder
+                if (settings.BitrateKbps > 0)
+                {
+                    if (SldTargetBitrate != null) SldTargetBitrate.Value = settings.BitrateKbps;
+                    if (TxtTargetBitrateInput != null) TxtTargetBitrateInput.Text = settings.BitrateKbps.ToString();
+                }
+                if (CmbVideoCodec != null && settings.VideoCodecIndex >= 0 && settings.VideoCodecIndex < CmbVideoCodec.Items.Count)
+                {
+                    CmbVideoCodec.SelectedIndex = settings.VideoCodecIndex;
+                }
+                if (CmbHardwareEncoder != null && !string.IsNullOrEmpty(settings.HardwareEncoder))
+                {
+                    for (int i = 0; i < CmbHardwareEncoder.Items.Count; i++)
+                    {
+                        string? itemStr = CmbHardwareEncoder.Items[i]?.ToString();
+                        if (itemStr != null && itemStr.Contains(settings.HardwareEncoder, StringComparison.OrdinalIgnoreCase))
+                        {
+                            CmbHardwareEncoder.SelectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+                if (CmbStreamFrameRate != null && settings.StreamFrameRateIndex >= 0 && settings.StreamFrameRateIndex < CmbStreamFrameRate.Items.Count)
+                {
+                    CmbStreamFrameRate.SelectedIndex = settings.StreamFrameRateIndex;
+                }
+                if (CmbRateControl != null && settings.RateControlIndex >= 0 && settings.RateControlIndex < CmbRateControl.Items.Count)
+                {
+                    CmbRateControl.SelectedIndex = settings.RateControlIndex;
+                }
+                if (CmbEncoderPreset != null && settings.EncoderPresetIndex >= 0 && settings.EncoderPresetIndex < CmbEncoderPreset.Items.Count)
+                {
+                    CmbEncoderPreset.SelectedIndex = settings.EncoderPresetIndex;
+                }
+                if (ChkUltraLowLatency != null)
+                {
+                    ChkUltraLowLatency.IsChecked = settings.UltraLowLatency;
+                }
+
+                // 7. Thông số Protocol & Encryption
+                if (CmbSrtMode != null && settings.SrtModeIndex >= 0 && settings.SrtModeIndex < CmbSrtMode.Items.Count)
+                {
+                    CmbSrtMode.SelectedIndex = settings.SrtModeIndex;
+                }
+                if (TxtManualLatency != null && settings.LatencyMs > 0)
+                {
+                    TxtManualLatency.Text = settings.LatencyMs.ToString();
+                }
+                if (ChkAutoLatency != null)
+                {
+                    ChkAutoLatency.IsChecked = settings.AutoLatency;
+                }
+                if (ChkEnableEncryption != null)
+                {
+                    ChkEnableEncryption.IsChecked = settings.EncryptionEnabled;
+                }
+                if (TxtSrtPassphrase != null && !string.IsNullOrEmpty(settings.Passphrase))
+                {
+                    TxtSrtPassphrase.Password = settings.Passphrase;
+                }
+                if (CmbKeyLength != null && settings.KeyLengthIndex >= 0 && settings.KeyLengthIndex < CmbKeyLength.Items.Count)
+                {
+                    CmbKeyLength.SelectedIndex = settings.KeyLengthIndex;
+                }
+
+                // 8. Audio & NTP
+                if (CmbStreamAudioChannels != null && settings.AudioChannelsIndex >= 0 && settings.AudioChannelsIndex < CmbStreamAudioChannels.Items.Count)
+                {
+                    CmbStreamAudioChannels.SelectedIndex = settings.AudioChannelsIndex;
+                }
+                if (ChkNtpSync != null)
+                {
+                    ChkNtpSync.IsChecked = settings.NtpSyncEnabled;
+                }
+                if (TxtNtpServer != null && !string.IsNullOrEmpty(settings.NtpServer))
+                {
+                    TxtNtpServer.Text = settings.NtpServer;
+                }
+
+                LogEvent("[SETTINGS]", "✅ Đã nạp thành công cấu hình phiên làm việc.");
+            }
+            catch (Exception ex)
+            {
+                LogEvent("[WARN]", $"Lỗi nạp cấu hình: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Lưu cấu hình hiện tại của UI xuống ổ đĩa dạng JSON.
+        /// </summary>
+        private void SaveCurrentSettings()
+        {
+            try
+            {
+                var settings = new SrtEncodeSettings
+                {
+                    IsSmpte2022_7Enabled = ChkGroupSocket?.IsChecked == true,
+                    SrtIp = TxtSrtIp?.Text?.Trim() ?? "127.0.0.1",
+                    SrtPort = int.TryParse(TxtSrtPort?.Text?.Trim(), out int sp) ? sp : 9000,
+                    StreamId = TxtSrtStreamId?.Text?.Trim() ?? "live/cam1/feed",
+                    SingleSourceNicIp = (CmbSingleSourceNic?.SelectedValue as string) ?? "0.0.0.0",
+
+                    GroupTypeIndex = CmbGroupType?.SelectedIndex ?? 0,
+                    DifferentialDelayMs = int.TryParse(TxtDifferentialDelay?.Text?.Trim(), out int dd) ? dd : 50,
+                    MemberAHost = TxtMemberAHost?.Text?.Trim() ?? "127.0.0.1",
+                    MemberAPort = int.TryParse(TxtMemberAPort?.Text?.Trim(), out int maPort) ? maPort : 9000,
+                    MemberANicIp = (CmbMemberANic?.SelectedValue as string) ?? "0.0.0.0",
+                    MemberBHost = TxtMemberBHost?.Text?.Trim() ?? "127.0.0.1",
+                    MemberBPort = int.TryParse(TxtMemberBPort?.Text?.Trim(), out int mbPort) ? mbPort : 9002,
+                    MemberBNicIp = (CmbMemberBNic?.SelectedValue as string) ?? "0.0.0.0",
+
+                    DynamicMembers = _dynamicGroupMembers.Select(m => new DynamicMemberSetting
+                    {
+                        Id = m.Id,
+                        Name = m.Name,
+                        Host = m.Host,
+                        Port = m.Port,
+                        NicIp = string.IsNullOrEmpty(m.LocalInterfaceIp) ? "0.0.0.0" : m.LocalInterfaceIp
+                    }).ToList(),
+
+                    BitrateKbps = (int)(SldTargetBitrate?.Value ?? 6000),
+                    VideoCodecIndex = CmbVideoCodec?.SelectedIndex ?? 0,
+                    HardwareEncoder = CmbHardwareEncoder?.SelectedItem?.ToString() ?? "Intel QuickSync Video (QSV)",
+                    StreamFrameRateIndex = CmbStreamFrameRate?.SelectedIndex ?? 0,
+                    RateControlIndex = CmbRateControl?.SelectedIndex ?? 0,
+                    EncoderPresetIndex = CmbEncoderPreset?.SelectedIndex ?? 0,
+                    UltraLowLatency = ChkUltraLowLatency?.IsChecked == true,
+
+                    SrtModeIndex = CmbSrtMode?.SelectedIndex ?? 0,
+                    LatencyMs = int.TryParse(TxtManualLatency?.Text?.Trim(), out int lat) ? lat : 120,
+                    AutoLatency = ChkAutoLatency?.IsChecked == true,
+                    EncryptionEnabled = ChkEnableEncryption?.IsChecked == true,
+                    Passphrase = TxtSrtPassphrase?.Password ?? string.Empty,
+                    KeyLengthIndex = CmbKeyLength?.SelectedIndex ?? 2,
+
+                    AudioChannelsIndex = CmbStreamAudioChannels?.SelectedIndex ?? 0,
+                    NtpSyncEnabled = ChkNtpSync?.IsChecked == true,
+                    NtpServer = TxtNtpServer?.Text?.Trim() ?? "time.google.com"
+                };
+
+                AppSettingsManager.SaveSettings(settings);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Settings] Lỗi lưu cấu hình: {ex.Message}");
+            }
+        }
+
+        private void UpdateGroupMemberUI(SRTGroupMemberStatus status)
+        {
+            if (status == null) return;
+            if (status.Name.Contains("Path A", StringComparison.OrdinalIgnoreCase))
+            {
+                if (LedMemberA != null)
+                    LedMemberA.Fill = status.IsConnected ? new SolidColorBrush(Color.FromRgb(76, 175, 80)) : new SolidColorBrush(Color.FromRgb(244, 67, 54));
+                if (TxtMemberAStatus != null)
+                    TxtMemberAStatus.Text = status.IsConnected ? $"LIVE ({status.RttMs:F0}ms / {status.PacketLossPercent:F1}% loss)" : status.StatusText;
+            }
+            else if (status.Name.Contains("Path B", StringComparison.OrdinalIgnoreCase))
+            {
+                if (LedMemberB != null)
+                    LedMemberB.Fill = status.IsConnected ? new SolidColorBrush(Color.FromRgb(76, 175, 80)) : new SolidColorBrush(Color.FromRgb(244, 67, 54));
+                if (TxtMemberBStatus != null)
+                    TxtMemberBStatus.Text = status.IsConnected ? $"LIVE ({status.RttMs:F0}ms / {status.PacketLossPercent:F1}% loss)" : status.StatusText;
+            }
+        }
+
+        private void UpdateGroupStatsUI(SMPTE2022_7Stats stats)
+        {
+            if (stats == null) return;
+            if (TxtGroupProtectionStatus != null)
+            {
+                TxtGroupProtectionStatus.Text = stats.ConnectedMembersCount >= 2 
+                    ? "🛡️ SMPTE 2022-7: ARMED (100% Hitless Protection - Đa Đường Truyền)" 
+                    : (stats.ConnectedMembersCount == 1 ? "⚠️ SMPTE 2022-7: SINGLE LINK (Đang Tự Động Kết Nối Member Phụ)" : "❌ SMPTE 2022-7: NO LINKS CONNECTED");
+                TxtGroupProtectionStatus.Foreground = stats.ConnectedMembersCount >= 2
+                    ? new SolidColorBrush(Color.FromRgb(0, 230, 118))
+                    : (stats.ConnectedMembersCount == 1 ? new SolidColorBrush(Color.FromRgb(255, 179, 0)) : new SolidColorBrush(Color.FromRgb(244, 67, 54)));
+            }
+            if (TxtGroupStatsDetail != null)
+            {
+                TxtGroupStatsDetail.Text = $"Path A: {stats.PathAPackets:N0} pkts | Path B: {stats.PathBPackets:N0} pkts | Duplicates Dropped: {stats.DuplicatesDropped:N0} | Recovered: {stats.RecoveredFromRedundantPath:N0}";
+            }
+            if (TxtGroupLinkCount != null)
+            {
+                TxtGroupLinkCount.Text = $"{stats.ConnectedMembersCount}/{stats.TotalMembersCount} Links Active";
+            }
+            if (TxtBadgeGroupSocketText != null)
+            {
+                TxtBadgeGroupSocketText.Text = $"SMPTE 2022-7 ({stats.ConnectedMembersCount}/{stats.TotalMembersCount} LINKS)";
+            }
+        }
+
         private void ChkAutoLatency_Changed(object sender, RoutedEventArgs e)
         {
             if (!_isInitialized) return;
@@ -1915,10 +2363,51 @@ namespace SRT_ENCODE
 
             string fullStreamId = streamInfo.SerializeToStreamId(streamId);
 
+            bool isGroup = ChkGroupSocket?.IsChecked == true;
+            var groupType = CmbGroupType?.SelectedIndex == 1 
+                ? SRTGroupType.Backup_ActiveStandby 
+                : SRTGroupType.Broadcast_SMPTE2022_7;
+            int diffDelay = 50;
+            if (int.TryParse(TxtDifferentialDelay?.Text?.Trim(), out int parsedDelay))
+            {
+                diffDelay = Math.Clamp(parsedDelay, 10, 1000);
+            }
+
+            var groupMembers = new List<SRTGroupMemberConfig>();
+            string singleNic = (CmbSingleSourceNic?.SelectedValue as string) ?? "";
+            if (singleNic == "0.0.0.0") singleNic = "";
+
+            if (isGroup)
+            {
+                // Member 1: Path A (Primary)
+                string hostA = TxtMemberAHost?.Text?.Trim() ?? ip;
+                if (!int.TryParse(TxtMemberAPort?.Text?.Trim(), out int portA)) portA = port;
+                string localA = (CmbMemberANic?.SelectedValue as string) ?? "";
+                if (localA == "0.0.0.0") localA = "";
+                groupMembers.Add(new SRTGroupMemberConfig("Path A (Primary)", hostA, portA, localA, 10));
+
+                // Member 2: Path B (Secondary / 4G)
+                string hostB = TxtMemberBHost?.Text?.Trim() ?? ip;
+                if (!int.TryParse(TxtMemberBPort?.Text?.Trim(), out int portB)) portB = port + 2;
+                string localB = (CmbMemberBNic?.SelectedValue as string) ?? "";
+                if (localB == "0.0.0.0") localB = "";
+                groupMembers.Add(new SRTGroupMemberConfig("Path B (Secondary / 4G)", hostB, portB, localB, 10));
+
+                // Thêm các member bổ sung đã gắn động
+                foreach (var dm in _dynamicGroupMembers)
+                {
+                    if (!groupMembers.Any(m => m.Id == dm.Id))
+                    {
+                        groupMembers.Add(dm);
+                    }
+                }
+            }
+
             return new SRTStreamConfig
             {
                 Host = ip,
                 Port = port,
+                PrimaryInterfaceIp = singleNic,
                 Mode = srtMode,
                 StreamId = fullStreamId,
                 LatencyMs = latency,
@@ -1940,7 +2429,11 @@ namespace SRT_ENCODE
                 AudioChannels = Math.Clamp(_sourceManager.ActiveAudioChannels, 1, 16),
                 AudioSampleRate = 48000,
                 AudioBitrateKbps = 192,
-                AudioCodec = "AAC"
+                AudioCodec = "AAC",
+                GroupSocketEnabled = isGroup,
+                GroupType = groupType,
+                GroupMembers = groupMembers,
+                HitlessDifferentialDelayMs = diffDelay
             };
         }
 
@@ -1949,6 +2442,7 @@ namespace SRT_ENCODE
             try
             {
                 _activeSrtConfig = BuildSrtStreamConfig();
+                SaveCurrentSettings();
                 _isTransmissionActive = true;
                 _reconnectAttempt = 0;
 
@@ -1988,7 +2482,8 @@ namespace SRT_ENCODE
                     if (!isListener)
                     {
                         // ─── CALLER MODE ──────────────────────────────────────────────
-                        bool isConnected = _srtStream != null && _srtStream.IsRunning && _srtStream.Statistics.IsConnected;
+                        bool isConnected = _srtStream != null && _srtStream.IsRunning && 
+                            (_srtStream.Statistics.IsConnected || (_activeSrtConfig?.GroupSocketEnabled == true && _srtStream.GroupStats.ConnectedMembersCount > 0));
 
                         if (!isConnected)
                         {
@@ -2020,6 +2515,14 @@ namespace SRT_ENCODE
                                 var newSession = new SRTStreamSession(_activeSrtConfig);
                                 newSession.LogEmitted += (tag, msg) => LogEvent(tag, msg);
                                 newSession.ErrorOccurred += err => LogEvent("[ERROR]", err);
+                                newSession.MemberStatusChanged += status =>
+                                {
+                                    Dispatcher.InvokeAsync(() => UpdateGroupMemberUI(status));
+                                };
+                                newSession.GroupStatsUpdated += gStats =>
+                                {
+                                    Dispatcher.InvokeAsync(() => UpdateGroupStatsUI(gStats));
+                                };
                                 newSession.StatisticsUpdated += stats =>
                                 {
                                     _currentRttMs = stats.RttMs;
@@ -2036,7 +2539,8 @@ namespace SRT_ENCODE
                                 };
 
                                 bool started = await newSession.StartTransmissionAsync();
-                                if (started && newSession.Statistics.IsConnected)
+                                bool hasConnection = newSession.Statistics.IsConnected || (_activeSrtConfig.GroupSocketEnabled && newSession.GroupStats.ConnectedMembersCount > 0);
+                                if (started && hasConnection)
                                 {
                                     _srtStream = newSession;
                                     _isStreaming = true;
@@ -2046,13 +2550,17 @@ namespace SRT_ENCODE
                                     await Dispatcher.InvokeAsync(() =>
                                     {
                                         LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(76, 175, 80)); // Green
-                                        TxtSrtStatus.Text = "SRT: TRANSMITTING (LIVE)";
+                                        TxtSrtStatus.Text = _activeSrtConfig.GroupSocketEnabled 
+                                            ? "SRT: TRANSMITTING (GROUP LIVE)" 
+                                            : "SRT: TRANSMITTING (LIVE)";
                                         TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(76, 175, 80));
                                         UpdateTargetSummary();
                                         EnsureStreamingWorkerRunning(token);
                                     });
 
-                                    LogEvent("[SRT]", "✅ [INFO] SRT Connected thành công. Bắt đầu truyền dẫn luồng LIVE.");
+                                    LogEvent("[SRT]", _activeSrtConfig.GroupSocketEnabled
+                                        ? "✅ [INFO] SRT Group Socket Connected thành công (SMPTE 2022-7 ARMED). Bắt đầu truyền dẫn luồng LIVE."
+                                        : "✅ [INFO] SRT Connected thành công. Bắt đầu truyền dẫn luồng LIVE.");
                                 }
                                 else
                                 {
@@ -2081,7 +2589,8 @@ namespace SRT_ENCODE
                     else
                     {
                         // ─── LISTENER MODE ────────────────────────────────────────────
-                        bool isListening = _srtStream != null && _srtStream.IsRunning && _srtStream.NativeOutput?.IsOpen == true;
+                        bool isListening = _srtStream != null && _srtStream.IsRunning && 
+                            (_srtStream.NativeOutput?.IsOpen == true || (_activeSrtConfig?.GroupSocketEnabled == true && _srtStream.GroupStats.ConnectedMembersCount > 0));
 
                         if (!isListening)
                         {
@@ -2101,6 +2610,14 @@ namespace SRT_ENCODE
                                 var newSession = new SRTStreamSession(_activeSrtConfig);
                                 newSession.LogEmitted += (tag, msg) => LogEvent(tag, msg);
                                 newSession.ErrorOccurred += err => LogEvent("[ERROR]", err);
+                                newSession.MemberStatusChanged += status =>
+                                {
+                                    Dispatcher.InvokeAsync(() => UpdateGroupMemberUI(status));
+                                };
+                                newSession.GroupStatsUpdated += gStats =>
+                                {
+                                    Dispatcher.InvokeAsync(() => UpdateGroupStatsUI(gStats));
+                                };
                                 newSession.StatisticsUpdated += stats =>
                                 {
                                     _currentRttMs = stats.RttMs;
@@ -2117,7 +2634,8 @@ namespace SRT_ENCODE
                                 };
 
                                 bool started = await newSession.StartTransmissionAsync();
-                                if (started && newSession.NativeOutput?.IsOpen == true)
+                                bool hasListening = newSession.NativeOutput?.IsOpen == true || (_activeSrtConfig.GroupSocketEnabled && newSession.GroupStats.ConnectedMembersCount > 0);
+                                if (started && hasListening)
                                 {
                                     _srtStream = newSession;
                                     _isStreaming = true;

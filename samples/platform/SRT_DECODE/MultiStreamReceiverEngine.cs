@@ -30,6 +30,12 @@ namespace SRT_DECODE
         public ulong TotalBytesReceived { get; set; }
         public TimeSpan Uptime { get; set; } = TimeSpan.Zero;
         public string StatusMessage { get; set; } = "Standby / Idle";
+
+        // SMPTE 2022-7 & Group Socket States
+        public bool GroupSocketEnabled { get; set; }
+        public SMPTE2022_7Stats GroupStats { get; set; } = new();
+        public int ConnectedMembersCount { get; set; }
+        public string RedundancyStatus { get; set; } = "N/A";
     }
 
     /// <summary>
@@ -216,6 +222,27 @@ namespace SRT_DECODE
                         Log("[WARN]", $"[{ch.Name}] SRT Event: {err}");
                     };
 
+                    session.GroupStatsUpdated += groupStats =>
+                    {
+                        ch.GroupStats = groupStats;
+                        ch.ConnectedMembersCount = groupStats.ConnectedMembersCount;
+                        if (ch.Config.GroupSocketEnabled)
+                        {
+                            ch.RedundancyStatus = groupStats.ConnectedMembersCount >= 2
+                                ? $"SMPTE 2022-7 ARMED ({groupStats.ConnectedMembersCount} Paths)"
+                                : groupStats.ConnectedMembersCount == 1
+                                    ? $"DEGRADED (1 Path - Recovered: {groupStats.RecoveredFromRedundantPath})"
+                                    : "NO LINK";
+                        }
+                        ChannelUpdated?.Invoke(index, ch);
+                    };
+
+                    session.MemberStatusChanged += memberStatus =>
+                    {
+                        Log("[GROUP_MEMBER]", $"[{ch.Name}] Member {memberStatus.Name} ({memberStatus.Endpoint}): {memberStatus.StatusText}, Loss={memberStatus.PacketLossPercent:F1}%");
+                        ChannelUpdated?.Invoke(index, ch);
+                    };
+
                     // 2. Khởi tạo kết nối / lắng nghe
                     bool ok = await session.ConnectReceiverAsync().ConfigureAwait(false);
                     if (!ok || token.IsCancellationRequested || !ch.IsRunning)
@@ -347,8 +374,10 @@ namespace SRT_DECODE
                                 // Trong chế độ Listener: Duy trì socket lắng nghe vĩnh viễn, KHÔNG break phiên
                                 if (hasReceivedData)
                                 {
-                                    bool activeConnected = session.NativeSource?.IsActiveConnected == true;
-                                    if (!activeConnected || (DateTime.UtcNow - lastDataReceivedTime).TotalSeconds > 2.0)
+                                    bool activeConnected = ch.Config.GroupSocketEnabled
+                                        ? (session.GroupStats.ConnectedMembersCount > 0 || session.NativeSource?.IsActiveConnected == true)
+                                        : (session.NativeSource?.IsActiveConnected == true);
+                                    if (!activeConnected && (DateTime.UtcNow - lastDataReceivedTime).TotalSeconds > 3.0)
                                     {
                                         Log("[WARN]", $"⚠️ [{ch.Name}] Khách đã ngắt luồng SRT. Đặt lại decoder và duy trì lắng nghe đón kết nối mới trên cổng {ch.Config.Port}...");
                                         hasReceivedData = false;
@@ -372,15 +401,17 @@ namespace SRT_DECODE
                                     }
                                 }
 
-                                // Socket tạm thời chưa có gói tin: Sleep 2ms để nhường CPU
-                                await Task.Delay(2, token).ConfigureAwait(false);
+                                // Socket tạm thời chưa có gói tin: Sleep 1ms để nhường CPU
+                                await Task.Delay(1, token).ConfigureAwait(false);
                             }
                             else
                             {
                                 // Trong chế độ Caller: Nếu mất kết nối hoặc quá thời gian chờ, thoát để tạo phiên bắt tay lại
                                 if (hasReceivedData && (DateTime.UtcNow - lastDataReceivedTime).TotalSeconds > 2.5)
                                 {
-                                    bool activeConnected = session.NativeSource?.IsActiveConnected == true;
+                                    bool activeConnected = ch.Config.GroupSocketEnabled
+                                        ? (session.GroupStats.ConnectedMembersCount > 0 || session.NativeSource?.IsActiveConnected == true)
+                                        : (session.NativeSource?.IsActiveConnected == true);
                                     if (!activeConnected || (DateTime.UtcNow - lastDataReceivedTime).TotalSeconds > 3.5)
                                     {
                                         Log("[WARN]", $"⚠️ [{ch.Name}] Mất tín hiệu luồng SRT (Timeout). Đang kết nối lại...");
@@ -388,7 +419,7 @@ namespace SRT_DECODE
                                     }
                                 }
 
-                                if (session.NativeSource != null && !session.NativeSource.IsActiveConnected)
+                                if (!ch.Config.GroupSocketEnabled && session.NativeSource != null && !session.NativeSource.IsActiveConnected)
                                 {
                                     Log("[WARN]", $"⚠️ [{ch.Name}] Mất kết nối tới SRT Host từ xa. Đang kết nối lại...");
                                     break;
@@ -544,6 +575,30 @@ namespace SRT_DECODE
                 tasks.Add(StopChannelAsync(i));
             }
             await Task.WhenAll(tasks).ConfigureAwait(false);
+        }
+
+        public async Task<bool> AddChannelMemberSocketAsync(int channelIndex, SRTGroupMemberConfig member)
+        {
+            if (channelIndex < 0 || channelIndex >= MaxChannels) return false;
+            var ch = _channels[channelIndex];
+            if (ch.Session != null && ch.IsRunning)
+            {
+                return await ch.Session.AddMemberSocketAsync(member).ConfigureAwait(false);
+            }
+            ch.Config.GroupMembers.Add(member);
+            return true;
+        }
+
+        public async Task<bool> RemoveChannelMemberSocketAsync(int channelIndex, string memberId)
+        {
+            if (channelIndex < 0 || channelIndex >= MaxChannels) return false;
+            var ch = _channels[channelIndex];
+            if (ch.Session != null && ch.IsRunning)
+            {
+                return await ch.Session.RemoveMemberSocketAsync(memberId).ConfigureAwait(false);
+            }
+            ch.Config.GroupMembers.RemoveAll(m => m.Id == memberId);
+            return true;
         }
 
         private void Log(string tag, string message)

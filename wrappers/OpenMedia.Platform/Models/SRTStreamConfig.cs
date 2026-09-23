@@ -71,6 +71,16 @@ namespace OpenMedia.Platform.Models
         /// <summary>Packet loss threshold percentage triggering cellular failover.</summary>
         public double CellularLossThresholdPercent { get; set; } = 4.5;
 
+        // ─── SMPTE ST 2022-7 & SRT Group Socket Mechanism ──────────────
+        /// <summary>Bật/tắt cơ chế Group Socket chuẩn SMPTE ST 2022-7 với khả năng tự động kết nối member socket mới.</summary>
+        public bool GroupSocketEnabled { get; set; } = false;
+        /// <summary>Loại nhóm socket (Broadcast Hitless Redundancy hoặc Backup Active/Standby).</summary>
+        public SRTGroupType GroupType { get; set; } = SRTGroupType.Broadcast_SMPTE2022_7;
+        /// <summary>Danh sách cấu hình các member socket trong Group.</summary>
+        public List<SRTGroupMemberConfig> GroupMembers { get; set; } = new();
+        /// <summary>Độ trễ bù sai lệch đường truyền SMPTE 2022-7 (Differential Delay Buffer, 10ms - 500ms).</summary>
+        public int HitlessDifferentialDelayMs { get; set; } = 50;
+
         /// <summary>
         /// Tạo cấu hình mặc định chuẩn phát sóng truyền hình (Broadcast Reference).
         /// </summary>
@@ -121,6 +131,52 @@ namespace OpenMedia.Platform.Models
                 sb.Append("&bonding=1");
             }
 
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Tạo URL chuẩn giao thức SRT dành riêng cho một Member Socket trong Group.
+        /// </summary>
+        public string ToMemberSrtUri(SRTGroupMemberConfig member)
+        {
+            var sb = new StringBuilder();
+            string modeParam = Mode switch
+            {
+                SRTMode.Listener => "listener",
+                SRTMode.Rendezvous => "rendezvous",
+                _ => "caller"
+            };
+
+            string host = string.IsNullOrWhiteSpace(member.Host) || (Mode == SRTMode.Caller && member.Host == "0.0.0.0")
+                ? (Mode == SRTMode.Caller ? "127.0.0.1" : "0.0.0.0")
+                : member.Host;
+
+            sb.Append($"srt://{host}:{member.Port}?mode={modeParam}");
+
+            int latency = member.LatencyMs > 0 ? member.LatencyMs : LatencyMs;
+            if (latency > 0)
+            {
+                sb.Append($"&latency={latency}");
+            }
+
+            if (EncryptionEnabled && !string.IsNullOrWhiteSpace(Passphrase))
+            {
+                sb.Append($"&passphrase={Uri.EscapeDataString(Passphrase)}");
+                sb.Append($"&pbkeylen={KeyLength}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(StreamId))
+            {
+                sb.Append($"&streamid={Uri.EscapeDataString(StreamId)}");
+            }
+
+            string bindIp = !string.IsNullOrWhiteSpace(member.LocalInterfaceIp) ? member.LocalInterfaceIp : PrimaryInterfaceIp;
+            if (!string.IsNullOrWhiteSpace(bindIp))
+            {
+                sb.Append($"&localip={Uri.EscapeDataString(bindIp)}");
+            }
+
+            sb.Append("&group=1");
             return sb.ToString();
         }
 

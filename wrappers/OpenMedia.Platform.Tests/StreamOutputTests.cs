@@ -1,3 +1,4 @@
+using OpenMedia.Platform.Internal;
 using OpenMedia.Platform.Models;
 
 namespace OpenMedia.Platform.Tests
@@ -462,6 +463,95 @@ namespace OpenMedia.Platform.Tests
             await srv1New.StopAsync();
             srv1New.Dispose();
             await srv2.StopAsync();
+        }
+
+        [Fact]
+        public void HitlessMergeDeduplicator_NullPacketHeader_DoesNotCauseFalseDuplicateDrop()
+        {
+            var dedup = new HitlessMergeDeduplicator(differentialDelayMs: 30);
+
+            // Tạo 2 gói tin 1316 bytes cùng bắt đầu bằng MPEG-TS Null Packet (0x47, 0x1F, 0xFF, 0x10...)
+            // nhưng mang payload video/audio khác nhau ở các byte tiếp theo
+            byte[] packet1 = new byte[1316];
+            packet1[0] = 0x47; packet1[1] = 0x1F; packet1[2] = 0xFF; packet1[3] = 0x10;
+            packet1[500] = 0xAA;
+
+            byte[] packet2 = new byte[1316];
+            packet2[0] = 0x47; packet2[1] = 0x1F; packet2[2] = 0xFF; packet2[3] = 0x10;
+            packet2[500] = 0xBB; // payload khác packet1
+
+            // Cả 2 gói đều từ Path 0 (Primary)
+            Assert.True(dedup.PushPacket(0, packet1, packet1.Length), "Packet 1 should be accepted");
+            Assert.True(dedup.PushPacket(0, packet2, packet2.Length), "Packet 2 must NOT be falsely dropped as duplicate");
+
+            byte[] readBuffer = new byte[1316];
+            int r1 = dedup.ReadMergedData(readBuffer);
+            Assert.Equal(1316, r1);
+            Assert.Equal(0xAA, readBuffer[500]);
+
+            int r2 = dedup.ReadMergedData(readBuffer);
+            Assert.Equal(1316, r2);
+            Assert.Equal(0xBB, readBuffer[500]);
+        }
+
+        [Fact]
+        public void HitlessMergeDeduplicator_DualPath_DiscardsDuplicatesCorrectly()
+        {
+            var dedup = new HitlessMergeDeduplicator(differentialDelayMs: 30);
+
+            byte[] packet = new byte[1316];
+            packet[0] = 0x47; packet[1] = 0x01; packet[2] = 0x00; packet[3] = 0x10;
+            packet[100] = 0x42;
+
+            // Gửi từ Path 0 (Primary)
+            Assert.True(dedup.PushPacket(0, packet, packet.Length));
+
+            // Gửi cùng gói từ Path 1 (Secondary) -> Phải bị loại bỏ do trùng lặp
+            Assert.False(dedup.PushPacket(1, packet, packet.Length));
+            Assert.Equal(1u, dedup.Stats.DuplicatesDropped);
+
+            byte[] outBuf = new byte[1316];
+            int read = dedup.ReadMergedData(outBuf);
+            Assert.Equal(1316, read);
+            Assert.Equal(0x42, outBuf[100]);
+
+            // Sau khi đọc hết, queue phải rỗng (không có gói thừa)
+            Assert.Equal(0, dedup.ReadMergedData(outBuf));
+        }
+
+        [Fact]
+        public async Task HitlessMergeDeduplicator_PacketLostOnPrimary_RecoveredFromSecondary()
+        {
+            var dedup = new HitlessMergeDeduplicator(differentialDelayMs: 20);
+
+            // Packet 1 gửi trên cả 2 path
+            byte[] p1 = new byte[1316]; p1[0] = 0x47; p1[1] = 0x01;
+            dedup.PushPacket(0, p1, p1.Length);
+            dedup.PushPacket(1, p1, p1.Length);
+
+            // Packet 2 BỊ MẤT trên Path 0, chỉ có trên Path 1
+            byte[] p2 = new byte[1316]; p2[0] = 0x47; p2[1] = 0x02;
+            dedup.PushPacket(1, p2, p2.Length);
+
+            // Đợi hết differential delay (20ms) để Path 1 bù khuyết
+            await Task.Delay(40);
+
+            // Packet 3 gửi trên cả 2 path
+            byte[] p3 = new byte[1316]; p3[0] = 0x47; p3[1] = 0x03;
+            dedup.PushPacket(0, p3, p3.Length);
+            dedup.PushPacket(1, p3, p3.Length);
+
+            byte[] outBuf = new byte[1316];
+            Assert.Equal(1316, dedup.ReadMergedData(outBuf));
+            Assert.Equal(0x01, outBuf[1]); // p1
+
+            Assert.Equal(1316, dedup.ReadMergedData(outBuf));
+            Assert.Equal(0x02, outBuf[1]); // p2 recovered!
+
+            Assert.Equal(1316, dedup.ReadMergedData(outBuf));
+            Assert.Equal(0x03, outBuf[1]); // p3 in exact sequence!
+
+            Assert.True(dedup.Stats.RecoveredFromRedundantPath >= 1);
         }
     }
 }
