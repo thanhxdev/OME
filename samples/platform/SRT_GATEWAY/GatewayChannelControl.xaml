@@ -1,0 +1,476 @@
+<UserControl x:Class="SRT_GATEWAY.GatewayChannelControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:om="clr-namespace:OpenMedia.Platform.Controls.Wpf;assembly=OpenMedia.Platform"
+             mc:Ignorable="d" 
+             d:DesignHeight="680" d:DesignWidth="620">
+
+    <UserControl.Resources>
+        <Style x:Key="HeaderLabelStyle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="#9E9E9E"/>
+            <Setter Property="Margin" Value="0,0,0,3"/>
+        </Style>
+
+        <Style x:Key="ToggleSwitchStyle" TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#E0E0E0"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Grid Width="36" Height="18" Margin="0,0,6,0">
+                                <Border x:Name="Track" Background="#3A3A42" CornerRadius="9" />
+                                <Ellipse x:Name="Thumb" Width="12" Height="12" Fill="#E0E0E0" HorizontalAlignment="Left" Margin="3,0,0,0" />
+                            </Grid>
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="#007ACC"/>
+                                <Setter TargetName="Thumb" Property="Fill" Value="#FFFFFF"/>
+                                <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
+                                <Setter TargetName="Thumb" Property="Margin" Value="0,0,3,0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#1C1C24"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#343442"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="5,3"/>
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="#1C1C24"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#343442"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+    </UserControl.Resources>
+
+    <!-- Main Outer Container -->
+    <Border Background="#16161C" BorderBrush="#2D2D3A" BorderThickness="1.5" CornerRadius="6" Margin="6" Padding="10">
+        <Grid>
+            <Grid.RowDefinitions>
+                <!-- 0: Channel Title & Quick Toolbar -->
+                <RowDefinition Height="Auto"/>
+                <!-- 1: Video Viewport (Cửa sổ xem luồng SRT Ingest) -->
+                <RowDefinition Height="Auto"/>
+                <!-- 2: Tabs (Ingest / Egress Fan-out / Telemetry) -->
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- ════════════════════════════════════════════════════════════
+                 ROW 0: CHANNEL HEADER BAR
+                 ════════════════════════════════════════════════════════════ -->
+            <Border Grid.Row="0" Background="#1E1E28" BorderBrush="#353548" BorderThickness="1" CornerRadius="4" Padding="8,6" Margin="0,0,0,8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Left: Channel ID Badge & Name -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border x:Name="BdChannelBadge" Background="#007ACC" CornerRadius="3" Padding="6,2" Margin="0,0,8,0">
+                            <TextBlock x:Name="TxtChannelBadge" Text="CH 1" FontWeight="Bold" FontSize="11" Foreground="#FFFFFF"/>
+                        </Border>
+                        <TextBox x:Name="TxtChannelTitle" Text="CH 1: SRT GATEWAY" FontWeight="Bold" FontSize="12" Foreground="#00D2FF" Background="Transparent" BorderThickness="0" Width="170" VerticalAlignment="Center" TextChanged="Input_Changed"/>
+                    </StackPanel>
+
+                    <!-- Center: Signal Indicator -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Ellipse x:Name="LedChannelStatus" Width="8" Height="8" Fill="#888888" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="TxtChannelStatus" Text="STANDBY" FontSize="10.5" FontWeight="Bold" Foreground="#AAAAAA" VerticalAlignment="Center"/>
+                        <Border x:Name="BdSmpteBadge" Background="#004D40" CornerRadius="2" Padding="4,1" Margin="8,0,0,0" Visibility="Collapsed">
+                            <TextBlock Text="SMPTE 2022-7" FontSize="9" FontWeight="Bold" Foreground="#00E676"/>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Right: Quick Actions (Start/Stop + Remove) -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="BtnChannelStart" Content="▶ START" Click="BtnChannelStart_Click" Background="#16A34A" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11" Padding="8,3" Margin="0,0,5,0" Cursor="Hand"/>
+                        <Button x:Name="BtnChannelStop" Content="⏹ STOP" Click="BtnChannelStop_Click" Background="#DC2626" Foreground="#FFFFFF" FontWeight="Bold" FontSize="11" Padding="8,3" Margin="0,0,6,0" IsEnabled="False" Cursor="Hand"/>
+                        <Button x:Name="BtnRemoveChannel" Content="✕" Click="BtnRemoveChannel_Click" Background="#33333E" Foreground="#FF6B6B" FontWeight="Bold" FontSize="12" Padding="7,2" ToolTip="Xóa cửa sổ luồng này khỏi Multiview" Cursor="Hand"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ════════════════════════════════════════════════════════════
+                 ROW 1: CỬA SỔ XEM LUỒNG SRT INGEST STREAM (VIDEO VIEWPORT)
+                 ════════════════════════════════════════════════════════════ -->
+            <Border Grid.Row="1" Background="#0A0A0E" BorderBrush="#007ACC" BorderThickness="1.2" CornerRadius="4" Margin="0,0,0,8" ClipToBounds="True">
+                <Grid Height="210">
+                    <!-- Video Render Canvas / Image Display -->
+                    <Image x:Name="ImgVideoPreview" Stretch="Uniform" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+
+                    <!-- Fallback / Test Pattern Screen -->
+                    <Grid x:Name="PnlVideoOverlay" Background="Transparent">
+                        <!-- Top OSD Bar -->
+                        <Border VerticalAlignment="Top" Background="#B0000000" Padding="8,4">
+                            <Grid>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock x:Name="OsdStreamId" Text="SRT INGEST: gateway/ch1" FontFamily="Consolas, Monospace" FontSize="10.5" FontWeight="Bold" Foreground="#00E5FF"/>
+                                    <TextBlock x:Name="OsdPortMode" Text=" | LISTENER :9000" FontFamily="Consolas, Monospace" FontSize="10.5" Foreground="#EEEEEE"/>
+                                </StackPanel>
+                                <TextBlock x:Name="OsdResolution" Text="1080p59.94 | 4:2:2" FontFamily="Consolas, Monospace" FontSize="10" Foreground="#AAAAAA" HorizontalAlignment="Right"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Center Watermark when not running -->
+                        <StackPanel x:Name="PnlStandbyWatermark" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock Text="📺" FontSize="26" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                            <TextBlock Text="SRT INGEST STREAM PREVIEW" FontWeight="Bold" FontSize="12" Foreground="#888899" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Nhấn ▶ START để kết nối và mở luồng" FontSize="10.5" Foreground="#555566" HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                        </StackPanel>
+
+                        <!-- Bottom Telemetry HUD Bar -->
+                        <Border VerticalAlignment="Bottom" Background="#CC0C0C12" Padding="8,4">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Telemetry Gauges -->
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="BITRATE: " FontSize="10" Foreground="#888888"/>
+                                    <TextBlock x:Name="TxtHudBitrate" Text="0.00 Mbps" FontFamily="Consolas" FontSize="11" FontWeight="Bold" Foreground="#00E676" Margin="0,0,10,0"/>
+
+                                    <TextBlock Text="FPS: " FontSize="10" Foreground="#888888"/>
+                                    <TextBlock x:Name="TxtHudFps" Text="0.0" FontFamily="Consolas" FontSize="11" FontWeight="Bold" Foreground="#00E676" Margin="0,0,10,0"/>
+
+                                    <TextBlock Text="RTT: " FontSize="10" Foreground="#888888"/>
+                                    <TextBlock x:Name="TxtHudRtt" Text="0 ms" FontFamily="Consolas" FontSize="11" FontWeight="Bold" Foreground="#00D2FF" Margin="0,0,10,0"/>
+
+                                    <TextBlock Text="LOSS: " FontSize="10" Foreground="#888888"/>
+                                    <TextBlock x:Name="TxtHudLoss" Text="0.00 %" FontFamily="Consolas" FontSize="11" FontWeight="Bold" Foreground="#FFFFFF"/>
+                                </StackPanel>
+
+                                <!-- Active Egress Count Badge -->
+                                <Border Grid.Column="1" Background="#1E1C28" BorderBrush="#3F3F50" BorderThickness="1" CornerRadius="3" Padding="5,1">
+                                    <TextBlock x:Name="TxtActiveEgressCount" Text="EGRESS: 0/7 ON" FontSize="9.5" FontWeight="Bold" Foreground="#FFB74D"/>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <!-- Right Audio VU Peak Meter -->
+                        <Border HorizontalAlignment="Right" VerticalAlignment="Stretch" Margin="0,26,4,26" Width="12" Background="#1A1A24" CornerRadius="2" Padding="1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <ProgressBar x:Name="VuMeterL" Grid.Column="0" Orientation="Vertical" Minimum="0" Maximum="100" Value="0" Background="Transparent" Foreground="#00E676" Margin="0,0,1,0"/>
+                                <ProgressBar x:Name="VuMeterR" Grid.Column="1" Orientation="Vertical" Minimum="0" Maximum="100" Value="0" Background="Transparent" Foreground="#00E676"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <!-- ════════════════════════════════════════════════════════════
+                 ROW 2: TABS (INGEST STREAM & MULTI-PROTOCOL EGRESS FAN-OUT)
+                 ════════════════════════════════════════════════════════════ -->
+            <TabControl Grid.Row="2" Background="#181822" BorderBrush="#2D2D3C" Foreground="#E0E0E0">
+                <TabControl.Resources>
+                    <Style TargetType="TabItem">
+                        <Setter Property="Foreground" Value="#AAAAAA"/>
+                        <Setter Property="FontSize" Value="11"/>
+                        <Setter Property="FontWeight" Value="SemiBold"/>
+                        <Setter Property="Padding" Value="10,4"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="TabItem">
+                                    <Border x:Name="Bd" Background="#1A1A24" BorderBrush="#2D2D3C" BorderThickness="1,1,1,0" CornerRadius="4,4,0,0" Padding="{TemplateBinding Padding}" Margin="0,0,2,0">
+                                        <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="#181822"/>
+                                            <Setter TargetName="Bd" Property="BorderBrush" Value="#007ACC"/>
+                                            <Setter Property="Foreground" Value="#FFFFFF"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </TabControl.Resources>
+
+                <!-- TAB 1: SRT INGEST STREAM (INPUT) -->
+                <TabItem Header="📥 SRT INGEST (INPUT)">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4,6">
+                        <StackPanel>
+                            <!-- Ingest Parameters -->
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="1.4*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,3,0">
+                                    <TextBlock Text="SRT Mode:" Style="{StaticResource HeaderLabelStyle}"/>
+                                    <ComboBox x:Name="CmbIngestMode" SelectionChanged="CmbIngestMode_SelectionChanged">
+                                        <ComboBoxItem Content="Listener" IsSelected="True"/>
+                                        <ComboBoxItem Content="Caller"/>
+                                        <ComboBoxItem Content="Rendezvous"/>
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="3,0,3,0">
+                                    <TextBlock Text="Host / IP:" Style="{StaticResource HeaderLabelStyle}"/>
+                                    <TextBox x:Name="TxtIngestHost" Text="0.0.0.0" TextChanged="Input_Changed"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Margin="3,0,0,0">
+                                    <TextBlock Text="UDP Port:" Style="{StaticResource HeaderLabelStyle}"/>
+                                    <TextBox x:Name="TxtIngestPort" Text="9000" TextChanged="Input_Changed"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="1.4*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,3,0">
+                                    <TextBlock Text="Stream ID (Routing):" Style="{StaticResource HeaderLabelStyle}"/>
+                                    <TextBox x:Name="TxtIngestStreamId" Text="gateway/ch1" TextChanged="Input_Changed"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="3,0,0,0">
+                                    <TextBlock Text="Latency (ms):" Style="{StaticResource HeaderLabelStyle}"/>
+                                    <TextBox x:Name="TxtIngestLatency" Text="120" TextChanged="Input_Changed"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <StackPanel Margin="0,0,0,6">
+                                <TextBlock Text="Passphrase (AES-256):" Style="{StaticResource HeaderLabelStyle}"/>
+                                <PasswordBox x:Name="TxtIngestPassphrase" Password="" Background="#1C1C24" Foreground="White" BorderBrush="#343442" Height="26" Padding="5,3" PasswordChanged="Passphrase_Changed"/>
+                            </StackPanel>
+
+                            <!-- SMPTE 2022-7 Toggle -->
+                            <Border Background="#12141E" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="8,6" Margin="0,2,0,0">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,4">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="🛡️" FontSize="11" Margin="0,0,4,0"/>
+                                            <TextBlock Text="SMPTE 2022-7 Hitless Redundancy" FontWeight="Bold" FontSize="11" Foreground="#00E5FF"/>
+                                        </StackPanel>
+                                        <CheckBox x:Name="ChkSmpteIngest" Content="Bật A/B" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Right" Checked="ChkSmpteIngest_Changed" Unchecked="ChkSmpteIngest_Changed"/>
+                                    </Grid>
+
+                                    <StackPanel x:Name="PnlSmpteIngestConfig" Visibility="Collapsed" Margin="0,2,0,0">
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Margin="0,0,3,0">
+                                                <TextBlock Text="Path A Port:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <TextBox x:Name="TxtMemberAPort" Text="9000" TextChanged="Input_Changed"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="3,0,0,0">
+                                                <TextBlock Text="Path B Port:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                <TextBox x:Name="TxtMemberBPort" Text="9002" TextChanged="Input_Changed"/>
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid>
+                                            <TextBlock Text="Diff Delay Buffer:" Style="{StaticResource HeaderLabelStyle}"/>
+                                            <TextBlock x:Name="TxtDiffDelayDisplay" Text="50 ms" FontWeight="Bold" FontSize="10.5" Foreground="#00E676" HorizontalAlignment="Right"/>
+                                        </Grid>
+                                        <Slider x:Name="SldDiffDelay" Minimum="10" Maximum="500" Value="50" ValueChanged="SldDiffDelay_ValueChanged" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- TAB 2: MULTI-PROTOCOL EGRESS (FAN-OUT) -->
+                <TabItem Header="📤 EGRESS FAN-OUT (7 PROTOS)">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="4,6">
+                        <StackPanel>
+                            <!-- 1. SRT OUT -->
+                            <Border Background="#1C1C26" BorderBrush="#2F2F40" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,5">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="1. SRT OUT" FontWeight="Bold" FontSize="11" Foreground="#00D2FF"/>
+                                            <TextBlock x:Name="TxtSrtOutStatus" Text=" [OFF]" FontSize="10" Foreground="#888888" Margin="4,0,0,0"/>
+                                        </StackPanel>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="TxtSrtOutHost" Grid.Column="0" Text="127.0.0.1" Margin="0,0,2,0" TextChanged="Input_Changed"/>
+                                            <TextBox x:Name="TxtSrtOutPort" Grid.Column="1" Text="9100" Margin="2,0,2,0" TextChanged="Input_Changed"/>
+                                            <ComboBox x:Name="CmbSrtOutMode" Grid.Column="2" Margin="2,0,0,0" SelectionChanged="Input_Changed">
+                                                <ComboBoxItem Content="Caller" IsSelected="True"/>
+                                                <ComboBoxItem Content="Listener"/>
+                                            </ComboBox>
+                                        </Grid>
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkSrtOut" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="Input_Changed" Unchecked="Input_Changed" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- 2. WEBRTC OUT -->
+                            <Border Background="#1C1C26" BorderBrush="#2F2F40" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,5">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="2. WebRTC (WHIP/WHEP)" FontWeight="Bold" FontSize="11" Foreground="#00E676"/>
+                                            <TextBlock x:Name="TxtWebRtcStatus" Text=" [OFF]" FontSize="10" Foreground="#888888" Margin="4,0,0,0"/>
+                                        </StackPanel>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="2*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="TxtWebRtcPort" Grid.Column="0" Text="8889" Margin="0,0,2,0" TextChanged="Input_Changed"/>
+                                            <TextBox x:Name="TxtWebRtcUrl" Grid.Column="1" Text="http://127.0.0.1:8889/webrtc" IsReadOnly="True" Foreground="#00E676" Margin="2,0,0,0"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkWebRtcOut" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="Input_Changed" Unchecked="Input_Changed" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- 3. RTMP OUT -->
+                            <Border Background="#1C1C26" BorderBrush="#2F2F40" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,5">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="3. RTMP OUT (CDN)" FontWeight="Bold" FontSize="11" Foreground="#FF5252"/>
+                                            <TextBlock x:Name="TxtRtmpStatus" Text=" [OFF]" FontSize="10" Foreground="#888888" Margin="4,0,0,0"/>
+                                        </StackPanel>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="1.8*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="TxtRtmpUrl" Grid.Column="0" Text="rtmp://127.0.0.1:1935/live" Margin="0,0,2,0" TextChanged="Input_Changed"/>
+                                            <TextBox x:Name="TxtRtmpKey" Grid.Column="1" Text="live_feed_1" Margin="2,0,0,0" TextChanged="Input_Changed"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkRtmpOut" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="False" Checked="Input_Changed" Unchecked="Input_Changed" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- 4. RTSP OUT -->
+                            <Border Background="#1C1C26" BorderBrush="#2F2F40" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,5">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="4. RTSP OUT" FontWeight="Bold" FontSize="11" Foreground="#FFD54F"/>
+                                            <TextBlock x:Name="TxtRtspStatus" Text=" [OFF]" FontSize="10" Foreground="#888888" Margin="4,0,0,0"/>
+                                        </StackPanel>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="2*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="TxtRtspPort" Grid.Column="0" Text="8554" Margin="0,0,2,0" TextChanged="Input_Changed"/>
+                                            <TextBox x:Name="TxtRtspEndpoint" Grid.Column="1" Text="rtsp://0.0.0.0:8554/ch1" IsReadOnly="True" Foreground="#FFD54F" Margin="2,0,0,0"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkRtspOut" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="Input_Changed" Unchecked="Input_Changed" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- 5. LRT OUT -->
+                            <Border Background="#1C1C26" BorderBrush="#2F2F40" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,5">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="5. LRT (LiveU Reliable Transport)" FontWeight="Bold" FontSize="11" Foreground="#AB47BC"/>
+                                            <TextBlock x:Name="TxtLrtStatus" Text=" [OFF]" FontSize="10" Foreground="#888888" Margin="4,0,0,0"/>
+                                        </StackPanel>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="TxtLrtPath1" Grid.Column="0" Text="127.0.0.1:9200" Margin="0,0,2,0" TextChanged="Input_Changed"/>
+                                            <TextBox x:Name="TxtLrtPath2" Grid.Column="1" Text="127.0.0.1:9202" Margin="2,0,0,0" TextChanged="Input_Changed"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <CheckBox x:Name="ChkLrtOut" Grid.Column="1" Style="{StaticResource ToggleSwitchStyle}" IsChecked="False" Checked="Input_Changed" Unchecked="Input_Changed" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- 6. HLS & 7. DASH -->
+                            <Border Background="#1C1C26" BorderBrush="#2F2F40" BorderThickness="1" CornerRadius="4" Padding="6,4">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="6. HLS (.m3u8) &amp; 7. DASH (.mpd)" FontWeight="Bold" FontSize="11" Foreground="#29B6F6"/>
+                                        <Grid Margin="0,2,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="2*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="TxtHlsPort" Grid.Column="0" Text="8080" Margin="0,0,2,0" TextChanged="Input_Changed"/>
+                                            <TextBox x:Name="TxtHlsUrl" Grid.Column="1" Text="http://127.0.0.1:8080/live.m3u8" IsReadOnly="True" Foreground="#29B6F6" Margin="2,0,0,0"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,0">
+                                        <CheckBox x:Name="ChkHlsOut" Content="HLS" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="Input_Changed" Unchecked="Input_Changed" Margin="0,0,6,0"/>
+                                        <CheckBox x:Name="ChkDashOut" Content="DASH" Style="{StaticResource ToggleSwitchStyle}" IsChecked="True" Checked="Input_Changed" Unchecked="Input_Changed"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- TAB 3: LOGS & TELEMETRY -->
+                <TabItem Header="📊 EVENT LOG">
+                    <Grid Margin="4,6">
+                        <TextBox x:Name="TxtLogConsole" IsReadOnly="True" VerticalScrollBarVisibility="Auto" Background="#0C0C10" Foreground="#81C784" FontFamily="Consolas, Monospace" FontSize="10.5" TextWrapping="Wrap" BorderThickness="0"/>
+                    </Grid>
+                </TabItem>
+            </TabControl>
+        </Grid>
+    </Border>
+</UserControl>

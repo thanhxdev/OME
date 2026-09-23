@@ -17,12 +17,14 @@ using Microsoft.Win32;
 using OpenMedia.Platform;
 using OpenMedia.Platform.Controls.Wpf;
 using OpenMedia.Platform.Models;
+using OpenMedia.Platform.Telemetry;
 using PlatformMediaPlayer = OpenMedia.Platform.MediaPlayer;
 
 namespace SRT_ENCODE
 {
     public partial class MainWindow : Window
     {
+        private SRTTelemetryReporter? _telemetryReporter;
         // ─── Engine & Playback State ────────────────────────────────
         private VideoMixer? _mixer;
         private SRTStreamSession? _srtStream;
@@ -1508,6 +1510,24 @@ namespace SRT_ENCODE
                     TxtNtpServer.Text = settings.NtpServer;
                 }
 
+                // 9. Telemetry Monitor
+                if (ChkEnableTelemetry != null)
+                {
+                    ChkEnableTelemetry.IsChecked = settings.IsTelemetryMonitorEnabled;
+                }
+                if (PnlTelemetryConfig != null)
+                {
+                    PnlTelemetryConfig.Visibility = settings.IsTelemetryMonitorEnabled ? Visibility.Visible : Visibility.Collapsed;
+                }
+                if (TxtTelemetryServerUrl != null && !string.IsNullOrEmpty(settings.TelemetryServerUrl))
+                {
+                    TxtTelemetryServerUrl.Text = settings.TelemetryServerUrl;
+                }
+                if (TxtTelemetryNodeName != null && !string.IsNullOrEmpty(settings.TelemetryNodeName))
+                {
+                    TxtTelemetryNodeName.Text = settings.TelemetryNodeName;
+                }
+
                 LogEvent("[SETTINGS]", "✅ Đã nạp thành công cấu hình phiên làm việc.");
             }
             catch (Exception ex)
@@ -1566,7 +1586,11 @@ namespace SRT_ENCODE
 
                     AudioChannelsIndex = CmbStreamAudioChannels?.SelectedIndex ?? 0,
                     NtpSyncEnabled = ChkNtpSync?.IsChecked == true,
-                    NtpServer = TxtNtpServer?.Text?.Trim() ?? "time.google.com"
+                    NtpServer = TxtNtpServer?.Text?.Trim() ?? "time.google.com",
+
+                    IsTelemetryMonitorEnabled = ChkEnableTelemetry?.IsChecked == true,
+                    TelemetryServerUrl = TxtTelemetryServerUrl?.Text?.Trim() ?? "http://127.0.0.1:8088",
+                    TelemetryNodeName = TxtTelemetryNodeName?.Text?.Trim() ?? "ENC_CAM_01"
                 };
 
                 AppSettingsManager.SaveSettings(settings);
@@ -1574,6 +1598,111 @@ namespace SRT_ENCODE
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[Settings] Lỗi lưu cấu hình: {ex.Message}");
+            }
+        }
+
+        private void ChkEnableTelemetry_Changed(object sender, RoutedEventArgs e)
+        {
+            bool isEnabled = ChkEnableTelemetry?.IsChecked == true;
+            if (PnlTelemetryConfig != null)
+                PnlTelemetryConfig.Visibility = isEnabled ? Visibility.Visible : Visibility.Collapsed;
+
+            if (isEnabled)
+            {
+                if (TxtTelemetryStatus != null) TxtTelemetryStatus.Text = "🟡 Chờ phát sóng luồng...";
+                if (_isTransmissionActive)
+                {
+                    StartTelemetryReporting();
+                }
+            }
+            else
+            {
+                StopTelemetryReporting();
+                if (LedTelemetryPulse != null) LedTelemetryPulse.Fill = new SolidColorBrush(Color.FromRgb(85, 85, 85));
+                if (TxtTelemetryStatus != null) TxtTelemetryStatus.Text = "⚪ Tắt (Chưa kích hoạt giám sát)";
+            }
+
+            SaveCurrentSettings();
+        }
+
+        private void TelemetryInput_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            SaveCurrentSettings();
+        }
+
+        private void StartTelemetryReporting()
+        {
+            if (ChkEnableTelemetry?.IsChecked != true) return;
+            StopTelemetryReporting();
+
+            string url = TxtTelemetryServerUrl?.Text?.Trim() ?? "http://127.0.0.1:8088";
+            string nodeName = TxtTelemetryNodeName?.Text?.Trim() ?? "ENC_CAM_01";
+
+            _telemetryReporter = new SRTTelemetryReporter(() =>
+            {
+                var packet = new SRTTelemetryPacket
+                {
+                    NodeName = nodeName,
+                    NodeType = "Encoder",
+                    IsConnected = _isTransmissionActive && (_srtStream?.IsRunning == true),
+                    Fps = _currentFps > 0 ? _currentFps : (_srtStream?.Statistics?.CurrentFps ?? 0),
+                    BitrateKbps = _currentBitrateKbps > 0 ? _currentBitrateKbps : (_srtStream?.Statistics?.CurrentBitrateKbps ?? 0),
+                    RttMs = _currentRttMs > 0 ? _currentRttMs : (_srtStream?.Statistics?.RttMs ?? 0),
+                    LossPercent = _currentPacketLoss > 0 ? _currentPacketLoss : (_srtStream?.Statistics?.PacketLossPercent ?? 0),
+                    UptimeSeconds = _streamStartTime != DateTime.MinValue ? (DateTime.UtcNow - _streamStartTime).TotalSeconds : 0,
+                    StreamUri = _activeSrtConfig?.ToSrtUri() ?? string.Empty
+                };
+
+                if (_srtStream != null && _srtStream.Config.GroupSocketEnabled)
+                {
+                    var groupStats = _srtStream.GroupStats;
+                    packet.IsSmpte2022_7Active = true;
+                    var members = _srtStream.MemberStatuses;
+                    packet.PathAConnected = members.Count > 0 && members[0].IsConnected;
+                    packet.PathBConnected = members.Count > 1 && members[1].IsConnected;
+                    packet.PathAPackets = (long)groupStats.PathAPackets;
+                    packet.PathBPackets = (long)groupStats.PathBPackets;
+                    packet.MergedPackets = (long)groupStats.RecoveredFromRedundantPath;
+                    packet.DroppedDuplicates = (long)groupStats.DuplicatesDropped;
+                    packet.DifferentialDelayMs = _srtStream.Config.HitlessDifferentialDelayMs;
+                }
+
+                return packet;
+            })
+            {
+                ServerUrl = url,
+                NodeName = nodeName,
+                NodeType = "Encoder"
+            };
+
+            _telemetryReporter.HeartbeatPulse += (success, error) =>
+            {
+                Dispatcher.BeginInvoke(() =>
+                {
+                    if (success)
+                    {
+                        if (LedTelemetryPulse != null) LedTelemetryPulse.Fill = new SolidColorBrush(Color.FromRgb(0, 230, 118)); // Green
+                        if (TxtTelemetryStatus != null) TxtTelemetryStatus.Text = $"🟢 Đang gửi nhịp tim ({DateTime.Now:HH:mm:ss})";
+                    }
+                    else
+                    {
+                        if (LedTelemetryPulse != null) LedTelemetryPulse.Fill = new SolidColorBrush(Color.FromRgb(244, 67, 54)); // Red
+                        if (TxtTelemetryStatus != null) TxtTelemetryStatus.Text = $"🔴 Lỗi gửi: {error}";
+                    }
+                });
+            };
+
+            _telemetryReporter.Start();
+        }
+
+        private void StopTelemetryReporting()
+        {
+            if (_telemetryReporter != null)
+            {
+                _telemetryReporter.Stop();
+                _telemetryReporter.Dispose();
+                _telemetryReporter = null;
             }
         }
 
@@ -2445,6 +2574,7 @@ namespace SRT_ENCODE
                 SaveCurrentSettings();
                 _isTransmissionActive = true;
                 _reconnectAttempt = 0;
+                StartTelemetryReporting();
 
                 BtnStartStreaming.IsEnabled = false;
                 BtnStopStreaming.IsEnabled = true;
@@ -3137,6 +3267,7 @@ namespace SRT_ENCODE
             _isTransmissionActive = false;
             _isStreaming = false;
             _currentMuxer = null;
+            StopTelemetryReporting();
 
             try { _reconnectCts?.Cancel(); } catch { }
             try { _transmissionCts?.Cancel(); } catch { }

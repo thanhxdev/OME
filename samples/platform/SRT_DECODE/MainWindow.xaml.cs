@@ -13,12 +13,14 @@ using System.Windows.Threading;
 using OpenMedia.Platform;
 using OpenMedia.Platform.Controls.Wpf;
 using OpenMedia.Platform.Models;
+using OpenMedia.Platform.Telemetry;
 
 namespace SRT_DECODE
 {
     public partial class MainWindow : Window
     {
         private const int MaxChannels = 10;
+        private SRTTelemetryReporter? _telemetryReporter;
 
         // ─── Subsystem Engines ──────────────────────────────────────
         private readonly NtpSyncEngine _syncEngine = new();
@@ -1736,6 +1738,24 @@ namespace SRT_DECODE
                     TxtNtpServer.Text = settings.NtpServer;
                 }
 
+                // Restore Telemetry Monitor
+                if (ChkEnableTelemetry != null)
+                {
+                    ChkEnableTelemetry.IsChecked = settings.IsTelemetryMonitorEnabled;
+                }
+                if (PnlTelemetryConfig != null)
+                {
+                    PnlTelemetryConfig.Visibility = settings.IsTelemetryMonitorEnabled ? Visibility.Visible : Visibility.Collapsed;
+                }
+                if (TxtTelemetryServerUrl != null && !string.IsNullOrWhiteSpace(settings.TelemetryServerUrl))
+                {
+                    TxtTelemetryServerUrl.Text = settings.TelemetryServerUrl;
+                }
+                if (TxtTelemetryNodeName != null && !string.IsNullOrWhiteSpace(settings.TelemetryNodeName))
+                {
+                    TxtTelemetryNodeName.Text = settings.TelemetryNodeName;
+                }
+
                 // 4. Restore 10 Channels
                 for (int i = 0; i < MaxChannels; i++)
                 {
@@ -1934,11 +1954,140 @@ namespace SRT_DECODE
                     settings.Channels.Add(ch);
                 }
 
+                settings.IsTelemetryMonitorEnabled = ChkEnableTelemetry?.IsChecked == true;
+                settings.TelemetryServerUrl = TxtTelemetryServerUrl?.Text?.Trim() ?? "http://127.0.0.1:8088";
+                settings.TelemetryNodeName = TxtTelemetryNodeName?.Text?.Trim() ?? "DEC_STATION_01";
+
                 AppSettingsManager.SaveSettings(settings);
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[MainWindow] Lỗi lưu cấu hình: {ex.Message}");
+            }
+        }
+
+        private void ChkEnableTelemetry_Changed(object sender, RoutedEventArgs e)
+        {
+            bool isEnabled = ChkEnableTelemetry?.IsChecked == true;
+            if (PnlTelemetryConfig != null)
+                PnlTelemetryConfig.Visibility = isEnabled ? Visibility.Visible : Visibility.Collapsed;
+
+            if (isEnabled)
+            {
+                if (TxtTelemetryStatus != null) TxtTelemetryStatus.Text = "🟡 Chờ luồng Ingest hoạt động...";
+                StartTelemetryReporting();
+            }
+            else
+            {
+                StopTelemetryReporting();
+                if (LedTelemetryPulse != null) LedTelemetryPulse.Fill = new SolidColorBrush(Color.FromRgb(85, 85, 85));
+                if (TxtTelemetryStatus != null) TxtTelemetryStatus.Text = "⚪ Tắt (Chưa kích hoạt giám sát)";
+            }
+
+            SaveCurrentSettings();
+        }
+
+        private void TelemetryInput_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            SaveCurrentSettings();
+        }
+
+        private void StartTelemetryReporting()
+        {
+            if (ChkEnableTelemetry?.IsChecked != true) return;
+            StopTelemetryReporting();
+
+            string url = TxtTelemetryServerUrl?.Text?.Trim() ?? "http://127.0.0.1:8088";
+            string nodeName = TxtTelemetryNodeName?.Text?.Trim() ?? "DEC_STATION_01";
+
+            _telemetryReporter = new SRTTelemetryReporter(() =>
+            {
+                ReceiverChannelState? primary = null;
+                bool anyConnected = false;
+                double totalBitrate = 0;
+                double maxFps = 0;
+                double maxRtt = 0;
+                double maxLoss = 0;
+                TimeSpan maxUptime = TimeSpan.Zero;
+
+                for (int i = 0; i < MaxChannels; i++)
+                {
+                    var ch = _receiverEngine.Channels[i];
+                    if (ch.IsRunning)
+                    {
+                        primary ??= ch;
+                        if (ch.IsConnected) anyConnected = true;
+                        totalBitrate += ch.CurrentBitrateKbps;
+                        if (ch.CurrentFps > maxFps) maxFps = ch.CurrentFps;
+                        if (ch.CurrentRttMs > maxRtt) maxRtt = ch.CurrentRttMs;
+                        if (ch.CurrentPacketLoss > maxLoss) maxLoss = ch.CurrentPacketLoss;
+                        if (ch.Uptime > maxUptime) maxUptime = ch.Uptime;
+                    }
+                }
+
+                primary ??= _receiverEngine.Channels[0];
+
+                var packet = new SRTTelemetryPacket
+                {
+                    NodeName = nodeName,
+                    NodeType = "Decoder",
+                    IsConnected = anyConnected || primary.IsConnected,
+                    Fps = maxFps > 0 ? maxFps : (primary.CurrentFps > 0 ? primary.CurrentFps : primary.MeasuredFps),
+                    BitrateKbps = totalBitrate > 0 ? totalBitrate : primary.CurrentBitrateKbps,
+                    RttMs = maxRtt > 0 ? maxRtt : primary.CurrentRttMs,
+                    LossPercent = maxLoss > 0 ? maxLoss : primary.CurrentPacketLoss,
+                    UptimeSeconds = maxUptime.TotalSeconds,
+                    StreamUri = primary.Config.ToSrtUri()
+                };
+
+                if (primary.GroupSocketEnabled)
+                {
+                    packet.IsSmpte2022_7Active = true;
+                    packet.PathAConnected = primary.ConnectedMembersCount > 0;
+                    packet.PathBConnected = primary.ConnectedMembersCount > 1;
+                    packet.PathAPackets = (long)primary.GroupStats.PathAPackets;
+                    packet.PathBPackets = (long)primary.GroupStats.PathBPackets;
+                    packet.MergedPackets = (long)primary.GroupStats.RecoveredFromRedundantPath;
+                    packet.DroppedDuplicates = (long)primary.GroupStats.DuplicatesDropped;
+                    packet.DifferentialDelayMs = primary.Config.HitlessDifferentialDelayMs;
+                }
+
+                return packet;
+            })
+            {
+                ServerUrl = url,
+                NodeName = nodeName,
+                NodeType = "Decoder"
+            };
+
+            _telemetryReporter.HeartbeatPulse += (success, error) =>
+            {
+                Dispatcher.BeginInvoke(() =>
+                {
+                    if (success)
+                    {
+                        if (LedTelemetryPulse != null) LedTelemetryPulse.Fill = new SolidColorBrush(Color.FromRgb(0, 230, 118)); // Green
+                        if (TxtTelemetryStatus != null) TxtTelemetryStatus.Text = $"🟢 Đang gửi nhịp tim ({DateTime.Now:HH:mm:ss})";
+                    }
+                    else
+                    {
+                        if (LedTelemetryPulse != null) LedTelemetryPulse.Fill = new SolidColorBrush(Color.FromRgb(244, 67, 54)); // Red
+                        if (TxtTelemetryStatus != null) TxtTelemetryStatus.Text = $"🔴 Lỗi gửi: {error}";
+                    }
+                });
+            };
+
+            _telemetryReporter.Start();
+        }
+
+        private void StopTelemetryReporting()
+        {
+            if (_telemetryReporter != null)
+            {
+                _telemetryReporter.Stop();
+                _telemetryReporter.Dispose();
+                _telemetryReporter = null;
             }
         }
 

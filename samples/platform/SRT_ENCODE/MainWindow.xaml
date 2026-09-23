@@ -1648,6 +1648,56 @@
                                     </Grid>
                                 </Border>
 
+                                <!-- ════════════════════════════════════════════════════
+                                     📡 TELEMETRY MONITOR (GIÁM SÁT TẬP TRUNG)
+                                     ════════════════════════════════════════════════════ -->
+                                <Border Style="{StaticResource DarkCardBorderStyle}" BorderBrush="#00E676" BorderThickness="1.2">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,8">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="📡" FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                <TextBlock Text="TELEMETRY MONITOR (GIÁM SÁT TẬP TRUNG)" FontWeight="Bold" FontSize="12" Foreground="#00E676" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <CheckBox x:Name="ChkEnableTelemetry" 
+                                                      Content="Gửi dữ liệu tới SRT Monitor" 
+                                                      Style="{StaticResource ToggleSwitchStyle}" 
+                                                      HorizontalAlignment="Right" 
+                                                      FontWeight="SemiBold"
+                                                      IsChecked="False"
+                                                      Checked="ChkEnableTelemetry_Changed" 
+                                                      Unchecked="ChkEnableTelemetry_Changed"/>
+                                        </Grid>
+
+                                        <StackPanel x:Name="PnlTelemetryConfig" Visibility="Collapsed" Margin="0,4,0,0">
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="1.4*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                                    <TextBlock Text="URL Server Monitor:" Style="{StaticResource HeaderLabelStyle}"/>
+                                                    <TextBox x:Name="TxtTelemetryServerUrl" Text="http://127.0.0.1:8088" TextChanged="TelemetryInput_TextChanged"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Margin="6,0,0,0">
+                                                    <TextBlock Text="Tên trạm / Luồng (Node Name):" Style="{StaticResource HeaderLabelStyle}"/>
+                                                    <TextBox x:Name="TxtTelemetryNodeName" Text="ENC_CAM_01" TextChanged="TelemetryInput_TextChanged"/>
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <!-- Trạng thái gửi nhịp tim -->
+                                            <Border Background="#1A201A" BorderBrush="#2E4A2E" BorderThickness="1" CornerRadius="4" Padding="8,4">
+                                                <Grid>
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Ellipse x:Name="LedTelemetryPulse" Width="10" Height="10" Fill="#555555" Margin="0,0,8,0"/>
+                                                        <TextBlock x:Name="TxtTelemetryStatus" Text="⚪ Tắt (Chưa kích hoạt giám sát)" FontSize="11" Foreground="#AAAAAA" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                    <TextBlock x:Name="TxtTelemetryLastSent" Text="Chu kỳ: 1.0s" FontSize="10.5" Foreground="#666666" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                </Grid>
+                                            </Border>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
                                 <!-- NTP Parameters -->
                                 <Border Style="{StaticResource DarkCardBorderStyle}">
                                     <StackPanel>

@@ -101,6 +101,11 @@ namespace SRT_DECODE
         public bool MasterSyncEnabled { get; set; } = false;
         public string NtpServer { get; set; } = "time.google.com";
 
+        // ─── Telemetry Monitor (Giám sát tập trung) ─────────────────────
+        public bool IsTelemetryMonitorEnabled { get; set; } = false;
+        public string TelemetryServerUrl { get; set; } = "http://127.0.0.1:8088";
+        public string TelemetryNodeName { get; set; } = "DEC_STATION_01";
+
         public List<ChannelSettings> Channels { get; set; } = new();
         public MasterOutputSettings MasterOutput { get; set; } = new();
 
