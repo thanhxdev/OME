@@ -247,6 +247,7 @@ namespace SRT_DECODE
             _receiverEngine.FrameReadyWithPts += _frameReadyWithPtsDelegate;
             _receiverEngine.FrameReady += _frameReadyDelegate;
             _receiverEngine.AudioPcmReady += _audioPcmReadyDelegate;
+            _receiverEngine.ChannelStreamReset += (chIdx) => _audioManager.ClearChannelAudio(chIdx);
             _audioManager.CamLevelsUpdated += _camLevelsUpdatedDelegate;
             _audioManager.ProgramLevelsUpdated += _programLevelsUpdatedDelegate;
             _audioManager.ProgramMixedPcmAvailable += _programMixedPcmDelegate;
@@ -814,6 +815,7 @@ namespace SRT_DECODE
                 if (_receiverEngine.Channels[removeIdx].IsRunning)
                 {
                     await _receiverEngine.StopChannelAsync(removeIdx);
+                    _audioManager.ClearChannelAudio(removeIdx);
                 }
 
                 _activeChannelCount--;
@@ -1407,6 +1409,7 @@ namespace SRT_DECODE
                 if (ch.IsRunning)
                 {
                     await _receiverEngine.StopChannelAsync(index);
+                    _audioManager.ClearChannelAudio(index);
                 }
                 else
                 {

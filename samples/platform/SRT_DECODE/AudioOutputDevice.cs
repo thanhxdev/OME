@@ -22,10 +22,10 @@ namespace SRT_DECODE
         private const int BitsPerSample = 16;
         private const int BytesPerSample = Channels * (BitsPerSample / 8); // 4 bytes per stereo frame
 
-        // 6 buffers of 25ms each = 150ms total hardware buffer pool for smooth, jitter-free playback
-        private const int BufferCount = 6;
-        private const int BufferDurationMs = 25;
-        private const int BufferSizeBytes = (SampleRate * BytesPerSample * BufferDurationMs) / 1000; // 4800 bytes
+        // 4 buffers of 15ms each = 60ms total hardware buffer pool for low-latency A/V sync playback
+        private const int BufferCount = 4;
+        private const int BufferDurationMs = 15;
+        private const int BufferSizeBytes = (SampleRate * BytesPerSample * BufferDurationMs) / 1000; // 2880 bytes
 
         [StructLayout(LayoutKind.Sequential)]
         public struct WaveFormatEx
@@ -86,7 +86,7 @@ namespace SRT_DECODE
         private byte[]? _carryOverChunk;
         private int _carryOverOffset;
         private volatile bool _isPreRolling = true;
-        private const int PreRollChunkCount = 3; // ~60ms initial buffer before starting hardware playback
+        private const int PreRollChunkCount = 2; // ~30ms initial buffer before starting hardware playback
         private bool _wasSilence = true;
 
         private readonly Thread? _playbackThread;

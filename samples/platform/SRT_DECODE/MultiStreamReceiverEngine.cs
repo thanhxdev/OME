@@ -59,6 +59,7 @@ namespace SRT_DECODE
         public event Action<int, byte[], int, int>? FrameReady;
         public event Action<int, byte[], int>? AudioPcmReady;
         public event Action<int, byte[], int>? RawTsDataReady;
+        public event Action<int>? ChannelStreamReset;
 
         public ReceiverChannelState[] Channels => _channels;
 
@@ -345,13 +346,15 @@ namespace SRT_DECODE
                                     Log("[SRT]", $"✅ [{ch.Name}] Đã bắt tay và đang nhận luồng dữ liệu trực tiếp trên cổng {ch.Config.Port}!");
                                 }
 
-                                if (decoder == null)
+                                if (decoder == null || !decoder.IsRunning)
                                 {
+                                    try { decoder?.Dispose(); } catch { }
                                     decoder = CreateVideoDecoder();
                                     _decoders[index] = decoder;
                                 }
-                                if (audioDecoder == null)
+                                if (audioDecoder == null || !audioDecoder.IsRunning)
                                 {
+                                    try { audioDecoder?.Dispose(); } catch { }
                                     audioDecoder = CreateAudioDecoder();
                                     _audioDecoders[index] = audioDecoder;
                                 }
@@ -398,6 +401,8 @@ namespace SRT_DECODE
                                         try { audioDecoder?.Stop(); audioDecoder?.Dispose(); } catch { }
                                         audioDecoder = null;
                                         _audioDecoders[index] = null;
+
+                                        ChannelStreamReset?.Invoke(index);
                                     }
                                 }
 
@@ -458,6 +463,8 @@ namespace SRT_DECODE
                         audioDecoder?.Stop();
                         audioDecoder?.Dispose();
                         _audioDecoders[index] = null;
+
+                        ChannelStreamReset?.Invoke(index);
 
                         if (session != null)
                         {
@@ -527,6 +534,8 @@ namespace SRT_DECODE
                 _audioDecoders[index]?.Stop();
                 _audioDecoders[index]?.Dispose();
                 _audioDecoders[index] = null;
+
+                ChannelStreamReset?.Invoke(index);
 
                 // 5. Dispose session
                 if (ch.Session != null)

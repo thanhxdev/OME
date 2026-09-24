@@ -272,7 +272,16 @@ namespace SRT_ENCODE
 
                     // Peak dBFS calculation
                     double peakDb = (peakLinear > NOISE_FLOOR_LINEAR) ? 20.0 * Math.Log10(peakLinear) : MIN_DBFS;
-                    _currentPeakDb[ch] = Math.Clamp(peakDb, MIN_DBFS, MAX_DBFS);
+                    double clampedPeak = Math.Clamp(peakDb, MIN_DBFS, MAX_DBFS);
+                    if (clampedPeak >= _currentPeakDb[ch])
+                    {
+                        _currentPeakDb[ch] = clampedPeak; // Fast attack
+                    }
+                    else
+                    {
+                        // Smooth broadcast decay ballistics (~1.5 dB per 20ms)
+                        _currentPeakDb[ch] = Math.Max(clampedPeak, _currentPeakDb[ch] - 1.5);
+                    }
 
                     // RMS dBFS calculation
                     double rmsLinear = Math.Sqrt(Math.Max(0.0, _ewmaEnergy[ch]));

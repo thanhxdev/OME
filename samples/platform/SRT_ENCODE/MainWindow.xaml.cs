@@ -17,11 +17,84 @@ using Microsoft.Win32;
 using OpenMedia.Platform;
 using OpenMedia.Platform.Controls.Wpf;
 using OpenMedia.Platform.Models;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using OpenMedia.Platform.Telemetry;
 using PlatformMediaPlayer = OpenMedia.Platform.MediaPlayer;
 
 namespace SRT_ENCODE
 {
+    /// <summary>
+    /// Đối tượng quản lý trạng thái runtime và cấu hình của một luồng SRT độc lập.
+    /// </summary>
+    public class SrtTargetItem : INotifyPropertyChanged
+    {
+        public string Id { get; set; } = Guid.NewGuid().ToString("N");
+
+        private string _name = "Luồng #1 (Primary)";
+        public string Name
+        {
+            get => _name;
+            set
+            {
+                if (_name != value)
+                {
+                    _name = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
+        public SrtTargetSettingModel Settings { get; set; } = new();
+
+        // Runtime Session
+        public SRTStreamSession? Session { get; set; }
+        public bool IsTransmitting { get; set; } = false;
+
+        private string _statusText = "STOPPED";
+        public string StatusText
+        {
+            get => _statusText;
+            set
+            {
+                if (_statusText != value)
+                {
+                    _statusText = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
+        private SolidColorBrush _statusBrush = new(Color.FromRgb(158, 158, 158));
+        public SolidColorBrush StatusBrush
+        {
+            get => _statusBrush;
+            set
+            {
+                if (_statusBrush != value)
+                {
+                    _statusBrush = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
+        public double CurrentRttMs { get; set; }
+        public double CurrentPacketLoss { get; set; }
+        public double CurrentBitrateKbps { get; set; }
+        public int ReconnectAttempt { get; set; }
+        public CancellationTokenSource? TargetCts { get; set; }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+        public void NotifyPropertyChanged([CallerMemberName] string? propName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propName));
+        }
+
+        public override string ToString() => Name;
+    }
+
     public partial class MainWindow : Window
     {
         private SRTTelemetryReporter? _telemetryReporter;
@@ -31,6 +104,12 @@ namespace SRT_ENCODE
         private bool _isStreaming = false;
         private DateTime _streamStartTime = DateTime.MinValue;
         private ulong _totalBytesTransferred = 0;
+
+        // ─── Multi-Destination SRT Targets State ────────────────────
+        private readonly ObservableCollection<SrtTargetItem> _srtTargets = new();
+        private SrtTargetItem? _selectedTarget;
+        private readonly object _targetsLock = new();
+        private bool _isUpdatingTargetUI = false;
 
         // ─── Video Source Management & Colorbar Engine ──────────────
         private readonly ColorbarEngine _colorbarEngine = new();
@@ -63,6 +142,19 @@ namespace SRT_ENCODE
         private int _reconnectAttempt = 0;
         private SRTStreamConfig? _activeSrtConfig;
         private volatile bool _isClosing = false;
+        private bool _isUpdatingSourceUi = false;
+
+        private bool IsAnyTransmitting
+        {
+            get
+            {
+                if (_isTransmissionActive || _isStreaming) return true;
+                lock (_targetsLock)
+                {
+                    return _srtTargets.Any(t => t.IsTransmitting);
+                }
+            }
+        }
 
         // ─── Logging Buffer & Init Guard ───────────────────────────
         private readonly List<string> _pendingLogs = new();
@@ -345,6 +437,8 @@ namespace SRT_ENCODE
                     var duration = _masterClock.CurrentUtcTime - _streamStartTime;
                     TxtSessionDuration.Text = $"{(int)duration.TotalHours:D2}:{duration.Minutes:D2}:{duration.Seconds:D2}";
                 }
+
+                UpdateEjectButtonState();
             };
             _utcClockTimer.Start();
         }
@@ -464,20 +558,21 @@ namespace SRT_ENCODE
                 _lastWorkerBitrateSampleTime = now;
             }
 
-            // Nếu SRT Socket có thống kê native từ libsrt
-            if (_srtStream?.Statistics != null && _srtStream.Statistics.IsConnected)
+            // Lấy thống kê từ luồng SRT đang được người dùng chọn (Selected Target) hoặc fallback
+            var activeSession = _selectedTarget?.Session ?? _srtStream;
+            if (activeSession?.Statistics != null && activeSession.Statistics.IsConnected)
             {
-                if (_srtStream.Statistics.RttMs >= 0)
+                if (activeSession.Statistics.RttMs >= 0)
                 {
-                    _currentRttMs = _srtStream.Statistics.RttMs;
+                    _currentRttMs = activeSession.Statistics.RttMs;
                 }
-                if (_srtStream.Statistics.PacketLossPercent >= 0)
+                if (activeSession.Statistics.PacketLossPercent >= 0)
                 {
-                    _currentPacketLoss = _srtStream.Statistics.PacketLossPercent;
+                    _currentPacketLoss = activeSession.Statistics.PacketLossPercent;
                 }
-                if (_srtStream.Statistics.CurrentBitrateKbps > 0)
+                if (activeSession.Statistics.CurrentBitrateKbps > 0)
                 {
-                    _currentBitrateKbps = _srtStream.Statistics.CurrentBitrateKbps;
+                    _currentBitrateKbps = activeSession.Statistics.CurrentBitrateKbps;
                 }
             }
 
@@ -548,7 +643,8 @@ namespace SRT_ENCODE
                 InputSourceType.Colorbar => _colorbarEngine.IsAudioTonePlaying,
                 InputSourceType.NDI => true,
                 InputSourceType.SDI => true,
-                _ => (_sourceManager.Player != null && _sourceManager.Player.State == OpenMedia.Platform.PlaybackState.Playing)
+                InputSourceType.File => _sourceManager.IsDirectFilePlaybackRunning || (_sourceManager.Player != null && _sourceManager.Player.State == OpenMedia.Platform.PlaybackState.Playing),
+                _ => false
             };
 
             // Xác định số kênh âm thanh hoạt động theo nguồn gốc và chế độ chọn
@@ -594,7 +690,7 @@ namespace SRT_ENCODE
                 configuredChannels = Math.Clamp(_sourceManager.ActiveAudioChannels, 2, 16);
             }
 
-            if (isSourcePlaying)
+            if (isSourcePlaying && activeSourceIndex >= 0)
             {
                 // Tapping luồng PCM tương ứng của từng loại nguồn
                 switch ((InputSourceType)activeSourceIndex)
@@ -604,6 +700,14 @@ namespace SRT_ENCODE
                         break;
 
                     case InputSourceType.File:
+                        // Direct File Playback (FFmpeg) tự động nạp PCM qua AudioSamplesArrived -> TapPcmDirect.
+                        // Chỉ gọi TapPlayerAudioAsync khi đang dùng PlatformMediaPlayer fallback
+                        if (!_sourceManager.IsDirectFilePlaybackRunning && _sourceManager.Player != null)
+                        {
+                            _ = _audioMeterService.TapPlayerAudioAsync(_sourceManager.Player, configuredChannels);
+                        }
+                        break;
+
                     case InputSourceType.SRT:
                         _ = _audioMeterService.TapPlayerAudioAsync(_sourceManager.Player, configuredChannels);
                         break;
@@ -861,6 +965,16 @@ namespace SRT_ENCODE
                 {
                     await _sourceManager.SwitchSourceAsync(InputSourceType.File, dlg.FileName);
                 }
+
+                bool isTransmitting = _isTransmissionActive || _isStreaming;
+                lock (_targetsLock)
+                {
+                    isTransmitting |= _srtTargets.Any(t => t.IsTransmitting);
+                }
+                if (isTransmitting)
+                {
+                    await RestartMasterProgramStreamingWorkerAsync();
+                }
             }
         }
 
@@ -874,10 +988,19 @@ namespace SRT_ENCODE
 
         private async void CmbInputSource_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (!_isInitialized) return;
+            if (!_isInitialized || _isUpdatingSourceUi) return;
             if (CardSdiConfig == null || CardNdiConfig == null || CardFileConfig == null || CardColorbarConfig == null) return;
 
             int selected = CmbInputSource.SelectedIndex;
+            if (selected < 0)
+            {
+                CardSdiConfig.Visibility = Visibility.Collapsed;
+                CardNdiConfig.Visibility = Visibility.Collapsed;
+                CardFileConfig.Visibility = Visibility.Collapsed;
+                CardColorbarConfig.Visibility = Visibility.Collapsed;
+                UpdateEjectButtonState();
+                return;
+            }
 
             // Show only the active source configuration panel (Border Card)
             CardSdiConfig.Visibility = (selected == 0) ? Visibility.Visible : Visibility.Collapsed;
@@ -897,6 +1020,72 @@ namespace SRT_ENCODE
             string? ch = (CmbSdiAudioCh?.SelectedItem as ComboBoxItem)?.Content?.ToString();
 
             await _sourceManager.SwitchSourceAsync((InputSourceType)selected, param, mode, ch);
+            UpdateEjectButtonState();
+
+            if (IsAnyTransmitting)
+            {
+                await RestartMasterProgramStreamingWorkerAsync();
+            }
+        }
+
+        private void UpdateEjectButtonState()
+        {
+            if (BtnEjectSource == null) return;
+            bool transmitting = IsAnyTransmitting;
+            bool hasSource = _sourceManager.CurrentSource != InputSourceType.None;
+            BtnEjectSource.IsEnabled = !transmitting && hasSource;
+        }
+
+        private async void BtnEjectSource_Click(object sender, RoutedEventArgs e)
+        {
+            if (IsAnyTransmitting)
+            {
+                LogEvent("[WARN]", "⚠️ Không thể gỡ bỏ nguồn video khi đang có luồng phát sóng SRT đang hoạt động.");
+                return;
+            }
+
+            await EjectCurrentSourceAsync();
+        }
+
+        private async Task EjectCurrentSourceAsync()
+        {
+            try
+            {
+                _isUpdatingSourceUi = true;
+                await _sourceManager.EjectSourceAsync();
+
+                if (CmbInputSource != null)
+                {
+                    CmbInputSource.SelectedIndex = -1;
+                }
+
+                if (CardSdiConfig != null) CardSdiConfig.Visibility = Visibility.Collapsed;
+                if (CardNdiConfig != null) CardNdiConfig.Visibility = Visibility.Collapsed;
+                if (CardFileConfig != null) CardFileConfig.Visibility = Visibility.Collapsed;
+                if (CardColorbarConfig != null) CardColorbarConfig.Visibility = Visibility.Collapsed;
+
+                if (TxtActiveSourceTypeBadge != null)
+                {
+                    TxtActiveSourceTypeBadge.Text = "⚪ NO SOURCE LOADED";
+                    TxtActiveSourceTypeBadge.Foreground = new SolidColorBrush(Color.FromRgb(170, 170, 170));
+                }
+
+                if (TxtActiveSourceBadge != null)
+                {
+                    TxtActiveSourceBadge.Text = "INPUT: NONE (EJECTED)";
+                }
+
+                UpdateEjectButtonState();
+                LogEvent("[SOURCE]", "⏏ Đã gỡ bỏ nguồn phát sóng đầu vào thành công (Source Ejected).");
+            }
+            catch (Exception ex)
+            {
+                LogEvent("[ERROR]", $"Lỗi gỡ bỏ nguồn: {ex.Message}");
+            }
+            finally
+            {
+                _isUpdatingSourceUi = false;
+            }
         }
 
         private async void CmbSdiDevices_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1156,18 +1345,29 @@ namespace SRT_ENCODE
             try
             {
                 _transmissionCts?.Cancel();
-                if (_streamProcess != null && !_streamProcess.HasExited)
+                if (_streamProcess != null)
                 {
-                    try { _streamProcess.Kill(true); } catch { }
+                    try
+                    {
+                        if (!_streamProcess.HasExited) _streamProcess.Kill(true);
+                    }
+                    catch { }
                     _streamProcess.Dispose();
                     _streamProcess = null;
                 }
 
                 await Task.Delay(60);
 
-                if (_isStreaming && _srtStream != null && _srtStream.IsRunning)
+                bool isTransmitting = _isTransmissionActive || _isStreaming;
+                lock (_targetsLock)
                 {
-                    StartMasterProgramStreamingProcess();
+                    isTransmitting |= _srtTargets.Any(t => t.IsTransmitting);
+                }
+
+                if (isTransmitting)
+                {
+                    _transmissionCts = new CancellationTokenSource();
+                    StartMasterProgramStreamingProcess(_transmissionCts.Token);
                 }
             }
             catch (Exception ex)
@@ -1368,70 +1568,60 @@ namespace SRT_ENCODE
 
         /// <summary>
         /// Nạp và khôi phục toàn bộ cấu hình từ file JSON (hoặc thiết lập mặc định nếu chạy lần đầu).
+        /// Hỗ trợ nạp đầy đủ danh sách các luồng SRT độc lập (Multi-Destination).
         /// </summary>
         private void LoadAndApplySettings()
         {
             try
             {
+                _isUpdatingTargetUI = true;
                 var settings = AppSettingsManager.LoadSettings();
 
-                // 1. Toggle SMPTE 2022-7
-                bool isGroup = settings.IsSmpte2022_7Enabled;
-                if (ChkGroupSocket != null)
+                // 1. Nạp danh sách Targets
+                _srtTargets.Clear();
+                if (settings.Targets != null && settings.Targets.Count > 0)
                 {
-                    ChkGroupSocket.IsChecked = isGroup;
-                    ChkGroupSocket.Content = isGroup
-                        ? "🛡️ SMPTE 2022-7: BẬT"
-                        : "⚪ SMPTE 2022-7: TẮT";
-                }
-                if (PnlGroupSocketConfig != null)
-                {
-                    PnlGroupSocketConfig.Visibility = isGroup ? Visibility.Visible : Visibility.Collapsed;
-                }
-                if (PnlSingleStreamConfig != null)
-                {
-                    PnlSingleStreamConfig.Visibility = isGroup ? Visibility.Collapsed : Visibility.Visible;
-                }
-                if (BadgeGroupSocket != null)
-                {
-                    BadgeGroupSocket.Visibility = isGroup ? Visibility.Visible : Visibility.Collapsed;
-                }
-
-                // 2. Điền và chọn Card mạng (NIC)
-                RefreshAllNicLists(settings.SingleSourceNicIp, settings.MemberANicIp, settings.MemberBNicIp);
-
-                // 3. Thông số Single Stream
-                if (TxtSrtIp != null && !string.IsNullOrEmpty(settings.SrtIp)) TxtSrtIp.Text = settings.SrtIp;
-                if (TxtSrtPort != null && settings.SrtPort > 0) TxtSrtPort.Text = settings.SrtPort.ToString();
-                if (TxtSrtStreamId != null && settings.StreamId != null) TxtSrtStreamId.Text = settings.StreamId;
-
-                // 4. Thông số SMPTE 2022-7
-                if (CmbGroupType != null && settings.GroupTypeIndex >= 0 && settings.GroupTypeIndex < CmbGroupType.Items.Count)
-                    CmbGroupType.SelectedIndex = settings.GroupTypeIndex;
-                if (TxtDifferentialDelay != null && settings.DifferentialDelayMs > 0)
-                    TxtDifferentialDelay.Text = settings.DifferentialDelayMs.ToString();
-                if (TxtMemberAHost != null && !string.IsNullOrEmpty(settings.MemberAHost)) TxtMemberAHost.Text = settings.MemberAHost;
-                if (TxtMemberAPort != null && settings.MemberAPort > 0) TxtMemberAPort.Text = settings.MemberAPort.ToString();
-                if (TxtMemberBHost != null && !string.IsNullOrEmpty(settings.MemberBHost)) TxtMemberBHost.Text = settings.MemberBHost;
-                if (TxtMemberBPort != null && settings.MemberBPort > 0) TxtMemberBPort.Text = settings.MemberBPort.ToString();
-
-                // 5. Khôi phục các Dynamic Members
-                _dynamicGroupMembers.Clear();
-                StackDynamicMembers?.Children.Clear();
-                if (settings.DynamicMembers != null)
-                {
-                    foreach (var dm in settings.DynamicMembers)
+                    foreach (var targetModel in settings.Targets)
                     {
-                        var member = new SRTGroupMemberConfig(dm.Name, dm.Host, dm.Port, dm.NicIp == "0.0.0.0" ? "" : dm.NicIp)
+                        _srtTargets.Add(new SrtTargetItem
                         {
-                            Id = string.IsNullOrEmpty(dm.Id) ? Guid.NewGuid().ToString("N") : dm.Id
-                        };
-                        _dynamicGroupMembers.Add(member);
-                        AddDynamicMemberUiCard(member);
+                            Id = targetModel.Id,
+                            Name = targetModel.Name,
+                            Settings = targetModel
+                        });
                     }
                 }
+                else
+                {
+                    var def = new SrtTargetSettingModel { Name = "Luồng #1 (Primary)", SrtPort = 9000 };
+                    _srtTargets.Add(new SrtTargetItem { Id = def.Id, Name = def.Name, Settings = def });
+                }
 
-                // 6. Thông số Video / Codec / Encoder
+                if (CmbTargetList != null)
+                {
+                    CmbTargetList.ItemsSource = _srtTargets;
+                    CmbTargetList.DisplayMemberPath = "Name";
+                }
+
+                int selectedIdx = Math.Clamp(settings.SelectedTargetIndex, 0, _srtTargets.Count - 1);
+                _selectedTarget = _srtTargets[selectedIdx];
+                if (CmbTargetList != null)
+                {
+                    CmbTargetList.SelectedItem = _selectedTarget;
+                }
+
+                // Điền thông số của luồng hiện hành lên giao diện
+                LoadTargetSettingsToUi(_selectedTarget.Settings);
+                if (TxtTargetName != null)
+                {
+                    TxtTargetName.Text = _selectedTarget.Name;
+                }
+                UpdateTargetActionUi(_selectedTarget);
+
+                // 2. Điền và chọn Card mạng (NIC)
+                RefreshAllNicLists(_selectedTarget.Settings.SourceNicIp, _selectedTarget.Settings.MemberANicIp, _selectedTarget.Settings.MemberBNicIp);
+
+                // 3. Thông số Video / Codec / Encoder (Dùng chung cho toàn bộ hệ thống - Single Encode)
                 if (settings.BitrateKbps > 0)
                 {
                     if (SldTargetBitrate != null) SldTargetBitrate.Value = settings.BitrateKbps;
@@ -1470,33 +1660,7 @@ namespace SRT_ENCODE
                     ChkUltraLowLatency.IsChecked = settings.UltraLowLatency;
                 }
 
-                // 7. Thông số Protocol & Encryption
-                if (CmbSrtMode != null && settings.SrtModeIndex >= 0 && settings.SrtModeIndex < CmbSrtMode.Items.Count)
-                {
-                    CmbSrtMode.SelectedIndex = settings.SrtModeIndex;
-                }
-                if (TxtManualLatency != null && settings.LatencyMs > 0)
-                {
-                    TxtManualLatency.Text = settings.LatencyMs.ToString();
-                }
-                if (ChkAutoLatency != null)
-                {
-                    ChkAutoLatency.IsChecked = settings.AutoLatency;
-                }
-                if (ChkEnableEncryption != null)
-                {
-                    ChkEnableEncryption.IsChecked = settings.EncryptionEnabled;
-                }
-                if (TxtSrtPassphrase != null && !string.IsNullOrEmpty(settings.Passphrase))
-                {
-                    TxtSrtPassphrase.Password = settings.Passphrase;
-                }
-                if (CmbKeyLength != null && settings.KeyLengthIndex >= 0 && settings.KeyLengthIndex < CmbKeyLength.Items.Count)
-                {
-                    CmbKeyLength.SelectedIndex = settings.KeyLengthIndex;
-                }
-
-                // 8. Audio & NTP
+                // 4. Audio & NTP (Dùng chung)
                 if (CmbStreamAudioChannels != null && settings.AudioChannelsIndex >= 0 && settings.AudioChannelsIndex < CmbStreamAudioChannels.Items.Count)
                 {
                     CmbStreamAudioChannels.SelectedIndex = settings.AudioChannelsIndex;
@@ -1510,7 +1674,7 @@ namespace SRT_ENCODE
                     TxtNtpServer.Text = settings.NtpServer;
                 }
 
-                // 9. Telemetry Monitor
+                // 5. Telemetry Monitor
                 if (ChkEnableTelemetry != null)
                 {
                     ChkEnableTelemetry.IsChecked = settings.IsTelemetryMonitorEnabled;
@@ -1528,13 +1692,276 @@ namespace SRT_ENCODE
                     TxtTelemetryNodeName.Text = settings.TelemetryNodeName;
                 }
 
-                LogEvent("[SETTINGS]", "✅ Đã nạp thành công cấu hình phiên làm việc.");
+                UpdateTargetSummary();
+                LogEvent("[SETTINGS]", $"✅ Đã nạp thành công cấu hình phiên làm việc ({_srtTargets.Count} luồng SRT).");
             }
             catch (Exception ex)
             {
                 LogEvent("[WARN]", $"Lỗi nạp cấu hình: {ex.Message}");
             }
+            finally
+            {
+                _isUpdatingTargetUI = false;
+            }
         }
+
+        #region Multi-Destination UI Sync & Target Management
+
+        private void SyncUiToTargetSettings(SrtTargetSettingModel s)
+        {
+            s.Name = TxtTargetName?.Text?.Trim() ?? s.Name;
+            s.SrtModeIndex = CmbSrtMode?.SelectedIndex ?? s.SrtModeIndex;
+            s.StreamId = TxtSrtStreamId?.Text?.Trim() ?? s.StreamId;
+            s.EncryptionEnabled = ChkEnableEncryption?.IsChecked == true;
+            s.Passphrase = TxtSrtPassphrase?.Password ?? s.Passphrase;
+            s.KeyLengthIndex = CmbKeyLength?.SelectedIndex ?? s.KeyLengthIndex;
+
+            s.SrtIp = TxtSrtIp?.Text?.Trim() ?? s.SrtIp;
+            if (int.TryParse(TxtSrtPort?.Text?.Trim(), out int port)) s.SrtPort = port;
+            s.SourceNicIp = (CmbSingleSourceNic?.SelectedValue as string) ?? s.SourceNicIp;
+            s.AutoLatency = ChkAutoLatency?.IsChecked == true;
+            if (int.TryParse(TxtManualLatency?.Text?.Trim(), out int lat)) s.LatencyMs = lat;
+
+            s.IsSmpte2022_7Enabled = ChkGroupSocket?.IsChecked == true;
+            s.GroupTypeIndex = CmbGroupType?.SelectedIndex ?? s.GroupTypeIndex;
+            if (int.TryParse(TxtDifferentialDelay?.Text?.Trim(), out int dd)) s.DifferentialDelayMs = dd;
+            s.MemberAHost = TxtMemberAHost?.Text?.Trim() ?? s.MemberAHost;
+            if (int.TryParse(TxtMemberAPort?.Text?.Trim(), out int maPort)) s.MemberAPort = maPort;
+            s.MemberANicIp = (CmbMemberANic?.SelectedValue as string) ?? s.MemberANicIp;
+            s.MemberBHost = TxtMemberBHost?.Text?.Trim() ?? s.MemberBHost;
+            if (int.TryParse(TxtMemberBPort?.Text?.Trim(), out int mbPort)) s.MemberBPort = mbPort;
+            s.MemberBNicIp = (CmbMemberBNic?.SelectedValue as string) ?? s.MemberBNicIp;
+
+            s.DynamicMembers = _dynamicGroupMembers.Select(m => new DynamicMemberSetting
+            {
+                Id = m.Id,
+                Name = m.Name,
+                Host = m.Host,
+                Port = m.Port,
+                NicIp = string.IsNullOrEmpty(m.LocalInterfaceIp) ? "0.0.0.0" : m.LocalInterfaceIp
+            }).ToList();
+        }
+
+        private void LoadTargetSettingsToUi(SrtTargetSettingModel s)
+        {
+            // Mode & Stream ID
+            if (CmbSrtMode != null && s.SrtModeIndex >= 0 && s.SrtModeIndex < CmbSrtMode.Items.Count)
+                CmbSrtMode.SelectedIndex = s.SrtModeIndex;
+            if (TxtSrtStreamId != null) TxtSrtStreamId.Text = s.StreamId;
+            if (ChkEnableEncryption != null) ChkEnableEncryption.IsChecked = s.EncryptionEnabled;
+            if (TxtSrtPassphrase != null) TxtSrtPassphrase.Password = s.Passphrase;
+            if (CmbKeyLength != null && s.KeyLengthIndex >= 0 && s.KeyLengthIndex < CmbKeyLength.Items.Count)
+                CmbKeyLength.SelectedIndex = s.KeyLengthIndex;
+            if (PnlEncryptionConfig != null)
+                PnlEncryptionConfig.Visibility = s.EncryptionEnabled ? Visibility.Visible : Visibility.Collapsed;
+
+            // Single Network & Latency
+            if (TxtSrtIp != null) TxtSrtIp.Text = s.SrtIp;
+            if (TxtSrtPort != null) TxtSrtPort.Text = s.SrtPort.ToString();
+            if (CmbSingleSourceNic != null && !string.IsNullOrEmpty(s.SourceNicIp))
+                CmbSingleSourceNic.SelectedValue = s.SourceNicIp;
+            if (ChkAutoLatency != null) ChkAutoLatency.IsChecked = s.AutoLatency;
+            if (TxtManualLatency != null) TxtManualLatency.Text = s.LatencyMs.ToString();
+
+            // SMPTE 2022-7
+            bool isGroup = s.IsSmpte2022_7Enabled;
+            if (ChkGroupSocket != null)
+            {
+                ChkGroupSocket.IsChecked = isGroup;
+                ChkGroupSocket.Content = isGroup ? "🛡️ SMPTE 2022-7: BẬT" : "⚪ SMPTE 2022-7: TẮT";
+            }
+            if (PnlGroupSocketConfig != null) PnlGroupSocketConfig.Visibility = isGroup ? Visibility.Visible : Visibility.Collapsed;
+            if (PnlSingleStreamConfig != null) PnlSingleStreamConfig.Visibility = isGroup ? Visibility.Collapsed : Visibility.Visible;
+            if (BadgeGroupSocket != null) BadgeGroupSocket.Visibility = isGroup ? Visibility.Visible : Visibility.Collapsed;
+
+            if (CmbGroupType != null && s.GroupTypeIndex >= 0 && s.GroupTypeIndex < CmbGroupType.Items.Count)
+                CmbGroupType.SelectedIndex = s.GroupTypeIndex;
+            if (TxtDifferentialDelay != null) TxtDifferentialDelay.Text = s.DifferentialDelayMs.ToString();
+            if (TxtMemberAHost != null) TxtMemberAHost.Text = s.MemberAHost;
+            if (TxtMemberAPort != null) TxtMemberAPort.Text = s.MemberAPort.ToString();
+            if (CmbMemberANic != null && !string.IsNullOrEmpty(s.MemberANicIp))
+                CmbMemberANic.SelectedValue = s.MemberANicIp;
+            if (TxtMemberBHost != null) TxtMemberBHost.Text = s.MemberBHost;
+            if (TxtMemberBPort != null) TxtMemberBPort.Text = s.MemberBPort.ToString();
+            if (CmbMemberBNic != null && !string.IsNullOrEmpty(s.MemberBNicIp))
+                CmbMemberBNic.SelectedValue = s.MemberBNicIp;
+
+            // Dynamic members
+            _dynamicGroupMembers.Clear();
+            StackDynamicMembers?.Children.Clear();
+            if (s.DynamicMembers != null)
+            {
+                foreach (var dm in s.DynamicMembers)
+                {
+                    var member = new SRTGroupMemberConfig(dm.Name, dm.Host, dm.Port, dm.NicIp == "0.0.0.0" ? "" : dm.NicIp)
+                    {
+                        Id = string.IsNullOrEmpty(dm.Id) ? Guid.NewGuid().ToString("N") : dm.Id
+                    };
+                    _dynamicGroupMembers.Add(member);
+                    AddDynamicMemberUiCard(member);
+                }
+            }
+        }
+
+        private void UpdateTargetActionUi(SrtTargetItem target)
+        {
+            if (BtnStartCurrentTarget != null) BtnStartCurrentTarget.IsEnabled = !target.IsTransmitting;
+            if (BtnStopCurrentTarget != null) BtnStopCurrentTarget.IsEnabled = target.IsTransmitting;
+            if (LedCurrentTargetStatus != null) LedCurrentTargetStatus.Fill = target.StatusBrush;
+            if (TxtCurrentTargetStatus != null)
+            {
+                TxtCurrentTargetStatus.Text = target.StatusText;
+                TxtCurrentTargetStatus.Foreground = target.StatusBrush;
+            }
+            if (TxtCurrentTargetHud != null)
+            {
+                TxtCurrentTargetHud.Text = $"RTT: {target.CurrentRttMs:F0}ms | Loss: {target.CurrentPacketLoss:F1}% | Bitrate: {(target.CurrentBitrateKbps / 1000.0):F1} Mbps";
+            }
+
+            // Luôn duy trì Luồng #1 (Primary) - Không cho phép xoá Luồng #1, chỉ cho phép xoá Luồng #2 trở lên
+            if (BtnRemoveTarget != null)
+            {
+                bool isPrimaryTarget = _srtTargets.Count > 0 && _srtTargets[0] == target;
+                BtnRemoveTarget.IsEnabled = !isPrimaryTarget;
+            }
+        }
+
+        private void SwitchSelectedTarget(SrtTargetItem newTarget)
+        {
+            if (_selectedTarget != null && _selectedTarget != newTarget)
+            {
+                SyncUiToTargetSettings(_selectedTarget.Settings);
+            }
+
+            _selectedTarget = newTarget;
+            _isUpdatingTargetUI = true;
+            try
+            {
+                LoadTargetSettingsToUi(newTarget.Settings);
+                if (TxtTargetName != null)
+                {
+                    TxtTargetName.Text = newTarget.Name;
+                }
+                UpdateTargetActionUi(newTarget);
+            }
+            finally
+            {
+                _isUpdatingTargetUI = false;
+            }
+        }
+
+        private void CmbTargetList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized || _isUpdatingTargetUI) return;
+            if (CmbTargetList.SelectedItem is SrtTargetItem newTarget)
+            {
+                SwitchSelectedTarget(newTarget);
+            }
+        }
+
+        private void TxtTargetName_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (!_isInitialized || _isUpdatingTargetUI || _selectedTarget == null) return;
+            string newName = TxtTargetName.Text.Trim();
+            if (string.IsNullOrEmpty(newName)) newName = "Luồng SRT";
+            _selectedTarget.Name = newName;
+            _selectedTarget.Settings.Name = newName;
+            _selectedTarget.NotifyPropertyChanged(nameof(SrtTargetItem.Name));
+
+            CmbTargetList.Items.Refresh();
+            SaveCurrentSettings();
+            UpdateTargetSummary();
+        }
+
+        private void TxtTargetEndpoint_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (!_isInitialized || _isUpdatingTargetUI || _selectedTarget == null) return;
+            UpdateTargetSummary();
+        }
+
+        private void BtnAddTarget_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedTarget != null)
+            {
+                SyncUiToTargetSettings(_selectedTarget.Settings);
+            }
+
+            int nextIndex = _srtTargets.Count + 1;
+            int nextPort = 9000 + (_srtTargets.Count * 2);
+            var newModel = new SrtTargetSettingModel
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                Name = $"Luồng #{nextIndex}",
+                SrtPort = nextPort,
+                MemberAPort = nextPort,
+                MemberBPort = nextPort + 2
+            };
+
+            var newItem = new SrtTargetItem
+            {
+                Id = newModel.Id,
+                Name = newModel.Name,
+                Settings = newModel
+            };
+
+            _srtTargets.Add(newItem);
+            CmbTargetList.SelectedItem = newItem;
+            SaveCurrentSettings();
+            LogEvent("[SRT]", $"➕ Đã thêm {newItem.Name} (Port UDP {newModel.SrtPort}).");
+        }
+
+        private async void BtnRemoveTarget_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedTarget == null) return;
+
+            // Kiểm tra bảo vệ: Không cho phép xoá Luồng #1 (Primary)
+            if (_srtTargets.Count > 0 && _srtTargets[0] == _selectedTarget)
+            {
+                MessageBox.Show("Luồng #1 (Primary) là luồng gốc cố định của hệ thống và không được phép xoá.\nBạn chỉ có thể xoá từ luồng #2 trở lên.",
+                    "Không thể xoá Luồng #1", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (_srtTargets.Count <= 1)
+            {
+                MessageBox.Show("Không thể xoá luồng cuối cùng. Ứng dụng phải duy trì ít nhất 1 luồng truyền dẫn.",
+                    "Thông báo", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var targetToRemove = _selectedTarget;
+            var result = MessageBox.Show($"Bạn có chắc chắn muốn xoá '{targetToRemove.Name}' không?",
+                "Xác nhận xoá luồng", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (result != MessageBoxResult.Yes) return;
+
+            if (targetToRemove.IsTransmitting)
+            {
+                await StopTargetStreamAsync(targetToRemove);
+            }
+
+            int index = _srtTargets.IndexOf(targetToRemove);
+            _srtTargets.Remove(targetToRemove);
+
+            int nextSelectIndex = Math.Clamp(index, 0, _srtTargets.Count - 1);
+            CmbTargetList.SelectedItem = _srtTargets[nextSelectIndex];
+
+            SaveCurrentSettings();
+            LogEvent("[SRT]", $"➖ Đã xoá {targetToRemove.Name}.");
+        }
+
+        private async void BtnStartCurrentTarget_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedTarget == null) return;
+            await StartTargetStreamAsync(_selectedTarget);
+        }
+
+        private async void BtnStopCurrentTarget_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedTarget == null) return;
+            await StopTargetStreamAsync(_selectedTarget);
+        }
+
+        #endregion
 
         /// <summary>
         /// Lưu cấu hình hiện tại của UI xuống ổ đĩa dạng JSON.
@@ -1543,32 +1970,17 @@ namespace SRT_ENCODE
         {
             try
             {
+                if (_selectedTarget != null)
+                {
+                    SyncUiToTargetSettings(_selectedTarget.Settings);
+                }
+
                 var settings = new SrtEncodeSettings
                 {
-                    IsSmpte2022_7Enabled = ChkGroupSocket?.IsChecked == true,
-                    SrtIp = TxtSrtIp?.Text?.Trim() ?? "127.0.0.1",
-                    SrtPort = int.TryParse(TxtSrtPort?.Text?.Trim(), out int sp) ? sp : 9000,
-                    StreamId = TxtSrtStreamId?.Text?.Trim() ?? "live/cam1/feed",
-                    SingleSourceNicIp = (CmbSingleSourceNic?.SelectedValue as string) ?? "0.0.0.0",
+                    Targets = _srtTargets.Select(t => t.Settings).ToList(),
+                    SelectedTargetIndex = _selectedTarget != null ? Math.Max(0, _srtTargets.IndexOf(_selectedTarget)) : 0,
 
-                    GroupTypeIndex = CmbGroupType?.SelectedIndex ?? 0,
-                    DifferentialDelayMs = int.TryParse(TxtDifferentialDelay?.Text?.Trim(), out int dd) ? dd : 50,
-                    MemberAHost = TxtMemberAHost?.Text?.Trim() ?? "127.0.0.1",
-                    MemberAPort = int.TryParse(TxtMemberAPort?.Text?.Trim(), out int maPort) ? maPort : 9000,
-                    MemberANicIp = (CmbMemberANic?.SelectedValue as string) ?? "0.0.0.0",
-                    MemberBHost = TxtMemberBHost?.Text?.Trim() ?? "127.0.0.1",
-                    MemberBPort = int.TryParse(TxtMemberBPort?.Text?.Trim(), out int mbPort) ? mbPort : 9002,
-                    MemberBNicIp = (CmbMemberBNic?.SelectedValue as string) ?? "0.0.0.0",
-
-                    DynamicMembers = _dynamicGroupMembers.Select(m => new DynamicMemberSetting
-                    {
-                        Id = m.Id,
-                        Name = m.Name,
-                        Host = m.Host,
-                        Port = m.Port,
-                        NicIp = string.IsNullOrEmpty(m.LocalInterfaceIp) ? "0.0.0.0" : m.LocalInterfaceIp
-                    }).ToList(),
-
+                    // Shared Video / Codec / Encoder
                     BitrateKbps = (int)(SldTargetBitrate?.Value ?? 6000),
                     VideoCodecIndex = CmbVideoCodec?.SelectedIndex ?? 0,
                     HardwareEncoder = CmbHardwareEncoder?.SelectedItem?.ToString() ?? "Intel QuickSync Video (QSV)",
@@ -1577,17 +1989,12 @@ namespace SRT_ENCODE
                     EncoderPresetIndex = CmbEncoderPreset?.SelectedIndex ?? 0,
                     UltraLowLatency = ChkUltraLowLatency?.IsChecked == true,
 
-                    SrtModeIndex = CmbSrtMode?.SelectedIndex ?? 0,
-                    LatencyMs = int.TryParse(TxtManualLatency?.Text?.Trim(), out int lat) ? lat : 120,
-                    AutoLatency = ChkAutoLatency?.IsChecked == true,
-                    EncryptionEnabled = ChkEnableEncryption?.IsChecked == true,
-                    Passphrase = TxtSrtPassphrase?.Password ?? string.Empty,
-                    KeyLengthIndex = CmbKeyLength?.SelectedIndex ?? 2,
-
+                    // Audio & NTP
                     AudioChannelsIndex = CmbStreamAudioChannels?.SelectedIndex ?? 0,
                     NtpSyncEnabled = ChkNtpSync?.IsChecked == true,
                     NtpServer = TxtNtpServer?.Text?.Trim() ?? "time.google.com",
 
+                    // Telemetry Monitor
                     IsTelemetryMonitorEnabled = ChkEnableTelemetry?.IsChecked == true,
                     TelemetryServerUrl = TxtTelemetryServerUrl?.Text?.Trim() ?? "http://127.0.0.1:8088",
                     TelemetryNodeName = TxtTelemetryNodeName?.Text?.Trim() ?? "ENC_CAM_01"
@@ -2417,27 +2824,23 @@ namespace SRT_ENCODE
 
         #region Transmission Control (Start / Stop SRT)
 
-        private SRTStreamConfig BuildSrtStreamConfig()
+        private SRTStreamConfig BuildSrtStreamConfig(SrtTargetSettingModel? target = null)
         {
-            string ip = TxtSrtIp.Text.Trim();
-            if (!int.TryParse(TxtSrtPort.Text.Trim(), out int port))
+            target ??= _selectedTarget?.Settings ?? new SrtTargetSettingModel();
+
+            string ip = target.SrtIp.Trim();
+            if (string.IsNullOrEmpty(ip)) ip = "127.0.0.1";
+            int port = target.SrtPort > 0 ? target.SrtPort : 9000;
+
+            SRTMode srtMode = target.SrtModeIndex switch
             {
-                port = 9000;
-            }
+                1 => SRTMode.Listener,
+                2 => SRTMode.Rendezvous,
+                _ => SRTMode.Caller
+            };
 
-            string modeStr = (CmbSrtMode.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Caller";
-            SRTMode srtMode = SRTMode.Caller;
-            if (modeStr.Contains("Listener", StringComparison.OrdinalIgnoreCase)) srtMode = SRTMode.Listener;
-            else if (modeStr.Contains("Rendezvous", StringComparison.OrdinalIgnoreCase)) srtMode = SRTMode.Rendezvous;
-
-            // Thu thập đầy đủ thông số cấu hình luồng SRT
-            int latency = 120;
-            if (int.TryParse(TxtManualLatency?.Text?.Trim(), out int parsedLat))
-            {
-                latency = parsedLat;
-            }
-
-            int keyLength = CmbKeyLength?.SelectedIndex switch
+            int latency = target.LatencyMs > 0 ? target.LatencyMs : 120;
+            int keyLength = target.KeyLengthIndex switch
             {
                 0 => 16, // AES-128
                 1 => 24, // AES-192
@@ -2450,10 +2853,10 @@ namespace SRT_ENCODE
             string rateControl = (CmbRateControl?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "CBR (Constant Bitrate)";
             string preset = (CmbEncoderPreset?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Low-Latency / Zerolatency";
             bool isUll = ChkUltraLowLatency?.IsChecked == true;
-            bool isEncrypted = ChkEnableEncryption?.IsChecked == true;
+            bool isEncrypted = target.EncryptionEnabled;
             bool isNtpSync = ChkNtpSync?.IsChecked == true;
-            string streamId = TxtSrtStreamId?.Text?.Trim() ?? string.Empty;
-            string passphrase = TxtSrtPassphrase?.Password ?? string.Empty;
+            string streamId = target.StreamId?.Trim() ?? string.Empty;
+            string passphrase = target.Passphrase ?? string.Empty;
             int bitrateKbps = (int)(SldTargetBitrate?.Value ?? 6000);
 
             VideoCodecType codecType = VideoCodecType.H264_AVC;
@@ -2492,42 +2895,44 @@ namespace SRT_ENCODE
 
             string fullStreamId = streamInfo.SerializeToStreamId(streamId);
 
-            bool isGroup = ChkGroupSocket?.IsChecked == true;
-            var groupType = CmbGroupType?.SelectedIndex == 1 
+            bool isGroup = target.IsSmpte2022_7Enabled;
+            var groupType = target.GroupTypeIndex == 1 
                 ? SRTGroupType.Backup_ActiveStandby 
                 : SRTGroupType.Broadcast_SMPTE2022_7;
-            int diffDelay = 50;
-            if (int.TryParse(TxtDifferentialDelay?.Text?.Trim(), out int parsedDelay))
-            {
-                diffDelay = Math.Clamp(parsedDelay, 10, 1000);
-            }
+            int diffDelay = Math.Clamp(target.DifferentialDelayMs, 10, 1000);
 
             var groupMembers = new List<SRTGroupMemberConfig>();
-            string singleNic = (CmbSingleSourceNic?.SelectedValue as string) ?? "";
+            string singleNic = target.SourceNicIp ?? "";
             if (singleNic == "0.0.0.0") singleNic = "";
 
             if (isGroup)
             {
                 // Member 1: Path A (Primary)
-                string hostA = TxtMemberAHost?.Text?.Trim() ?? ip;
-                if (!int.TryParse(TxtMemberAPort?.Text?.Trim(), out int portA)) portA = port;
-                string localA = (CmbMemberANic?.SelectedValue as string) ?? "";
+                string hostA = !string.IsNullOrEmpty(target.MemberAHost) ? target.MemberAHost : ip;
+                int portA = target.MemberAPort > 0 ? target.MemberAPort : port;
+                string localA = target.MemberANicIp ?? "";
                 if (localA == "0.0.0.0") localA = "";
                 groupMembers.Add(new SRTGroupMemberConfig("Path A (Primary)", hostA, portA, localA, 10));
 
                 // Member 2: Path B (Secondary / 4G)
-                string hostB = TxtMemberBHost?.Text?.Trim() ?? ip;
-                if (!int.TryParse(TxtMemberBPort?.Text?.Trim(), out int portB)) portB = port + 2;
-                string localB = (CmbMemberBNic?.SelectedValue as string) ?? "";
+                string hostB = !string.IsNullOrEmpty(target.MemberBHost) ? target.MemberBHost : ip;
+                int portB = target.MemberBPort > 0 ? target.MemberBPort : port + 2;
+                string localB = target.MemberBNicIp ?? "";
                 if (localB == "0.0.0.0") localB = "";
                 groupMembers.Add(new SRTGroupMemberConfig("Path B (Secondary / 4G)", hostB, portB, localB, 10));
 
-                // Thêm các member bổ sung đã gắn động
-                foreach (var dm in _dynamicGroupMembers)
+                // Thêm các member bổ sung của target
+                if (target.DynamicMembers != null)
                 {
-                    if (!groupMembers.Any(m => m.Id == dm.Id))
+                    foreach (var dm in target.DynamicMembers)
                     {
-                        groupMembers.Add(dm);
+                        if (!groupMembers.Any(m => m.Id == dm.Id))
+                        {
+                            groupMembers.Add(new SRTGroupMemberConfig(dm.Name, dm.Host, dm.Port, dm.NicIp == "0.0.0.0" ? "" : dm.NicIp)
+                            {
+                                Id = dm.Id
+                            });
+                        }
                     }
                 }
             }
@@ -2540,7 +2945,7 @@ namespace SRT_ENCODE
                 Mode = srtMode,
                 StreamId = fullStreamId,
                 LatencyMs = latency,
-                AutoLatency = ChkAutoLatency?.IsChecked == true,
+                AutoLatency = target.AutoLatency,
                 EncryptionEnabled = isEncrypted,
                 Passphrase = passphrase,
                 KeyLength = keyLength,
@@ -2566,148 +2971,246 @@ namespace SRT_ENCODE
             };
         }
 
-        private void BtnStartStreaming_Click(object sender, RoutedEventArgs e)
+        public async Task StartTargetStreamAsync(SrtTargetItem target)
         {
             try
             {
-                _activeSrtConfig = BuildSrtStreamConfig();
+                if (target.IsTransmitting) return;
+
+                if (_sourceManager.CurrentSource == InputSourceType.None)
+                {
+                    LogEvent("[WARN]", "⚠️ Không thể bắt đầu phát sóng: Chưa nạp nguồn video đầu vào (Source Ejected).");
+                    return;
+                }
+
+                if (target == _selectedTarget)
+                {
+                    SyncUiToTargetSettings(target.Settings);
+                }
+
                 SaveCurrentSettings();
                 _isTransmissionActive = true;
-                _reconnectAttempt = 0;
-                StartTelemetryReporting();
+                _isStreaming = true;
+
+                target.IsTransmitting = true;
+                target.ReconnectAttempt = 0;
+                target.StatusText = "CONNECTING...";
+                target.StatusBrush = new SolidColorBrush(Color.FromRgb(255, 179, 0)); // Amber
+
+                if (target == _selectedTarget)
+                {
+                    UpdateTargetActionUi(target);
+                }
 
                 BtnStartStreaming.IsEnabled = false;
                 BtnStopStreaming.IsEnabled = true;
+                UpdateEjectButtonState();
+                LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(255, 179, 0));
+                TxtSrtStatus.Text = "SRT: TRANSMITTING";
+                TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(0, 230, 118));
 
-                LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(255, 179, 0)); // Amber
-                TxtSrtStatus.Text = "SRT: CONNECTING...";
-                TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(255, 179, 0));
-
+                StartTelemetryReporting();
+                EnsureStreamingWorkerRunning();
                 UpdateTargetSummary();
 
-                _reconnectCts?.Cancel();
-                _reconnectCts?.Dispose();
-                _reconnectCts = new CancellationTokenSource();
+                target.TargetCts?.Cancel();
+                target.TargetCts?.Dispose();
+                target.TargetCts = new CancellationTokenSource();
 
-                var token = _reconnectCts.Token;
-                _ = Task.Run(() => TransmissionSupervisorLoopAsync(token), token);
+                var token = target.TargetCts.Token;
+                _ = Task.Run(() => TargetSupervisorLoopAsync(target, token), token);
+
+                string destDesc = target.Settings.IsSmpte2022_7Enabled
+                    ? $"SMPTE 2022-7 Group (Port {target.Settings.MemberAPort} & {target.Settings.MemberBPort})"
+                    : $"{target.Settings.SrtIp}:{target.Settings.SrtPort}";
+                LogEvent("[SRT]", $"🚀 Kích hoạt phát sóng cho {target.Name} ({destDesc}).");
             }
             catch (Exception ex)
             {
-                LogEvent("[ERROR]", $"Lỗi khởi động phát sóng SRT: {ex.Message}");
-                StopTransmissionInternal();
+                LogEvent("[ERROR]", $"Lỗi khởi động phát sóng {target.Name}: {ex.Message}");
+                await StopTargetStreamAsync(target);
             }
         }
 
-        private async Task TransmissionSupervisorLoopAsync(CancellationToken token)
+        public async Task StopTargetStreamAsync(SrtTargetItem target)
         {
-            LogEvent("[SRT]", "Khởi động tiến trình truyền dẫn SRT (Cơ chế Auto-Reconnect vô hạn KÍCH HOẠT).");
+            try
+            {
+                target.IsTransmitting = false;
+                target.StatusText = "STOPPED";
+                target.StatusBrush = new SolidColorBrush(Color.FromRgb(158, 158, 158));
 
-            while (!token.IsCancellationRequested && _isTransmissionActive)
+                try { target.TargetCts?.Cancel(); } catch { }
+                try { target.TargetCts?.Dispose(); } catch { }
+                target.TargetCts = null;
+
+                if (target.Session != null)
+                {
+                    var srt = target.Session;
+                    target.Session = null;
+                    try
+                    {
+                        var stopTask = srt.StopAsync();
+                        await stopTask.WaitAsync(TimeSpan.FromMilliseconds(500));
+                    }
+                    catch { }
+                    try { srt.Dispose(); } catch { }
+                }
+
+                if (target == _selectedTarget)
+                {
+                    UpdateTargetActionUi(target);
+                }
+
+                LogEvent("[SRT]", $"⏹ Đã dừng phát sóng luồng: {target.Name}.");
+
+                bool anyActive;
+                lock (_targetsLock)
+                {
+                    anyActive = _srtTargets.Any(t => t.IsTransmitting);
+                }
+
+                if (!anyActive)
+                {
+                    StopTransmissionInternal();
+                }
+                else
+                {
+                    UpdateTargetSummary();
+                }
+                UpdateEjectButtonState();
+            }
+            catch (Exception ex)
+            {
+                LogEvent("[WARN]", $"Lỗi dừng luồng {target.Name}: {ex.Message}");
+            }
+        }
+
+        private async Task TargetSupervisorLoopAsync(SrtTargetItem target, CancellationToken token)
+        {
+            LogEvent("[SRT]", $"Khởi động giám sát & tự động kết nối lại cho {target.Name}.");
+
+            while (!token.IsCancellationRequested && target.IsTransmitting)
             {
                 try
                 {
-                    bool isListener = _activeSrtConfig?.Mode == SRTMode.Listener;
+                    // ── Phải đọc UI controls trên Dispatcher thread ──────────
+                    var config = await Dispatcher.InvokeAsync(() => BuildSrtStreamConfig(target.Settings));
+                    bool isListener = config.Mode == SRTMode.Listener;
 
                     if (!isListener)
                     {
-                        // ─── CALLER MODE ──────────────────────────────────────────────
-                        bool isConnected = _srtStream != null && _srtStream.IsRunning && 
-                            (_srtStream.Statistics.IsConnected || (_activeSrtConfig?.GroupSocketEnabled == true && _srtStream.GroupStats.ConnectedMembersCount > 0));
+                        // ─── CALLER / RENDEZVOUS MODE ──────────────────────────────
+                        bool isConnected = target.Session != null && target.Session.IsRunning &&
+                            (target.Session.Statistics.IsConnected || (config.GroupSocketEnabled && target.Session.GroupStats.ConnectedMembersCount > 0));
 
                         if (!isConnected)
                         {
-                            _reconnectAttempt++;
+                            target.ReconnectAttempt++;
 
                             await Dispatcher.InvokeAsync(() =>
                             {
-                                LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(255, 179, 0)); // Amber
-                                TxtSrtStatus.Text = _reconnectAttempt <= 1
-                                    ? "SRT: CONNECTING..."
-                                    : $"SRT: RECONNECTING (#{_reconnectAttempt})...";
-                                TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(255, 179, 0));
+                                target.StatusText = target.ReconnectAttempt <= 1
+                                    ? "CONNECTING..."
+                                    : $"RECONNECTING (#{target.ReconnectAttempt})...";
+                                target.StatusBrush = new SolidColorBrush(Color.FromRgb(255, 179, 0));
+                                if (target == _selectedTarget)
+                                {
+                                    UpdateTargetActionUi(target);
+                                }
                             });
 
-                            if (_reconnectAttempt == 1)
+                            if (target.ReconnectAttempt == 1)
                             {
-                                LogEvent("[SRT]", $"Khởi tạo kết nối SRT ({_activeSrtConfig?.Mode} -> {_activeSrtConfig?.Host}:{_activeSrtConfig?.Port})...");
+                                LogEvent("[SRT]", $"[{target.Name}] Khởi tạo kết nối SRT ({config.Mode} -> {config.Host}:{config.Port})...");
                             }
                             else
                             {
-                                LogEvent("[WARN]", $"⚠️ Mất kết nối / Handshake SRT chưa thành công. Tự động kết nối lại lần #{_reconnectAttempt}...");
+                                LogEvent("[WARN]", $"⚠️ [{target.Name}] Mất kết nối / Handshake chưa thành công. Tự động thử lại #{target.ReconnectAttempt}...");
                             }
 
-                            // Thu hồi phiên SRT cũ trước khi tạo phiên mới
-                            await CleanupSrtSessionOnlyAsync();
-
-                            if (_activeSrtConfig != null)
+                            // Thu hồi session cũ nếu có
+                            if (target.Session != null)
                             {
-                                var newSession = new SRTStreamSession(_activeSrtConfig);
-                                newSession.LogEmitted += (tag, msg) => LogEvent(tag, msg);
-                                newSession.ErrorOccurred += err => LogEvent("[ERROR]", err);
-                                newSession.MemberStatusChanged += status =>
+                                try { await target.Session.StopAsync(); } catch { }
+                                target.Session.Dispose();
+                                target.Session = null;
+                            }
+
+                            var newSession = new SRTStreamSession(config);
+                            newSession.LogEmitted += (tag, msg) => LogEvent(tag, $"[{target.Name}] {msg}");
+                            newSession.ErrorOccurred += err => LogEvent("[ERROR]", $"[{target.Name}] {err}");
+                            newSession.MemberStatusChanged += status =>
+                            {
+                                if (target == _selectedTarget)
                                 {
                                     Dispatcher.InvokeAsync(() => UpdateGroupMemberUI(status));
-                                };
-                                newSession.GroupStatsUpdated += gStats =>
+                                }
+                            };
+                            newSession.GroupStatsUpdated += gStats =>
+                            {
+                                if (target == _selectedTarget)
                                 {
                                     Dispatcher.InvokeAsync(() => UpdateGroupStatsUI(gStats));
-                                };
-                                newSession.StatisticsUpdated += stats =>
+                                }
+                            };
+                            newSession.StatisticsUpdated += stats =>
+                            {
+                                target.CurrentRttMs = stats.RttMs;
+                                target.CurrentPacketLoss = stats.PacketLossPercent;
+                                if (stats.CurrentBitrateKbps > 0)
                                 {
-                                    _currentRttMs = stats.RttMs;
-                                    _currentPacketLoss = stats.PacketLossPercent;
-                                    if (stats.CurrentBitrateKbps > 0)
-                                    {
-                                        _currentBitrateKbps = stats.CurrentBitrateKbps;
-                                    }
-                                    if (stats.CurrentFps > 0)
-                                    {
-                                        _currentFps = stats.CurrentFps;
-                                    }
-                                    _totalBytesTransferred = stats.TotalBytesTransferred;
-                                };
-
-                                bool started = await newSession.StartTransmissionAsync();
-                                bool hasConnection = newSession.Statistics.IsConnected || (_activeSrtConfig.GroupSocketEnabled && newSession.GroupStats.ConnectedMembersCount > 0);
-                                if (started && hasConnection)
+                                    target.CurrentBitrateKbps = stats.CurrentBitrateKbps;
+                                }
+                                if (target == _selectedTarget)
                                 {
-                                    _srtStream = newSession;
-                                    _isStreaming = true;
-                                    _reconnectAttempt = 0;
-                                    _streamStartTime = DateTime.UtcNow;
-
-                                    await Dispatcher.InvokeAsync(() =>
+                                    Dispatcher.InvokeAsync(() =>
                                     {
-                                        LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(76, 175, 80)); // Green
-                                        TxtSrtStatus.Text = _activeSrtConfig.GroupSocketEnabled 
-                                            ? "SRT: TRANSMITTING (GROUP LIVE)" 
-                                            : "SRT: TRANSMITTING (LIVE)";
-                                        TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(76, 175, 80));
-                                        UpdateTargetSummary();
-                                        EnsureStreamingWorkerRunning(token);
+                                        if (TxtCurrentTargetHud != null)
+                                        {
+                                            TxtCurrentTargetHud.Text = $"RTT: {target.CurrentRttMs:F0}ms | Loss: {target.CurrentPacketLoss:F1}% | Bitrate: {(target.CurrentBitrateKbps / 1000.0):F1} Mbps";
+                                        }
                                     });
+                                }
+                            };
 
-                                    LogEvent("[SRT]", _activeSrtConfig.GroupSocketEnabled
-                                        ? "✅ [INFO] SRT Group Socket Connected thành công (SMPTE 2022-7 ARMED). Bắt đầu truyền dẫn luồng LIVE."
-                                        : "✅ [INFO] SRT Connected thành công. Bắt đầu truyền dẫn luồng LIVE.");
-                                }
-                                else
+                            bool started = await newSession.StartTransmissionAsync();
+                            if (started)
+                            {
+                                lock (_targetsLock)
                                 {
-                                    try { await newSession.StopAsync(); } catch { }
-                                    newSession.Dispose();
+                                    target.Session = newSession;
                                 }
+
+                                await Dispatcher.InvokeAsync(() =>
+                                {
+                                    target.StatusText = "LIVE";
+                                    target.StatusBrush = new SolidColorBrush(Color.FromRgb(76, 175, 80)); // Green
+                                    if (target == _selectedTarget)
+                                    {
+                                        UpdateTargetActionUi(target);
+                                    }
+                                    UpdateTargetSummary();
+                                    EnsureStreamingWorkerRunning(token);
+                                });
+
+                                LogEvent("[SRT]", config.GroupSocketEnabled
+                                    ? $"✅ [{target.Name}] SRT Group Socket Connected thành công (SMPTE 2022-7 ARMED)."
+                                    : $"✅ [{target.Name}] SRT Connected thành công. Bắt đầu truyền dẫn LIVE.");
+                            }
+                            else
+                            {
+                                try { await newSession.StopAsync(); } catch { }
+                                newSession.Dispose();
                             }
 
-                            if (!token.IsCancellationRequested && _isTransmissionActive)
+                            if (!token.IsCancellationRequested && target.IsTransmitting)
                             {
-                                // Delay 1.0 - 1.3 giây giữa các lần thử lại để tránh xung đột lockstep
                                 await Task.Delay(1000 + Random.Shared.Next(0, 300), token);
                             }
                         }
                         else
                         {
-                            // Đang kết nối ổn định: Kiểm tra nếu streaming worker FFmpeg chưa chạy thì kích hoạt
                             if (_streamProcess == null || _streamProcess.HasExited)
                             {
                                 await Dispatcher.InvokeAsync(() => EnsureStreamingWorkerRunning(token));
@@ -2719,99 +3222,120 @@ namespace SRT_ENCODE
                     else
                     {
                         // ─── LISTENER MODE ────────────────────────────────────────────
-                        bool isListening = _srtStream != null && _srtStream.IsRunning && 
-                            (_srtStream.NativeOutput?.IsOpen == true || (_activeSrtConfig?.GroupSocketEnabled == true && _srtStream.GroupStats.ConnectedMembersCount > 0));
+                        bool isListening = target.Session != null && target.Session.IsRunning &&
+                            (target.Session.NativeOutput?.IsOpen == true || (config.GroupSocketEnabled && target.Session.GroupStats.ConnectedMembersCount > 0));
 
                         if (!isListening)
                         {
-                            _reconnectAttempt++;
+                            target.ReconnectAttempt++;
 
                             await Dispatcher.InvokeAsync(() =>
                             {
-                                LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(255, 179, 0)); // Amber
-                                TxtSrtStatus.Text = $"SRT: BINDING (Port {_activeSrtConfig?.Port})...";
-                                TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(255, 179, 0));
+                                target.StatusText = $"BINDING (Port {config.Port})...";
+                                target.StatusBrush = new SolidColorBrush(Color.FromRgb(255, 179, 0));
+                                if (target == _selectedTarget)
+                                {
+                                    UpdateTargetActionUi(target);
+                                }
                             });
 
-                            await CleanupSrtSessionOnlyAsync();
-
-                            if (_activeSrtConfig != null)
+                            if (target.Session != null)
                             {
-                                var newSession = new SRTStreamSession(_activeSrtConfig);
-                                newSession.LogEmitted += (tag, msg) => LogEvent(tag, msg);
-                                newSession.ErrorOccurred += err => LogEvent("[ERROR]", err);
-                                newSession.MemberStatusChanged += status =>
-                                {
-                                    Dispatcher.InvokeAsync(() => UpdateGroupMemberUI(status));
-                                };
-                                newSession.GroupStatsUpdated += gStats =>
-                                {
-                                    Dispatcher.InvokeAsync(() => UpdateGroupStatsUI(gStats));
-                                };
-                                newSession.StatisticsUpdated += stats =>
-                                {
-                                    _currentRttMs = stats.RttMs;
-                                    _currentPacketLoss = stats.PacketLossPercent;
-                                    if (stats.CurrentBitrateKbps > 0)
-                                    {
-                                        _currentBitrateKbps = stats.CurrentBitrateKbps;
-                                    }
-                                    if (stats.CurrentFps > 0)
-                                    {
-                                        _currentFps = stats.CurrentFps;
-                                    }
-                                    _totalBytesTransferred = stats.TotalBytesTransferred;
-                                };
-
-                                bool started = await newSession.StartTransmissionAsync();
-                                bool hasListening = newSession.NativeOutput?.IsOpen == true || (_activeSrtConfig.GroupSocketEnabled && newSession.GroupStats.ConnectedMembersCount > 0);
-                                if (started && hasListening)
-                                {
-                                    _srtStream = newSession;
-                                    _isStreaming = true;
-                                    _reconnectAttempt = 0;
-
-                                    await Dispatcher.InvokeAsync(() =>
-                                    {
-                                        LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(255, 179, 0)); // Amber
-                                        TxtSrtStatus.Text = $"SRT: LISTENING (Port {_activeSrtConfig?.Port})...";
-                                        TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(255, 179, 0));
-                                        UpdateTargetSummary();
-                                        EnsureStreamingWorkerRunning(token);
-                                    });
-
-                                    LogEvent("[SRT]", $"✅ [INFO] SRT Output đang lắng nghe trên cổng {_activeSrtConfig?.Port}, sẵn sàng kết nối.");
-                                }
-                                else
-                                {
-                                    try { await newSession.StopAsync(); } catch { }
-                                    newSession.Dispose();
-                                }
+                                try { await target.Session.StopAsync(); } catch { }
+                                target.Session.Dispose();
+                                target.Session = null;
                             }
 
-                            if (!token.IsCancellationRequested && _isTransmissionActive)
+                            var newSession = new SRTStreamSession(config);
+                            newSession.LogEmitted += (tag, msg) => LogEvent(tag, $"[{target.Name}] {msg}");
+                            newSession.ErrorOccurred += err => LogEvent("[ERROR]", $"[{target.Name}] {err}");
+                            newSession.MemberStatusChanged += status =>
+                            {
+                                if (target == _selectedTarget)
+                                {
+                                    Dispatcher.InvokeAsync(() => UpdateGroupMemberUI(status));
+                                }
+                            };
+                            newSession.GroupStatsUpdated += gStats =>
+                            {
+                                if (target == _selectedTarget)
+                                {
+                                    Dispatcher.InvokeAsync(() => UpdateGroupStatsUI(gStats));
+                                }
+                            };
+                            newSession.StatisticsUpdated += stats =>
+                            {
+                                target.CurrentRttMs = stats.RttMs;
+                                target.CurrentPacketLoss = stats.PacketLossPercent;
+                                if (stats.CurrentBitrateKbps > 0)
+                                {
+                                    target.CurrentBitrateKbps = stats.CurrentBitrateKbps;
+                                }
+                                if (target == _selectedTarget)
+                                {
+                                    Dispatcher.InvokeAsync(() =>
+                                    {
+                                        if (TxtCurrentTargetHud != null)
+                                        {
+                                            TxtCurrentTargetHud.Text = $"RTT: {target.CurrentRttMs:F0}ms | Loss: {target.CurrentPacketLoss:F1}% | Bitrate: {(target.CurrentBitrateKbps / 1000.0):F1} Mbps";
+                                        }
+                                    });
+                                }
+                            };
+
+                            bool started = await newSession.StartTransmissionAsync();
+                            if (started)
+                            {
+                                lock (_targetsLock)
+                                {
+                                    target.Session = newSession;
+                                }
+
+                                await Dispatcher.InvokeAsync(() =>
+                                {
+                                    target.StatusText = $"LISTENING (Port {config.Port})";
+                                    target.StatusBrush = new SolidColorBrush(Color.FromRgb(255, 179, 0));
+                                    if (target == _selectedTarget)
+                                    {
+                                        UpdateTargetActionUi(target);
+                                    }
+                                    UpdateTargetSummary();
+                                    EnsureStreamingWorkerRunning(token);
+                                });
+
+                                LogEvent("[SRT]", $"👂 [{target.Name}] SRT Output đang lắng nghe trên cổng {config.Port}, sẵn sàng kết nối.");
+                            }
+                            else
+                            {
+                                try { await newSession.StopAsync(); } catch { }
+                                newSession.Dispose();
+                            }
+
+                            if (!token.IsCancellationRequested && target.IsTransmitting)
                             {
                                 await Task.Delay(1500, token);
                             }
                         }
                         else
                         {
-                            // Listener đang mở, cập nhật trạng thái theo client kết nối
-                            bool clientConnected = _srtStream.Statistics.IsConnected;
+                            bool clientConnected = target.Session?.Statistics?.IsConnected == true;
 
                             await Dispatcher.InvokeAsync(() =>
                             {
                                 if (clientConnected)
                                 {
-                                    LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(76, 175, 80)); // Green
-                                    TxtSrtStatus.Text = "SRT: TRANSMITTING (LIVE)";
-                                    TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(76, 175, 80));
+                                    target.StatusText = "LIVE";
+                                    target.StatusBrush = new SolidColorBrush(Color.FromRgb(76, 175, 80)); // Green
                                 }
                                 else
                                 {
-                                    LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(255, 179, 0)); // Amber
-                                    TxtSrtStatus.Text = $"SRT: LISTENING (Port {_activeSrtConfig?.Port})...";
-                                    TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(255, 179, 0));
+                                    target.StatusText = $"LISTENING (Port {config.Port})";
+                                    target.StatusBrush = new SolidColorBrush(Color.FromRgb(255, 179, 0)); // Amber
+                                }
+
+                                if (target == _selectedTarget)
+                                {
+                                    UpdateTargetActionUi(target);
                                 }
                             });
 
@@ -2830,8 +3354,8 @@ namespace SRT_ENCODE
                 }
                 catch (Exception ex)
                 {
-                    LogEvent("[WARN]", $"Giám sát truyền dẫn SRT: {ex.Message}");
-                    if (!token.IsCancellationRequested && _isTransmissionActive)
+                    LogEvent("[WARN]", $"[{target.Name}] Giám sát truyền dẫn SRT: {ex.Message}");
+                    if (!token.IsCancellationRequested && target.IsTransmitting)
                     {
                         await Task.Delay(1500, token);
                     }
@@ -2839,17 +3363,66 @@ namespace SRT_ENCODE
             }
         }
 
+        private async void BtnStartStreaming_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (_sourceManager.CurrentSource == InputSourceType.None)
+                {
+                    LogEvent("[WARN]", "⚠️ Không thể bắt đầu phát sóng: Chưa nạp nguồn video đầu vào (Source Ejected). Vui lòng chọn nguồn phát sóng.");
+                    return;
+                }
+
+                SaveCurrentSettings();
+                if (_srtTargets.Count == 0) return;
+
+                foreach (var target in _srtTargets)
+                {
+                    if (!target.IsTransmitting)
+                    {
+                        await StartTargetStreamAsync(target);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogEvent("[ERROR]", $"Lỗi khởi động phát sóng SRT Master: {ex.Message}");
+            }
+        }
+
+        private async void BtnStopStreaming_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                _isTransmissionActive = false;
+                foreach (var target in _srtTargets)
+                {
+                    if (target.IsTransmitting)
+                    {
+                        await StopTargetStreamAsync(target);
+                    }
+                }
+
+                StopTransmissionInternal();
+                LogEvent("[SRT]", "Đã dừng toàn bộ các luồng phát sóng SRT theo yêu cầu người dùng.");
+            }
+            catch (Exception ex)
+            {
+                LogEvent("[WARN]", $"Lỗi dừng phát sóng SRT: {ex.Message}");
+            }
+        }
+
         private async Task CleanupSrtSessionOnlyAsync()
         {
-            if (_srtStream != null)
+            if (_selectedTarget?.Session != null)
             {
                 try
                 {
-                    await _srtStream.StopAsync();
+                    await _selectedTarget.Session.StopAsync();
                 }
                 catch { }
-                _srtStream.Dispose();
-                _srtStream = null;
+                _selectedTarget.Session.Dispose();
+                _selectedTarget.Session = null;
             }
         }
 
@@ -2994,36 +3567,36 @@ namespace SRT_ENCODE
             {
                 vcodecArg = codecType switch
                 {
-                    VideoCodecType.H265_HEVC => "-c:v libx265 -preset veryfast",
+                    VideoCodecType.H265_HEVC => "-c:v libx265 -preset veryfast -x265-params repeat-headers=1",
                     VideoCodecType.AV1 => "-c:v libsvtav1 -preset 8",
-                    _ => "-c:v libx264 -preset veryfast"
+                    _ => "-c:v libx264 -preset veryfast -x264-params repeat-headers=1"
                 };
             }
             else if (codecType == VideoCodecType.H265_HEVC)
             {
-                if (hwEncoder.Contains("NVENC", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v hevc_nvenc";
-                else if (hwEncoder.Contains("QSV", StringComparison.OrdinalIgnoreCase) || hwEncoder.Contains("QuickSync", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v hevc_qsv";
-                else if (hwEncoder.Contains("AMF", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v hevc_amf";
-                else vcodecArg = "-c:v libx265 -preset veryfast";
+                if (hwEncoder.Contains("NVENC", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v hevc_nvenc -forced-idr 1";
+                else if (hwEncoder.Contains("QSV", StringComparison.OrdinalIgnoreCase) || hwEncoder.Contains("QuickSync", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v hevc_qsv -forced_idr 1";
+                else if (hwEncoder.Contains("AMF", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v hevc_amf -forced_idr 1";
+                else vcodecArg = "-c:v libx265 -preset veryfast -x265-params repeat-headers=1";
             }
             else if (codecType == VideoCodecType.AV1)
             {
-                if (hwEncoder.Contains("NVENC", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v av1_nvenc";
+                if (hwEncoder.Contains("NVENC", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v av1_nvenc -forced-idr 1";
                 else vcodecArg = "-c:v libsvtav1 -preset 8";
             }
             else
             {
-                if (hwEncoder.Contains("NVENC", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v h264_nvenc";
-                else if (hwEncoder.Contains("QSV", StringComparison.OrdinalIgnoreCase) || hwEncoder.Contains("QuickSync", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v h264_qsv";
-                else if (hwEncoder.Contains("AMF", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v h264_amf";
-                else vcodecArg = "-c:v libx264 -preset veryfast";
+                if (hwEncoder.Contains("NVENC", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v h264_nvenc -forced-idr 1";
+                else if (hwEncoder.Contains("QSV", StringComparison.OrdinalIgnoreCase) || hwEncoder.Contains("QuickSync", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v h264_qsv -forced_idr 1";
+                else if (hwEncoder.Contains("AMF", StringComparison.OrdinalIgnoreCase)) vcodecArg = "-c:v h264_amf -forced_idr 1";
+                else vcodecArg = "-c:v libx264 -preset veryfast -x264-params repeat-headers=1";
             }
 
             double targetFps = GetSelectedStreamFps();
             var rational = BroadcastFrameRates.SnapToRational(targetFps);
             string fpsStr = BroadcastFrameRates.FormatFfmpeg(rational);
             int gopSize = (int)Math.Round((rational.num / (double)rational.den) * (isUll ? 1.0 : 2.0));
-            string lowLatencyArg = isUll ? $"-tune zerolatency -bf 0 -g {gopSize} -keyint_min {gopSize} -sc_threshold 0" : $"-g {gopSize} -keyint_min {gopSize} -sc_threshold 0";
+            string lowLatencyArg = $"-bf 0 -g {gopSize} -keyint_min {gopSize}";
             string fpsArg = $"-r {fpsStr}";
             string ffmpegArgs;
 
@@ -3049,11 +3622,11 @@ namespace SRT_ENCODE
             if (currentSource == InputSourceType.File && !string.IsNullOrWhiteSpace(currentFilePath) && File.Exists(currentFilePath))
             {
                 double currentSec = _sourceManager.CurrentPosition.TotalSeconds;
-                string seekArg = currentSec > 0.05 ? $"-ss {currentSec:F3} " : "";
+                string seekArg = currentSec > 0.2 ? $"-ss {currentSec:F3} " : "";
 
                 if (isPassthrough)
                 {
-                    ffmpegArgs = $"-hide_banner -loglevel error {seekArg}-re -stream_loop -1 -avoid_negative_ts make_zero -fflags +genpts -i \"{currentFilePath}\" -c:v copy {audioArgs} -f mpegts -mpegts_flags resend_headers+pat_pmt_at_frames -flush_packets 1 -muxdelay 0.1 -muxpreload 0.1 -pcr_period 20 pipe:1";
+                    ffmpegArgs = $"-hide_banner -loglevel error {seekArg}-re -stream_loop -1 -avoid_negative_ts make_zero -fflags +genpts -i \"{currentFilePath}\" -c:v copy {audioArgs} -f mpegts -max_muxing_queue_size 4096 -mpegts_flags resend_headers+pat_pmt_at_frames -flush_packets 1 -muxdelay 0.05 -muxpreload 0.05 -pcr_period 20 pipe:1";
                     LogEvent("[PIPELINE]", $"🎬 Nạp nguồn Video File (Direct Bitstream Passthrough @ {TimeSpan.FromSeconds(currentSec):hh\\:mm\\:ss\\.fff}) kèm Audio ({streamChs} Ch): {Path.GetFileName(currentFilePath)}");
                 }
                 else
@@ -3062,26 +3635,26 @@ namespace SRT_ENCODE
                     // Âm thanh trích xuất từ file và đồng bộ cứng qua bộ lọc aresample (A/V Sync Lock)
                     bool hasFileAudio = _sourceManager.ActiveAudioChannels > 0;
                     string audioInputArg = hasFileAudio 
-                        ? $"{seekArg}-stream_loop -1 -i \"{currentFilePath}\""
+                        ? $"{seekArg}-re -stream_loop -1 -i \"{currentFilePath}\""
                         : $"-f lavfi -i \"anullsrc=channel_layout={layout}:sample_rate=48000\"";
                     string audioFilterArg = hasFileAudio
-                        ? "-af \"aresample=async=1000:min_hard_comp=0.100000:first_pts=0\""
+                        ? "-af \"aresample=async=1000:min_hard_comp=0.050000:first_pts=0\""
                         : "";
 
-                    ffmpegArgs = $"-hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s 1920x1080 {fpsArg} -i pipe:0 {audioInputArg} -map 0:v:0 -map 1:a:0? {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} {audioArgs} {audioFilterArg} {fpsArg} -f mpegts -mpegts_flags resend_headers+pat_pmt_at_frames -flush_packets 1 -muxdelay 0.1 -pcr_period 20 pipe:1";
+                    ffmpegArgs = $"-hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s 1920x1080 {fpsArg} -i pipe:0 {audioInputArg} -map 0:v:0 -map 1:a:0? {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} {audioArgs} {audioFilterArg} {fpsArg} -f mpegts -max_muxing_queue_size 4096 -mpegts_flags resend_headers+pat_pmt_at_frames -flush_packets 1 -muxdelay 0.05 -pcr_period 20 pipe:1";
                     LogEvent("[PIPELINE]", $"🎬 Nạp nguồn Master Program Bus Video File ({Path.GetFileName(currentFilePath)} @ {fpsStr} FPS @ {TimeSpan.FromSeconds(currentSec):hh\\:mm\\:ss\\.fff}) kèm Audio ({streamChs} Ch) vào Video Encoder ({normalizedCodec} via {hwEncoder})");
                 }
             }
             else if (currentSource == InputSourceType.NDI)
             {
                 // Master PGM Output với nguồn NDI Live: Video từ NDI Receiver BGRA frame buffer
-                ffmpegArgs = $"-hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s 1920x1080 {fpsArg} -i pipe:0 -f lavfi -i \"anullsrc=channel_layout={layout}:sample_rate=48000\" -map 0:v:0 -map 1:a:0 {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} {audioArgs} {fpsArg} -f mpegts -mpegts_flags resend_headers+pat_pmt_at_frames -flush_packets 1 -muxdelay 0.1 -pcr_period 20 pipe:1";
+                ffmpegArgs = $"-hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s 1920x1080 {fpsArg} -i pipe:0 -f lavfi -i \"anullsrc=channel_layout={layout}:sample_rate=48000\" -map 0:v:0 -map 1:a:0 {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} {audioArgs} {fpsArg} -f mpegts -max_muxing_queue_size 4096 -mpegts_flags resend_headers+pat_pmt_at_frames -flush_packets 1 -muxdelay 0.1 -pcr_period 20 pipe:1";
                 LogEvent("[PIPELINE]", $"🌐 Nạp nguồn Master PGM NDI Stream ({_sourceManager.CurrentSourcePath}) @ {fpsStr} FPS kèm Audio ({streamChs} Ch) vào Video Encoder ({normalizedCodec} via {hwEncoder})");
             }
             else if (currentSource == InputSourceType.SDI)
             {
                 // Master PGM Output với nguồn SDI Live: Video từ SDI Device Capture BGRA frame buffer
-                ffmpegArgs = $"-hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s 1920x1080 {fpsArg} -i pipe:0 -f lavfi -i \"anullsrc=channel_layout={layout}:sample_rate=48000\" -map 0:v:0 -map 1:a:0 {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} {audioArgs} {fpsArg} -f mpegts -mpegts_flags resend_headers+pat_pmt_at_frames -flush_packets 1 -muxdelay 0.1 -pcr_period 20 pipe:1";
+                ffmpegArgs = $"-hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s 1920x1080 {fpsArg} -i pipe:0 -f lavfi -i \"anullsrc=channel_layout={layout}:sample_rate=48000\" -map 0:v:0 -map 1:a:0 {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} {audioArgs} {fpsArg} -f mpegts -max_muxing_queue_size 4096 -mpegts_flags resend_headers+pat_pmt_at_frames -flush_packets 1 -muxdelay 0.1 -pcr_period 20 pipe:1";
                 LogEvent("[PIPELINE]", $"📡 Nạp nguồn Master PGM SDI/Capture ({_sourceManager.CurrentSourcePath}) @ {fpsStr} FPS kèm Audio ({streamChs} Ch) vào Video Encoder ({normalizedCodec} via {hwEncoder})");
             }
             else
@@ -3092,7 +3665,7 @@ namespace SRT_ENCODE
                     AudioTestToneType.Glits400Hz => 400,
                     _ => 1000
                 };
-                ffmpegArgs = $"-hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s 1920x1080 {fpsArg} -i pipe:0 -f lavfi -i \"sine=frequency={toneFreq}:sample_rate=48000\" -map 0:v:0 -map 1:a:0 {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} {audioArgs} {fpsArg} -f mpegts -mpegts_flags resend_headers+pat_pmt_at_frames -flush_packets 1 -muxdelay 0.1 -pcr_period 20 pipe:1";
+                ffmpegArgs = $"-hide_banner -loglevel error -f rawvideo -pix_fmt bgra -s 1920x1080 {fpsArg} -i pipe:0 -f lavfi -i \"sine=frequency={toneFreq}:sample_rate=48000\" -map 0:v:0 -map 1:a:0 {vcodecArg} -b:v {bitrateKbps}k -maxrate {bitrateKbps}k -bufsize {bitrateKbps * 2}k {lowLatencyArg} {audioArgs} {fpsArg} -f mpegts -max_muxing_queue_size 4096 -mpegts_flags resend_headers+pat_pmt_at_frames -flush_packets 1 -muxdelay 0.1 -pcr_period 20 pipe:1";
                 LogEvent("[PIPELINE]", $"🎨 Nạp nguồn Master PGM Colorbar (WYSIWYG 1920x1080 @ {fpsStr} FPS, Tone: {toneFreq} Hz) kèm Audio ({streamChs} Ch) vào Video Encoder ({normalizedCodec} via {hwEncoder})");
             }
 
@@ -3188,7 +3761,7 @@ namespace SRT_ENCODE
                 }, token);
             }
 
-            // Task 2: Đọc các gói tin MPEG-TS từ stdout của FFmpeg và gửi qua SRT
+            // Task 2: Đọc các gói tin MPEG-TS từ stdout của FFmpeg và Fan-out gửi đồng thời qua tất cả các luồng SRT đang Active
             _ = Task.Run(async () =>
             {
                 try
@@ -3198,7 +3771,6 @@ namespace SRT_ENCODE
                     var fpsStopwatch = Stopwatch.StartNew();
                     long directFileFrameCounter = 0;
 
-                    int consecutiveFailures = 0;
                     while (!token.IsCancellationRequested && _isTransmissionActive && !process.HasExited)
                     {
                         int totalRead = 0;
@@ -3212,21 +3784,17 @@ namespace SRT_ENCODE
                         if (totalRead > 0)
                         {
                             _workerBytesSent += (ulong)totalRead;
-                            if (_srtStream != null && _srtStream.IsRunning && _srtStream.Statistics.IsConnected)
+
+                            // Fan-out: Duyệt qua tất cả các luồng SRT đang hoạt động để gửi gói tin
+                            lock (_targetsLock)
                             {
-                                bool sent = _srtStream.SendData(buffer, totalRead, 0, true);
-                                if (!sent)
+                                for (int i = 0; i < _srtTargets.Count; i++)
                                 {
-                                    consecutiveFailures++;
-                                    if (consecutiveFailures >= 5)
+                                    var target = _srtTargets[i];
+                                    if (target.IsTransmitting && target.Session != null && target.Session.IsRunning)
                                     {
-                                        _srtStream.MarkDisconnected("Mất kết nối đường truyền SRT (Send socket failure)");
-                                        consecutiveFailures = 0;
+                                        target.Session.SendData(buffer, totalRead, 0, true);
                                     }
-                                }
-                                else
-                                {
-                                    consecutiveFailures = 0;
                                 }
                             }
 
@@ -3254,14 +3822,6 @@ namespace SRT_ENCODE
             }, token);
         }
 
-        private void BtnStopStreaming_Click(object sender, RoutedEventArgs e)
-        {
-            _isTransmissionActive = false;
-            _reconnectCts?.Cancel();
-            StopTransmissionInternal();
-            LogEvent("[SRT]", "Đã dừng luồng phát sóng SRT theo yêu cầu người dùng.");
-        }
-
         private void StopTransmissionInternal()
         {
             _isTransmissionActive = false;
@@ -3286,6 +3846,29 @@ namespace SRT_ENCODE
                 _streamProcess = null;
             }
 
+            // Dọn dẹp session của tất cả target
+            lock (_targetsLock)
+            {
+                foreach (var target in _srtTargets)
+                {
+                    if (target.Session != null)
+                    {
+                        var srt = target.Session;
+                        target.Session = null;
+                        try
+                        {
+                            var stopTask = srt.StopAsync();
+                            stopTask.Wait(200);
+                        }
+                        catch { }
+                        try { srt.Dispose(); } catch { }
+                    }
+                    target.IsTransmitting = false;
+                    target.StatusText = "STOPPED";
+                    target.StatusBrush = new SolidColorBrush(Color.FromRgb(158, 158, 158));
+                }
+            }
+
             if (_srtStream != null)
             {
                 var srt = _srtStream;
@@ -3293,7 +3876,7 @@ namespace SRT_ENCODE
                 try
                 {
                     var stopTask = srt.StopAsync();
-                    stopTask.Wait(300);
+                    stopTask.Wait(200);
                 }
                 catch { }
                 try { srt.Dispose(); } catch { }
@@ -3316,6 +3899,12 @@ namespace SRT_ENCODE
                     LedSrtStatus.Fill = new SolidColorBrush(Color.FromRgb(158, 158, 158)); // Grey
                     TxtSrtStatus.Text = "SRT: Idle";
                     TxtSrtStatus.Foreground = new SolidColorBrush(Color.FromRgb(204, 204, 204));
+
+                    if (_selectedTarget != null)
+                    {
+                        UpdateTargetActionUi(_selectedTarget);
+                    }
+                    UpdateEjectButtonState();
                 }
 
                 if (Dispatcher.CheckAccess())
@@ -3334,15 +3923,27 @@ namespace SRT_ENCODE
         {
             if (TxtTargetSummary == null || TxtCodecSummary == null) return;
 
-            string ip = TxtSrtIp?.Text ?? "127.0.0.1";
-            string port = TxtSrtPort?.Text ?? "9000";
+            bool isGroup = ChkGroupSocket?.IsChecked == true;
             string mode = (CmbSrtMode?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Caller";
+            string modeShort = mode.Split(' ')[0];
+
+            if (isGroup)
+            {
+                string portA = TxtMemberAPort?.Text?.Trim() ?? "9000";
+                string portB = TxtMemberBPort?.Text?.Trim() ?? "9002";
+                TxtTargetSummary.Text = $"SRT [SMPTE 2022-7] -> Ports {portA} & {portB}";
+            }
+            else
+            {
+                string ip = TxtSrtIp?.Text?.Trim() ?? "127.0.0.1";
+                string port = TxtSrtPort?.Text?.Trim() ?? "9000";
+                TxtTargetSummary.Text = $"SRT {modeShort} -> {ip}:{port}";
+            }
+
             bool isPassthrough = RbPassthrough?.IsChecked == true;
             string codec = (CmbVideoCodec?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "H.264";
             double bitrate = SldTargetBitrate?.Value ?? 6000;
             bool isUll = ChkUltraLowLatency?.IsChecked == true;
-
-            TxtTargetSummary.Text = $"SRT {mode.Split(' ')[0]} -> {ip}:{port}";
             if (isPassthrough)
             {
                 TxtCodecSummary.Text = "⚡ PASSTHROUGH (Direct Stream)";

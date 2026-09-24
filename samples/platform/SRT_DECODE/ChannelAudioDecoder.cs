@@ -44,11 +44,11 @@ namespace SRT_DECODE
             try
             {
                 // Low-latency FFmpeg audio decoder parameters:
-                // - probesize 1000k & analyzeduration 1000k ensures full detection of AAC/MP2/SMPTE stream headers
+                // - probesize 256k & analyzeduration 500k ensures fast, full detection of AAC/MP2/SMPTE stream headers
                 // - -map 0:a? maps the first available audio track
                 // - nobuffer and low_delay flags eliminate internal latency
                 // - s16le 48000Hz 2ch directly matches Windows sound card / mixer output
-                string args = "-hide_banner -loglevel warning -err_detect ignore_err -probesize 1000k -analyzeduration 1000k -thread_queue_size 512 -fflags nobuffer -flags low_delay -f mpegts -i pipe:0 -map 0:a? -vn -sn -dn -f s16le -ar 48000 -ac 2 pipe:1";
+                string args = "-hide_banner -loglevel warning -err_detect ignore_err -probesize 128k -analyzeduration 500000 -thread_queue_size 512 -flags low_delay -f mpegts -i pipe:0 -map 0:a? -vn -sn -dn -f s16le -ar 48000 -ac 2 pipe:1";
 
                 var psi = new ProcessStartInfo
                 {

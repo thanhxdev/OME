@@ -1328,11 +1328,11 @@
                                         </Grid>
 
                                         <!-- Toggle SMPTE 2022-7 Độc Lập Cho CAM 1 -->
-                                        <Border Background="#181822" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
+                                        <Border Background="#181822" BorderBrush="#00E5FF" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
                                             <Grid>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <TextBlock Text="🛡️" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                                    <TextBlock Text="SMPTE 2022-7 HITLESS REDUNDANCY" FontWeight="Bold" FontSize="10.5" Foreground="#00D2FF" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="GROUP SOCKET (SMPTE 2022-7)" FontWeight="Bold" FontSize="10.5" Foreground="#00E5FF" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                                 <CheckBox x:Name="ToggleSmpteCam1" Content="BẬT / TẮT" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Right" Tag="0" Checked="ToggleSmpteCam_Changed" Unchecked="ToggleSmpteCam_Changed"/>
                                             </Grid>
@@ -1576,11 +1576,11 @@
                                         </Grid>
 
                                         <!-- Toggle SMPTE 2022-7 Độc Lập Cho CAM 2 -->
-                                        <Border Background="#181822" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
+                                        <Border Background="#181822" BorderBrush="#00E5FF" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
                                             <Grid>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <TextBlock Text="🛡️" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                                    <TextBlock Text="SMPTE 2022-7 HITLESS REDUNDANCY" FontWeight="Bold" FontSize="10.5" Foreground="#00D2FF" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="GROUP SOCKET (SMPTE 2022-7)" FontWeight="Bold" FontSize="10.5" Foreground="#00E5FF" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                                 <CheckBox x:Name="ToggleSmpteCam2" Content="BẬT / TẮT" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Right" Tag="1" Checked="ToggleSmpteCam_Changed" Unchecked="ToggleSmpteCam_Changed"/>
                                             </Grid>
@@ -1824,11 +1824,11 @@
                                         </Grid>
 
                                         <!-- Toggle SMPTE 2022-7 Độc Lập Cho CAM 3 -->
-                                        <Border Background="#181822" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
+                                        <Border Background="#181822" BorderBrush="#00E5FF" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
                                             <Grid>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <TextBlock Text="🛡️" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                                    <TextBlock Text="SMPTE 2022-7 HITLESS REDUNDANCY" FontWeight="Bold" FontSize="10.5" Foreground="#00D2FF" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="GROUP SOCKET (SMPTE 2022-7)" FontWeight="Bold" FontSize="10.5" Foreground="#00E5FF" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                                 <CheckBox x:Name="ToggleSmpteCam3" Content="BẬT / TẮT" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Right" Tag="2" Checked="ToggleSmpteCam_Changed" Unchecked="ToggleSmpteCam_Changed"/>
                                             </Grid>
@@ -2072,11 +2072,11 @@
                                         </Grid>
 
                                         <!-- Toggle SMPTE 2022-7 Độc Lập Cho CAM 4 -->
-                                        <Border Background="#181822" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
+                                        <Border Background="#181822" BorderBrush="#00E5FF" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
                                             <Grid>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <TextBlock Text="🛡️" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                                    <TextBlock Text="SMPTE 2022-7 HITLESS REDUNDANCY" FontWeight="Bold" FontSize="10.5" Foreground="#00D2FF" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="GROUP SOCKET (SMPTE 2022-7)" FontWeight="Bold" FontSize="10.5" Foreground="#00E5FF" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                                 <CheckBox x:Name="ToggleSmpteCam4" Content="BẬT / TẮT" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Right" Tag="3" Checked="ToggleSmpteCam_Changed" Unchecked="ToggleSmpteCam_Changed"/>
                                             </Grid>
@@ -2320,11 +2320,11 @@
                                         </Grid>
 
                                         <!-- Toggle SMPTE 2022-7 Độc Lập Cho CAM 5 -->
-                                        <Border Background="#181822" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
+                                        <Border Background="#181822" BorderBrush="#00E5FF" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
                                             <Grid>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <TextBlock Text="🛡️" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                                    <TextBlock Text="SMPTE 2022-7 HITLESS REDUNDANCY" FontWeight="Bold" FontSize="10.5" Foreground="#00D2FF" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="GROUP SOCKET (SMPTE 2022-7)" FontWeight="Bold" FontSize="10.5" Foreground="#00E5FF" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                                 <CheckBox x:Name="ToggleSmpteCam5" Content="BẬT / TẮT" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Right" Tag="4" Checked="ToggleSmpteCam_Changed" Unchecked="ToggleSmpteCam_Changed"/>
                                             </Grid>
@@ -2568,11 +2568,11 @@
                                         </Grid>
 
                                         <!-- Toggle SMPTE 2022-7 Độc Lập Cho CAM 6 -->
-                                        <Border Background="#181822" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
+                                        <Border Background="#181822" BorderBrush="#00E5FF" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
                                             <Grid>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <TextBlock Text="🛡️" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                                    <TextBlock Text="SMPTE 2022-7 HITLESS REDUNDANCY" FontWeight="Bold" FontSize="10.5" Foreground="#00D2FF" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="GROUP SOCKET (SMPTE 2022-7)" FontWeight="Bold" FontSize="10.5" Foreground="#00E5FF" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                                 <CheckBox x:Name="ToggleSmpteCam6" Content="BẬT / TẮT" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Right" Tag="5" Checked="ToggleSmpteCam_Changed" Unchecked="ToggleSmpteCam_Changed"/>
                                             </Grid>
@@ -2816,11 +2816,11 @@
                                         </Grid>
 
                                         <!-- Toggle SMPTE 2022-7 Độc Lập Cho CAM 7 -->
-                                        <Border Background="#181822" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
+                                        <Border Background="#181822" BorderBrush="#00E5FF" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
                                             <Grid>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <TextBlock Text="🛡️" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                                    <TextBlock Text="SMPTE 2022-7 HITLESS REDUNDANCY" FontWeight="Bold" FontSize="10.5" Foreground="#00D2FF" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="GROUP SOCKET (SMPTE 2022-7)" FontWeight="Bold" FontSize="10.5" Foreground="#00E5FF" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                                 <CheckBox x:Name="ToggleSmpteCam7" Content="BẬT / TẮT" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Right" Tag="6" Checked="ToggleSmpteCam_Changed" Unchecked="ToggleSmpteCam_Changed"/>
                                             </Grid>
@@ -3064,11 +3064,11 @@
                                         </Grid>
 
                                         <!-- Toggle SMPTE 2022-7 Độc Lập Cho CAM 8 -->
-                                        <Border Background="#181822" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
+                                        <Border Background="#181822" BorderBrush="#00E5FF" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
                                             <Grid>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <TextBlock Text="🛡️" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                                    <TextBlock Text="SMPTE 2022-7 HITLESS REDUNDANCY" FontWeight="Bold" FontSize="10.5" Foreground="#00D2FF" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="GROUP SOCKET (SMPTE 2022-7)" FontWeight="Bold" FontSize="10.5" Foreground="#00E5FF" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                                 <CheckBox x:Name="ToggleSmpteCam8" Content="BẬT / TẮT" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Right" Tag="7" Checked="ToggleSmpteCam_Changed" Unchecked="ToggleSmpteCam_Changed"/>
                                             </Grid>
@@ -3312,11 +3312,11 @@
                                         </Grid>
 
                                         <!-- Toggle SMPTE 2022-7 Độc Lập Cho CAM 9 -->
-                                        <Border Background="#181822" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
+                                        <Border Background="#181822" BorderBrush="#00E5FF" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
                                             <Grid>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <TextBlock Text="🛡️" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                                    <TextBlock Text="SMPTE 2022-7 HITLESS REDUNDANCY" FontWeight="Bold" FontSize="10.5" Foreground="#00D2FF" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="GROUP SOCKET (SMPTE 2022-7)" FontWeight="Bold" FontSize="10.5" Foreground="#00E5FF" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                                 <CheckBox x:Name="ToggleSmpteCam9" Content="BẬT / TẮT" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Right" Tag="8" Checked="ToggleSmpteCam_Changed" Unchecked="ToggleSmpteCam_Changed"/>
                                             </Grid>
@@ -3560,11 +3560,11 @@
                                         </Grid>
 
                                         <!-- Toggle SMPTE 2022-7 Độc Lập Cho CAM 10 -->
-                                        <Border Background="#181822" BorderBrush="#007ACC" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
+                                        <Border Background="#181822" BorderBrush="#00E5FF" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
                                             <Grid>
                                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <TextBlock Text="🛡️" FontSize="12" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                                    <TextBlock Text="SMPTE 2022-7 HITLESS REDUNDANCY" FontWeight="Bold" FontSize="10.5" Foreground="#00D2FF" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="GROUP SOCKET (SMPTE 2022-7)" FontWeight="Bold" FontSize="10.5" Foreground="#00E5FF" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                                 <CheckBox x:Name="ToggleSmpteCam10" Content="BẬT / TẮT" Style="{StaticResource ToggleSwitchStyle}" HorizontalAlignment="Right" Tag="9" Checked="ToggleSmpteCam_Changed" Unchecked="ToggleSmpteCam_Changed"/>
                                             </Grid>

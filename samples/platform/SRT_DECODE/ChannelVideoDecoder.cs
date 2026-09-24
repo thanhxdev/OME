@@ -135,11 +135,11 @@ namespace SRT_DECODE
             try
             {
                 // Ultra-low latency FFmpeg decoder parameters:
-                // - probesize & analyzeduration 1000k ensure reliable detection of H.264 SPS/PPS headers
+                // - probesize 256k & analyzeduration 500k ensure fast, low-latency detection of MPEG-TS H.264/HEVC headers
                 // - probe buffer is retained for clean playback start on non-seekable pipe:0
                 // - nobuffer and low_delay eliminate decoding latency
                 // - forced output resolution {_width}x{_height} bgra matches NutFrameDemuxer buffer size
-                string args = $"-hide_banner -loglevel info -probesize 1000k -analyzeduration 1000k -thread_queue_size 1024 -fflags nobuffer -flags low_delay -f mpegts -i pipe:0 -an -sn -dn -f nut -c:v rawvideo -pix_fmt bgra -s {_width}x{_height} pipe:1";
+                string args = $"-hide_banner -loglevel info -probesize 128k -analyzeduration 500000 -fpsprobesize 0 -thread_queue_size 1024 -flags low_delay -f mpegts -i pipe:0 -an -sn -dn -f nut -c:v rawvideo -pix_fmt bgra -s {_width}x{_height} pipe:1";
 
                 var psi = new ProcessStartInfo
                 {

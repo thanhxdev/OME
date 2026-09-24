@@ -304,7 +304,7 @@ namespace SRT_DECODE
             {
                 _camLevels[i] = new ChannelAudioLevels();
                 _camMeters[i] = new AudioMeterService();
-                _camRingBuffers[i] = new AudioRingBuffer(capacityBytes: 96000, preRollMs: 50); // 500ms buffer capacity with 50ms jitter pre-roll
+                _camRingBuffers[i] = new AudioRingBuffer(capacityBytes: 96000, preRollMs: 20); // 500ms buffer capacity with 20ms low-latency jitter pre-roll
                 _channelMuted[i] = true; // Mặc định tất cả các kênh camera đều MUTE, chỉ unmute khi click
                 _channelGainDb[i] = 0.0; // Mặc định 0 dB (Unity gain)
                 _channelPan[i] = 0.0;    // Mặc định Center
@@ -336,6 +336,20 @@ namespace SRT_DECODE
 
             // Đánh thức thread phát âm thanh nếu đang chờ
             _audioOutput.Wake();
+        }
+
+        /// <summary>
+        /// Clear audio ring buffer and meter state for a specific channel when stream stops or switches.
+        /// Prevents stale PCM audio from previous stream from continuing to play after reconnection.
+        /// </summary>
+        public void ClearChannelAudio(int camIndex)
+        {
+            if (camIndex < 0 || camIndex >= MaxCameras) return;
+            _camRingBuffers[camIndex].Clear();
+            _camMeters[camIndex].DecayMeters();
+            _lastPcmReceivedTicks[camIndex] = 0;
+            _currentMuteRamp[camIndex] = 0.0f;
+            _targetMuteRamp[camIndex] = 0.0f;
         }
 
         /// <summary>

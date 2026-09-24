@@ -17,6 +17,7 @@ namespace SRT_ENCODE
 {
     public enum InputSourceType
     {
+        None = -1,
         SDI = 0,
         NDI = 1,
         File = 2,
@@ -254,6 +255,12 @@ namespace SRT_ENCODE
         /// </summary>
         public async Task SwitchSourceAsync(InputSourceType sourceType, string? sourceParam = null, string? videoMode = null, string? audioCh = null)
         {
+            if (sourceType == InputSourceType.None)
+            {
+                await EjectSourceAsync();
+                return;
+            }
+
             _currentSource = sourceType;
             UpdateViewVisibility();
 
@@ -668,12 +675,16 @@ namespace SRT_ENCODE
                             int read = aStream.Read(audioChunk, 0, chunkSize);
                             if (read <= 0) break;
 
+                            // Đảm bảo dữ liệu nguyên vẹn khối khung mẫu Stereo 16-bit (4 bytes / sample frame)
+                            int validBytes = (read / 4) * 4;
+                            if (validBytes <= 0) continue;
+
                             // 1. Send to WinMM AudioOutputDevice for local speaker monitor
                             double vol = _isAudioMonitorEnabled ? _monitorVolume : 0.0;
-                            _audioOutputDevice.PlayPcm(audioChunk, 0, read, vol);
+                            _audioOutputDevice.PlayPcm(audioChunk, 0, validBytes, vol);
 
                             // 2. Feed AudioMeterService VU Meter
-                            int sampleCount = read / 2;
+                            int sampleCount = validBytes / 2;
                             float[] floatSamples = new float[sampleCount];
                             for (int i = 0; i < sampleCount; i++)
                             {
@@ -1465,6 +1476,7 @@ namespace SRT_ENCODE
         private void UpdateViewVisibility()
         {
             bool isColorbar = (_currentSource == InputSourceType.Colorbar);
+            bool hasSource = (_currentSource != InputSourceType.None);
 
             if (_viewboxColorbar != null)
             {
@@ -1473,8 +1485,99 @@ namespace SRT_ENCODE
 
             if (_reviewView != null)
             {
-                _reviewView.Visibility = (!isColorbar && _isPreviewEnabled) ? Visibility.Visible : Visibility.Collapsed;
+                _reviewView.Visibility = (!isColorbar && hasSource && _isPreviewEnabled) ? Visibility.Visible : Visibility.Collapsed;
             }
+        }
+
+        /// <summary>
+        /// Gỡ bỏ hoàn toàn nguồn video hiện tại (Dừng playback, live captures, âm thanh và xóa frame buffer).
+        /// </summary>
+        public async Task EjectSourceAsync()
+        {
+            _currentSource = InputSourceType.None;
+            _currentSourcePath = string.Empty;
+
+            // Dừng phát âm thanh Colorbar nếu đang bật
+            _colorbarEngine.StopAudioTone();
+
+            // Dừng các engine thu thập hình ảnh và phát lại
+            StopLiveCaptures();
+            StopFilePlaybackEngine();
+            _audioOutputDevice.ClearQueue();
+
+            if (_srtStreamSource != null)
+            {
+                try { await _srtStreamSource.StopAsync(); } catch { }
+                _srtStreamSource.Dispose();
+                _srtStreamSource = null;
+            }
+
+            if (_player != null)
+            {
+                try { await _player.StopAsync(); } catch { }
+            }
+
+            // Xóa pattern visual nếu đang là colorbar
+            if (_pnlColorbarVisualHost != null)
+            {
+                _pnlColorbarVisualHost.Children.Clear();
+            }
+
+            // Xóa frame buffer và xóa màn hình preview sang đen
+            lock (_masterFrameLock)
+            {
+                _latestMasterFrame = null;
+                foreach (var buf in _masterFramePool)
+                {
+                    Array.Clear(buf, 0, buf.Length);
+                }
+            }
+
+            if (_previewBitmap != null)
+            {
+                try
+                {
+                    _previewBitmap.Lock();
+                    unsafe
+                    {
+                        byte* pDest = (byte*)_previewBitmap.BackBuffer;
+                        int totalBytes = _previewBitmap.BackBufferStride * _previewBitmap.PixelHeight;
+                        new Span<byte>(pDest, totalBytes).Clear();
+                    }
+                    _previewBitmap.AddDirtyRect(new Int32Rect(0, 0, _previewBitmap.PixelWidth, _previewBitmap.PixelHeight));
+                    _previewBitmap.Unlock();
+                }
+                catch { }
+            }
+
+            UpdateViewVisibility();
+
+            // Cập nhật telemetry và badge
+            _currentTelemetry.SourceName = "No Source (Ejected)";
+            _currentTelemetry.SourceType = "NONE";
+            _currentTelemetry.Status = "○ NO SIGNAL";
+            _currentTelemetry.IsLocked = false;
+            _currentTelemetry.Resolution = "---";
+            _currentTelemetry.FrameRate = "---";
+            _currentTelemetry.VideoCodec = "---";
+            _currentTelemetry.Bitrate = "0 bps";
+            _currentTelemetry.AudioFormat = "No Audio";
+            _currentTelemetry.ColorSpace = "---";
+            _currentTelemetry.PipelineDetails = "Idle / Source Ejected";
+
+            if (_txtActiveSourceTypeBadge != null)
+            {
+                _txtActiveSourceTypeBadge.Text = "⚪ NO SOURCE LOADED";
+                _txtActiveSourceTypeBadge.Foreground = new SolidColorBrush(Color.FromRgb(170, 170, 170));
+            }
+
+            if (_txtActiveSourceBadge != null)
+            {
+                _txtActiveSourceBadge.Text = "INPUT: NONE (EJECTED)";
+            }
+
+            SourceChanged?.Invoke(InputSourceType.None, string.Empty);
+            Log("[SOURCE]", "⏏ Đã gỡ bỏ toàn bộ nguồn video và âm thanh đầu vào (Source Ejected).");
         }
 
         private void Log(string tag, string msg)

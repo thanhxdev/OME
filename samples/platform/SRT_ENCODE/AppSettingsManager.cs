@@ -18,20 +18,29 @@ namespace SRT_ENCODE
     }
 
     /// <summary>
-    /// Cấu hình toàn diện của ứng dụng SRT_ENCODE lưu trữ qua các phiên làm việc.
+    /// Cấu hình lưu trữ chi tiết của một luồng truyền dẫn SRT độc lập (Target).
     /// </summary>
-    public sealed class SrtEncodeSettings
+    public sealed class SrtTargetSettingModel
     {
-        // ─── Network Transmission & SMPTE 2022-7 Toggle ─────────────────
-        public bool IsSmpte2022_7Enabled { get; set; } = false;
+        public string Id { get; set; } = Guid.NewGuid().ToString("N");
+        public string Name { get; set; } = "Luồng #1 (Primary)";
 
-        // ─── Single Stream Parameters ───────────────────────────────────
+        // ─── Protocol & Endpoint ─────────────────────────────────────────
+        public int SrtModeIndex { get; set; } = 0; // 0=Caller, 1=Listener, 2=Rendezvous
+        public string StreamId { get; set; } = "live/cam1/feed";
         public string SrtIp { get; set; } = "127.0.0.1";
         public int SrtPort { get; set; } = 9000;
-        public string StreamId { get; set; } = "live/cam1/feed";
-        public string SingleSourceNicIp { get; set; } = "0.0.0.0";
+        public string SourceNicIp { get; set; } = "0.0.0.0";
+        public int LatencyMs { get; set; } = 120;
+        public bool AutoLatency { get; set; } = false;
 
-        // ─── SMPTE 2022-7 Group Redundancy ─────────────────────────────
+        // ─── Security & Encryption ───────────────────────────────────────
+        public bool EncryptionEnabled { get; set; } = false;
+        public string Passphrase { get; set; } = string.Empty;
+        public int KeyLengthIndex { get; set; } = 2; // AES-256
+
+        // ─── SMPTE 2022-7 Redundancy ─────────────────────────────────────
+        public bool IsSmpte2022_7Enabled { get; set; } = false;
         public int GroupTypeIndex { get; set; } = 0; // 0 = Broadcast, 1 = Backup
         public int DifferentialDelayMs { get; set; } = 50;
 
@@ -45,7 +54,85 @@ namespace SRT_ENCODE
 
         public List<DynamicMemberSetting> DynamicMembers { get; set; } = new();
 
-        // ─── Video & Encoding Parameters ────────────────────────────────
+        /// <summary>
+        /// Tạo bản sao độc lập của đối tượng cấu hình.
+        /// </summary>
+        public SrtTargetSettingModel Clone()
+        {
+            var clone = new SrtTargetSettingModel
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                Name = Name,
+                SrtModeIndex = SrtModeIndex,
+                StreamId = StreamId,
+                SrtIp = SrtIp,
+                SrtPort = SrtPort,
+                SourceNicIp = SourceNicIp,
+                LatencyMs = LatencyMs,
+                AutoLatency = AutoLatency,
+                EncryptionEnabled = EncryptionEnabled,
+                Passphrase = Passphrase,
+                KeyLengthIndex = KeyLengthIndex,
+                IsSmpte2022_7Enabled = IsSmpte2022_7Enabled,
+                GroupTypeIndex = GroupTypeIndex,
+                DifferentialDelayMs = DifferentialDelayMs,
+                MemberAHost = MemberAHost,
+                MemberAPort = MemberAPort,
+                MemberANicIp = MemberANicIp,
+                MemberBHost = MemberBHost,
+                MemberBPort = MemberBPort,
+                MemberBNicIp = MemberBNicIp
+            };
+
+            foreach (var dm in DynamicMembers)
+            {
+                clone.DynamicMembers.Add(new DynamicMemberSetting
+                {
+                    Id = Guid.NewGuid().ToString("N"),
+                    Name = dm.Name,
+                    Host = dm.Host,
+                    Port = dm.Port,
+                    NicIp = dm.NicIp
+                });
+            }
+
+            return clone;
+        }
+    }
+
+    /// <summary>
+    /// Cấu hình toàn diện của ứng dụng SRT_ENCODE lưu trữ qua các phiên làm việc.
+    /// </summary>
+    public sealed class SrtEncodeSettings
+    {
+        // ─── Multi-Destination SRT Targets ──────────────────────────────
+        public List<SrtTargetSettingModel> Targets { get; set; } = new();
+        public int SelectedTargetIndex { get; set; } = 0;
+
+        // ─── Network Transmission & SMPTE 2022-7 Legacy Fallback ─────────
+        public bool IsSmpte2022_7Enabled { get; set; } = false;
+
+        // ─── Single Stream Parameters Legacy ────────────────────────────
+        public string SrtIp { get; set; } = "127.0.0.1";
+        public int SrtPort { get; set; } = 9000;
+        public string StreamId { get; set; } = "live/cam1/feed";
+        public string SingleSourceNicIp { get; set; } = "0.0.0.0";
+
+        // ─── SMPTE 2022-7 Group Redundancy Legacy ───────────────────────
+        public int GroupTypeIndex { get; set; } = 0; // 0 = Broadcast, 1 = Backup
+        public int DifferentialDelayMs { get; set; } = 50;
+
+        public string MemberAHost { get; set; } = "127.0.0.1";
+        public int MemberAPort { get; set; } = 9000;
+        public string MemberANicIp { get; set; } = "0.0.0.0";
+
+        public string MemberBHost { get; set; } = "127.0.0.1";
+        public int MemberBPort { get; set; } = 9002;
+        public string MemberBNicIp { get; set; } = "0.0.0.0";
+
+        public List<DynamicMemberSetting> DynamicMembers { get; set; } = new();
+
+        // ─── Video & Encoding Parameters (Shared Single-Encode) ─────────
         public int BitrateKbps { get; set; } = 6000;
         public int VideoCodecIndex { get; set; } = 0;
         public string HardwareEncoder { get; set; } = "Intel QuickSync Video (QSV)";
@@ -54,7 +141,7 @@ namespace SRT_ENCODE
         public int EncoderPresetIndex { get; set; } = 0;
         public bool UltraLowLatency { get; set; } = true;
 
-        // ─── Protocol & Encryption ──────────────────────────────────────
+        // ─── Protocol & Encryption Legacy ───────────────────────────────
         public int SrtModeIndex { get; set; } = 0;
         public int LatencyMs { get; set; } = 120;
         public bool AutoLatency { get; set; } = false;
@@ -92,6 +179,7 @@ namespace SRT_ENCODE
 
         /// <summary>
         /// Nạp cấu hình từ ổ đĩa. Trả về cấu hình mặc định nếu file chưa tồn tại hoặc lỗi đọc.
+        /// Tự động di chuyển dữ liệu cấu hình luồng đơn cũ sang Targets[0] nếu cần.
         /// </summary>
         public static SrtEncodeSettings LoadSettings()
         {
@@ -103,6 +191,7 @@ namespace SRT_ENCODE
                     var settings = JsonSerializer.Deserialize<SrtEncodeSettings>(json, JsonOptions);
                     if (settings != null)
                     {
+                        EnsureTargetsInitialized(settings);
                         return settings;
                     }
                 }
@@ -112,7 +201,44 @@ namespace SRT_ENCODE
                 System.Diagnostics.Debug.WriteLine($"[AppSettingsManager] Lỗi nạp cấu hình: {ex.Message}");
             }
 
-            return new SrtEncodeSettings();
+            var defaultSettings = new SrtEncodeSettings();
+            EnsureTargetsInitialized(defaultSettings);
+            return defaultSettings;
+        }
+
+        private static void EnsureTargetsInitialized(SrtEncodeSettings settings)
+        {
+            if (settings.Targets == null || settings.Targets.Count == 0)
+            {
+                settings.Targets = new List<SrtTargetSettingModel>
+                {
+                    new SrtTargetSettingModel
+                    {
+                        Id = Guid.NewGuid().ToString("N"),
+                        Name = "Luồng #1 (Primary)",
+                        SrtModeIndex = settings.SrtModeIndex,
+                        StreamId = string.IsNullOrEmpty(settings.StreamId) ? "live/cam1/feed" : settings.StreamId,
+                        SrtIp = string.IsNullOrEmpty(settings.SrtIp) ? "127.0.0.1" : settings.SrtIp,
+                        SrtPort = settings.SrtPort > 0 ? settings.SrtPort : 9000,
+                        SourceNicIp = string.IsNullOrEmpty(settings.SingleSourceNicIp) ? "0.0.0.0" : settings.SingleSourceNicIp,
+                        LatencyMs = settings.LatencyMs > 0 ? settings.LatencyMs : 120,
+                        AutoLatency = settings.AutoLatency,
+                        EncryptionEnabled = settings.EncryptionEnabled,
+                        Passphrase = settings.Passphrase ?? string.Empty,
+                        KeyLengthIndex = settings.KeyLengthIndex,
+                        IsSmpte2022_7Enabled = settings.IsSmpte2022_7Enabled,
+                        GroupTypeIndex = settings.GroupTypeIndex,
+                        DifferentialDelayMs = settings.DifferentialDelayMs > 0 ? settings.DifferentialDelayMs : 50,
+                        MemberAHost = string.IsNullOrEmpty(settings.MemberAHost) ? "127.0.0.1" : settings.MemberAHost,
+                        MemberAPort = settings.MemberAPort > 0 ? settings.MemberAPort : 9000,
+                        MemberANicIp = string.IsNullOrEmpty(settings.MemberANicIp) ? "0.0.0.0" : settings.MemberANicIp,
+                        MemberBHost = string.IsNullOrEmpty(settings.MemberBHost) ? "127.0.0.1" : settings.MemberBHost,
+                        MemberBPort = settings.MemberBPort > 0 ? settings.MemberBPort : 9002,
+                        MemberBNicIp = string.IsNullOrEmpty(settings.MemberBNicIp) ? "0.0.0.0" : settings.MemberBNicIp,
+                        DynamicMembers = settings.DynamicMembers != null ? new List<DynamicMemberSetting>(settings.DynamicMembers) : new List<DynamicMemberSetting>()
+                    }
+                };
+            }
         }
 
         /// <summary>

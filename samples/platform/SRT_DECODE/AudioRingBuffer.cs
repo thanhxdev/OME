@@ -67,10 +67,10 @@ namespace SRT_DECODE
             if (_capacity <= 0) _capacity = 96000;
             _buffer = new byte[_capacity];
 
-            // 50ms default low-latency jitter pre-roll threshold (48000 * 4 * 0.05 = 9600 bytes = 2 full 25ms output buffers)
+            // Configurable low-latency jitter pre-roll threshold (e.g., 20ms = 3840 bytes at 48kHz stereo 16-bit)
             int preRoll = (preRollMs * 48000 * FrameAlignment) / 1000;
             preRoll -= (preRoll % FrameAlignment);
-            _preRollBytes = Math.Clamp(preRoll, 9600, _capacity / 2); // Minimum 9600 bytes (~50ms) to ensure at least 2 full output buffers
+            _preRollBytes = Math.Clamp(preRoll, FrameAlignment * 48, _capacity / 2); // Minimum 1ms (192 bytes) to allow true ultra-low latency pre-roll
         }
 
         /// <summary>
