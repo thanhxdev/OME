@@ -19,7 +19,7 @@ bool ColorCorrectionFilter::Initialize() {
     m_info.displayName = "Color Correction Filter";
     m_info.description = "Adjust brightness, contrast, saturation, and gamma using FFmpeg eq filter";
     m_info.author = "OpenMedia SDK";
-    m_info.version = "1.0.0";
+    m_info.version = "2.0.0";
     m_info.url = "https://openmedia.org/plugins/colorcorrection";
     m_info.apiVersion = OME_PLUGIN_API_VERSION;
     m_info.capabilities = openmedia::plugin::PluginCapability::VideoFilter;

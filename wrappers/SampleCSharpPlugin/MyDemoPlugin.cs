@@ -6,7 +6,7 @@ namespace SampleCSharpPlugin
     public class MyDemoPlugin : IOpenMediaPlugin
     {
         public string Name => "MyDemoPlugin";
-        public string Version => "1.0.0";
+        public string Version => "2.0.0";
 
         public void Initialize()
         {

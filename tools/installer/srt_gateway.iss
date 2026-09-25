@@ -1,21 +1,20 @@
 ; =====================================================================
-; OpenMedia - OME_PLAYOUT Inno Setup 6 Script
-; Modular Broadcast Playout Application (.NET 10 Self-Contained win-x64)
-; Version 2.0
+; OpenMedia - SRT_GATEWAY Inno Setup 6 Script
+; Modular Client Application (.NET 10 Self-Contained win-x64)
 ; =====================================================================
 
 #ifndef MyAppVersion
   #define MyAppVersion "2.0.0"
 #endif
 
-#define MyAppName "OME_PLAYOUT"
-#define MyAppExeName "OME_PLAYOUT.exe"
+#define MyAppName "SRT_GATEWAY"
+#define MyAppExeName "SRT_GATEWAY.exe"
 #define MyAppPublisher "OpenMedia Project"
 #define MyAppURL "https://github.com/openmedia/openmedia"
-#define AppGuid "{{D4E5F6A1-B2C3-4D5E-8F9A-1B2C3D4E5F6A}}"
+#define AppGuid "{{A1B2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5D}}"
 
 #ifndef SourceDir
-  #define SourceDir "..\..\dist\apps\OME_PLAYOUT"
+  #define SourceDir "..\..\dist\apps\SRT_GATEWAY"
 #endif
 
 #ifndef OutputDir
@@ -23,7 +22,7 @@
 #endif
 
 #ifndef OutputBaseFilename
-  #define OutputBaseFilename "OME_PLAYOUT_Setup"
+  #define OutputBaseFilename "SRT_GATEWAY_Setup"
 #endif
 
 [Setup]
@@ -31,7 +30,7 @@
 AppId={#AppGuid}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
-AppVerName={#MyAppName} v{#MyAppVersion} (Upgrade PLAYOUT)
+AppVerName={#MyAppName} v{#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
@@ -87,14 +86,14 @@ Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
-; Clean up application logs and caches on uninstall
+; Clean up application logs and caches on uninstall (leaves shared SDK intact)
 Type: filesandordirs; Name: "{app}\logs"
 Type: filesandordirs; Name: "{app}\crash_dumps"
 Type: filesandordirs; Name: "{app}\cache"
 
 [Code]
 // =====================================================================
-// Pre-requisite Check: Đảm bảo OpenMedia SDK đã được cài đặt hoặc xác nhận tiếp tục
+// Pre-requisite Check: Đảm bảo OpenMedia SDK đã được cài đặt trước
 // =====================================================================
 function InitializeSetup(): Boolean;
 var
@@ -125,17 +124,14 @@ begin
       SdkFound := True;
   end;
 
-  // Nếu chưa cài đặt OpenMedia SDK: Cảnh báo nhưng cho phép cài đặt tiếp vì bản build là Self-Contained
+  // Nếu chưa cài đặt OpenMedia SDK: Cảnh báo người dùng và hủy ngay quá trình cài đặt
   if not SdkFound then
   begin
-    if SuppressibleMsgBox('Khuyến nghị cài đặt gói OpenMedia_SDK_Setup.exe trước để hệ thống tối ưu hóa thư viện chia sẻ.' + #13#10#13#10 +
-                          'Ứng dụng OME_PLAYOUT này đã được đóng gói độc lập đầy đủ (Self-Contained).' + #13#10 +
-                          'Bạn có muốn tiếp tục cài đặt không?',
-                          mbConfirmation, MB_YESNO, IDYES) = IDNO then
-    begin
-      Result := False;
-      Exit;
-    end;
+    SuppressibleMsgBox('Ứng dụng yêu cầu OpenMedia SDK phải được cài đặt trước trên máy tính này.' + #13#10#13#10 +
+                      'Vui lòng cài đặt gói OpenMedia_SDK_Setup.exe trước khi tiến hành cài đặt ứng dụng!',
+                      mbCriticalError, MB_OK, IDOK);
+    Result := False;
+    Exit;
   end;
 
   // Lấy đường dẫn cài đặt SDK (nếu có) để ghi nhận

@@ -1,6 +1,6 @@
 {
   "name": "@webrtc-broadcast/encoder-control-agent",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Field supervision daemon for stadium encoder process watchdog, hardware telemetry, GPIO tally, and intercom",
   "main": "dist/index.js",
   "bin": {

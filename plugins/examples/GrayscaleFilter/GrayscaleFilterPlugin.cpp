@@ -7,7 +7,7 @@ GrayscaleFilterPlugin::GrayscaleFilterPlugin() : m_logger(core::Logger::Get("Gra
     m_info.displayName = "Grayscale Filter";
     m_info.description = "Converts video frames to grayscale.";
     m_info.author = "OpenMedia";
-    m_info.version = "1.0.0";
+    m_info.version = "2.0.0";
     m_info.url = "";
     m_info.apiVersion = OME_PLUGIN_API_VERSION;
     m_info.capabilities = plugin::PluginCapability::VideoFilter;

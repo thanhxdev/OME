@@ -58,6 +58,8 @@ namespace SRT_GATEWAY
         public EgressProtocolStatus LrtStatus { get; } = new();
         public EgressProtocolStatus HlsStatus { get; } = new();
         public EgressProtocolStatus DashStatus { get; } = new();
+        public Dictionary<string, EgressProtocolStatus> DynamicStreamStatuses { get; } = new();
+        private readonly List<SRTStreamSession> _dynamicSrtSessions = new();
 
         // Mini Servers
         private HttpListener? _hlsDashHttpServer;
@@ -149,9 +151,25 @@ namespace SRT_GATEWAY
 
         private async Task<bool> InitializeIngestAsync()
         {
+            int keyLen = _settings.KeyLengthIndex switch
+            {
+                1 => 24, // 192-bit
+                2 => 16, // 128-bit
+                _ => 32  // 256-bit
+            };
+
+            string singleNic = (_settings.SourceNicIp != "0.0.0.0" && !string.IsNullOrWhiteSpace(_settings.SourceNicIp)) 
+                ? _settings.SourceNicIp : string.Empty;
+
+            string host = _settings.IngestHost;
+            if (_settings.SrtModeIndex == 0 && !string.IsNullOrEmpty(singleNic))
+            {
+                host = singleNic;
+            }
+
             var config = new SRTStreamConfig
             {
-                Host = _settings.IngestHost,
+                Host = host,
                 Port = _settings.IngestPort,
                 Mode = _settings.SrtModeIndex switch
                 {
@@ -160,16 +178,22 @@ namespace SRT_GATEWAY
                     _ => SRTMode.Listener
                 },
                 LatencyMs = _settings.LatencyMs,
+                AutoLatency = _settings.AutoLatencyEnabled,
                 StreamId = _settings.StreamId,
-                EncryptionEnabled = !string.IsNullOrEmpty(_settings.Passphrase),
+                EncryptionEnabled = _settings.EncryptionEnabled && !string.IsNullOrEmpty(_settings.Passphrase),
                 Passphrase = _settings.Passphrase,
-                KeyLength = 32, // AES-256
+                KeyLength = keyLen,
                 GroupSocketEnabled = _settings.IsSmpte2022_7IngestEnabled,
                 HitlessDifferentialDelayMs = _settings.DifferentialDelayMs
             };
 
             if (_settings.IsSmpte2022_7IngestEnabled)
             {
+                string nicA = (_settings.MemberANicIp != "0.0.0.0" && !string.IsNullOrWhiteSpace(_settings.MemberANicIp)) 
+                    ? _settings.MemberANicIp : string.Empty;
+                string nicB = (_settings.MemberBNicIp != "0.0.0.0" && !string.IsNullOrWhiteSpace(_settings.MemberBNicIp)) 
+                    ? _settings.MemberBNicIp : string.Empty;
+
                 config.GroupMembers.Clear();
                 config.GroupMembers.Add(new SRTGroupMemberConfig
                 {
@@ -177,6 +201,7 @@ namespace SRT_GATEWAY
                     Name = "Path A (Primary)",
                     Host = _settings.MemberAHost,
                     Port = _settings.MemberAPort,
+                    LocalInterfaceIp = nicA,
                     Weight = 100
                 });
                 config.GroupMembers.Add(new SRTGroupMemberConfig
@@ -185,8 +210,17 @@ namespace SRT_GATEWAY
                     Name = "Path B (Redundant)",
                     Host = _settings.MemberBHost,
                     Port = _settings.MemberBPort,
+                    LocalInterfaceIp = nicB,
                     Weight = 100
                 });
+
+                if (_settings.ExtraGroupMembers != null)
+                {
+                    foreach (var extra in _settings.ExtraGroupMembers)
+                    {
+                        config.GroupMembers.Add(extra);
+                    }
+                }
             }
 
             _ingestSession = new SRTStreamSession(config);
@@ -204,190 +238,216 @@ namespace SRT_GATEWAY
             }
         }
 
+        public async Task<bool> AddMemberSocketAsync(SRTGroupMemberConfig member)
+        {
+            if (_ingestSession != null && _isRunning)
+            {
+                return await _ingestSession.AddMemberSocketAsync(member).ConfigureAwait(false);
+            }
+            return false;
+        }
+
+        public async Task<bool> RemoveMemberSocketAsync(string memberId)
+        {
+            if (_ingestSession != null && _isRunning)
+            {
+                return await _ingestSession.RemoveMemberSocketAsync(memberId).ConfigureAwait(false);
+            }
+            return false;
+        }
+
         private async Task InitializeEgressEnginesAsync()
         {
-            // ─── 1. SRT OUT ──────────────────────────────────────────────
-            SrtOutStatus.IsEnabled = _settings.SrtOutEnabled;
-            if (_settings.SrtOutEnabled)
+            // ─── DYNAMIC EGRESS STREAMS INITIALIZATION ───────────────────────
+            DynamicStreamStatuses.Clear();
+            if (_settings.EgressStreams != null && _settings.EgressStreams.Count > 0)
             {
-                try
+                foreach (var stream in _settings.EgressStreams)
                 {
-                    var srtOutConfig = new SRTStreamConfig
-                    {
-                        Host = _settings.SrtOutHost,
-                        Port = _settings.SrtOutPort,
-                        Mode = _settings.SrtOutModeIndex == 1 ? SRTMode.Listener : SRTMode.Caller,
-                        StreamId = _settings.SrtOutStreamId,
-                        LatencyMs = 120,
-                        EncryptionEnabled = !string.IsNullOrEmpty(_settings.SrtOutPassphrase),
-                        Passphrase = _settings.SrtOutPassphrase,
-                        GroupSocketEnabled = _settings.SrtOutSmpte2022_7
-                    };
+                    var status = new EgressProtocolStatus { IsEnabled = stream.IsEnabled };
+                    DynamicStreamStatuses[stream.Id] = status;
 
-                    if (_settings.SrtOutSmpte2022_7)
+                    if (!stream.IsEnabled)
                     {
-                        srtOutConfig.GroupMembers.Clear();
-                        srtOutConfig.GroupMembers.Add(new SRTGroupMemberConfig
+                        status.IsActive = false;
+                        status.StatusMessage = "OFF";
+                        continue;
+                    }
+
+                    try
+                    {
+                        switch (stream.Protocol)
                         {
-                            Id = "outA",
-                            Name = "Egress Path A",
-                            Host = _settings.SrtOutHost,
-                            Port = _settings.SrtOutPort
-                        });
-                        srtOutConfig.GroupMembers.Add(new SRTGroupMemberConfig
+                            case "SRT":
+                                var srtCfg = new SRTStreamConfig
+                                {
+                                    Host = stream.SrtHost,
+                                    Port = stream.SrtPort,
+                                    Mode = stream.SrtModeIndex == 1 ? SRTMode.Listener : (stream.SrtModeIndex == 2 ? SRTMode.Rendezvous : SRTMode.Caller),
+                                    StreamId = stream.SrtStreamId,
+                                    LatencyMs = stream.LatencyMs > 0 ? stream.LatencyMs : 120,
+                                    EncryptionEnabled = stream.EncryptionEnabled && !string.IsNullOrEmpty(stream.Passphrase),
+                                    Passphrase = stream.Passphrase,
+                                    GroupSocketEnabled = stream.IsSmpte2022_7Enabled
+                                };
+                                if (stream.IsSmpte2022_7Enabled)
+                                {
+                                    srtCfg.GroupMembers.Clear();
+                                    srtCfg.GroupMembers.Add(new SRTGroupMemberConfig
+                                    {
+                                        Id = "outA_" + stream.Id,
+                                        Name = "Egress Path A",
+                                        Host = stream.MemberAHost,
+                                        Port = stream.MemberAPort,
+                                        LocalInterfaceIp = stream.MemberANicIp
+                                    });
+                                    srtCfg.GroupMembers.Add(new SRTGroupMemberConfig
+                                    {
+                                        Id = "outB_" + stream.Id,
+                                        Name = "Egress Path B",
+                                        Host = stream.MemberBHost,
+                                        Port = stream.MemberBPort,
+                                        LocalInterfaceIp = stream.MemberBNicIp
+                                    });
+                                }
+                                var srtSession = new SRTStreamSession(srtCfg);
+                                bool ok = await srtSession.StartTransmissionAsync().ConfigureAwait(false);
+                                status.IsActive = ok;
+                                status.Endpoint = srtCfg.ToSrtUri();
+                                status.StatusMessage = ok ? "TRANSMITTING" : "OPEN FAILED";
+                                _dynamicSrtSessions.Add(srtSession);
+                                if (_srtOutSession == null) _srtOutSession = srtSession;
+                                SrtOutStatus.IsActive = true;
+                                SrtOutStatus.Endpoint = status.Endpoint;
+                                Log("[EGRESS_SRT]", $"SRT Out '{stream.Name}': {status.StatusMessage} -> {status.Endpoint}");
+                                break;
+
+                            case "WebRTC":
+                                StartWebRtcPreviewHttpServer(stream.WebRtcPort);
+                                status.IsActive = true;
+                                status.Endpoint = $"http://127.0.0.1:{stream.WebRtcPort}/webrtc";
+                                status.StatusMessage = "SIGNALING READY";
+                                WebRtcStatus.IsActive = true;
+                                Log("[EGRESS_WEBRTC]", $"WebRTC Out '{stream.Name}' on {status.Endpoint}");
+                                break;
+
+                            case "RTMP":
+                                status.IsActive = true;
+                                status.Endpoint = $"{stream.RtmpUrl.TrimEnd('/')}/{stream.RtmpStreamKey}";
+                                status.StatusMessage = "READY TO PUSH";
+                                RtmpStatus.IsActive = true;
+                                Log("[EGRESS_RTMP]", $"RTMP Out '{stream.Name}' to {status.Endpoint}");
+                                break;
+
+                            case "RTSP":
+                                StartRtspServer(stream.RtspPort);
+                                status.IsActive = true;
+                                status.Endpoint = $"rtsp://0.0.0.0:{stream.RtspPort}{stream.RtspPath}";
+                                status.StatusMessage = "LISTENING";
+                                RtspStatus.IsActive = true;
+                                Log("[EGRESS_RTSP]", $"RTSP Server '{stream.Name}' on {status.Endpoint}");
+                                break;
+
+                            case "LRT":
+                                _lrtClientA ??= new UdpClient();
+                                _lrtClientB ??= new UdpClient();
+                                status.IsActive = true;
+                                status.Endpoint = $"LRT A: {stream.LrtPath1Host}:{stream.LrtPath1Port} | B: {stream.LrtPath2Host}:{stream.LrtPath2Port}";
+                                status.StatusMessage = "BONDING ACTIVE";
+                                LrtStatus.IsActive = true;
+                                Log("[EGRESS_LRT]", $"LRT Out '{stream.Name}' on {status.Endpoint}");
+                                break;
+
+                            case "HLS":
+                                Directory.CreateDirectory(_hlsDir);
+                                StartHlsDashHttpServer(stream.HlsPort);
+                                status.IsActive = true;
+                                status.Endpoint = $"http://127.0.0.1:{stream.HlsPort}/live.m3u8";
+                                status.StatusMessage = "HLS READY";
+                                HlsStatus.IsActive = true;
+                                Log("[EGRESS_HLS]", $"HLS Playlist '{stream.Name}' on {status.Endpoint}");
+                                break;
+
+                            case "DASH":
+                                Directory.CreateDirectory(_dashDir);
+                                StartHlsDashHttpServer(stream.DashPort);
+                                status.IsActive = true;
+                                status.Endpoint = $"http://127.0.0.1:{stream.DashPort}/live.mpd";
+                                status.StatusMessage = "DASH READY";
+                                DashStatus.IsActive = true;
+                                Log("[EGRESS_DASH]", $"DASH Manifest '{stream.Name}' on {status.Endpoint}");
+                                break;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        status.IsActive = false;
+                        status.StatusMessage = $"ERROR: {ex.Message}";
+                    }
+                }
+            }
+            else
+            {
+                // Fallback to legacy single-protocol fields
+                SrtOutStatus.IsEnabled = _settings.SrtOutEnabled;
+                if (_settings.SrtOutEnabled)
+                {
+                    try
+                    {
+                        var srtOutConfig = new SRTStreamConfig
                         {
-                            Id = "outB",
-                            Name = "Egress Path B",
                             Host = _settings.SrtOutHost,
-                            Port = _settings.SrtOutMemberBPort
-                        });
+                            Port = _settings.SrtOutPort,
+                            Mode = _settings.SrtOutModeIndex == 1 ? SRTMode.Listener : SRTMode.Caller,
+                            StreamId = _settings.SrtOutStreamId,
+                            LatencyMs = 120,
+                            EncryptionEnabled = !string.IsNullOrEmpty(_settings.SrtOutPassphrase),
+                            Passphrase = _settings.SrtOutPassphrase,
+                            GroupSocketEnabled = _settings.SrtOutSmpte2022_7
+                        };
+                        _srtOutSession = new SRTStreamSession(srtOutConfig);
+                        bool ok = await _srtOutSession.StartTransmissionAsync().ConfigureAwait(false);
+                        SrtOutStatus.IsActive = ok;
+                        SrtOutStatus.Endpoint = srtOutConfig.ToSrtUri();
+                        SrtOutStatus.StatusMessage = ok ? "TRANSMITTING" : "OPEN FAILED";
+                        _dynamicSrtSessions.Add(_srtOutSession);
                     }
-
-                    _srtOutSession = new SRTStreamSession(srtOutConfig);
-                    bool ok = await _srtOutSession.StartTransmissionAsync().ConfigureAwait(false);
-                    SrtOutStatus.IsActive = ok;
-                    SrtOutStatus.Endpoint = srtOutConfig.ToSrtUri();
-                    SrtOutStatus.StatusMessage = ok ? "TRANSMITTING" : "OPEN FAILED";
-                    Log("[EGRESS_SRT]", $"SRT Out: {SrtOutStatus.StatusMessage} -> {SrtOutStatus.Endpoint}");
-                }
-                catch (Exception ex)
-                {
-                    SrtOutStatus.IsActive = false;
-                    SrtOutStatus.StatusMessage = $"ERROR: {ex.Message}";
-                }
-            }
-            else
-            {
-                SrtOutStatus.IsActive = false;
-                SrtOutStatus.StatusMessage = "DISABLED";
-            }
-
-            // ─── 2. WEBRTC OUT ──────────────────────────────────────────
-            WebRtcStatus.IsEnabled = _settings.WebRtcOutEnabled;
-            if (_settings.WebRtcOutEnabled)
-            {
-                try
-                {
-                    StartWebRtcPreviewHttpServer(_settings.WebRtcPort);
-                    WebRtcStatus.IsActive = true;
-                    WebRtcStatus.Endpoint = $"http://127.0.0.1:{_settings.WebRtcPort}/webrtc";
-                    WebRtcStatus.StatusMessage = "SIGNALING READY (WHIP/WHEP)";
-                    Log("[EGRESS_WEBRTC]", $"WebRTC Out Signaling Server active on {WebRtcStatus.Endpoint}");
-                }
-                catch (Exception ex)
-                {
-                    WebRtcStatus.IsActive = false;
-                    WebRtcStatus.StatusMessage = $"ERROR: {ex.Message}";
-                }
-            }
-            else
-            {
-                WebRtcStatus.IsActive = false;
-                WebRtcStatus.StatusMessage = "DISABLED";
-            }
-
-            // ─── 3. RTMP OUT ────────────────────────────────────────────
-            RtmpStatus.IsEnabled = _settings.RtmpOutEnabled;
-            if (_settings.RtmpOutEnabled)
-            {
-                string rtmpFullUrl = $"{_settings.RtmpUrl.TrimEnd('/')}/{_settings.RtmpStreamKey}";
-                RtmpStatus.Endpoint = rtmpFullUrl;
-                RtmpStatus.IsActive = true;
-                RtmpStatus.StatusMessage = "READY TO PUSH";
-                Log("[EGRESS_RTMP]", $"RTMP Out configured to destination: {rtmpFullUrl}");
-            }
-            else
-            {
-                RtmpStatus.IsActive = false;
-                RtmpStatus.StatusMessage = "DISABLED";
-            }
-
-            // ─── 4. RTSP OUT ────────────────────────────────────────────
-            RtspStatus.IsEnabled = _settings.RtspOutEnabled;
-            if (_settings.RtspOutEnabled)
-            {
-                try
-                {
-                    StartRtspServer(_settings.RtspPort);
-                    RtspStatus.IsActive = true;
-                    RtspStatus.Endpoint = $"rtsp://0.0.0.0:{_settings.RtspPort}{_settings.RtspPath}";
-                    RtspStatus.StatusMessage = "LISTENING (VLC/NVR COMPATIBLE)";
-                    Log("[EGRESS_RTSP]", $"RTSP Server listening on {RtspStatus.Endpoint}");
-                }
-                catch (Exception ex)
-                {
-                    RtspStatus.IsActive = false;
-                    RtspStatus.StatusMessage = $"ERROR: {ex.Message}";
-                }
-            }
-            else
-            {
-                RtspStatus.IsActive = false;
-                RtspStatus.StatusMessage = "DISABLED";
-            }
-
-            // ─── 5. LRT OUT (LiveU Reliable Transport Bonding) ──────────
-            LrtStatus.IsEnabled = _settings.LrtOutEnabled;
-            if (_settings.LrtOutEnabled)
-            {
-                try
-                {
-                    _lrtClientA = new UdpClient();
-                    _lrtClientB = new UdpClient();
-                    LrtStatus.IsActive = true;
-                    LrtStatus.Endpoint = $"LRT A: {_settings.LrtPath1Host}:{_settings.LrtPath1Port} | B: {_settings.LrtPath2Host}:{_settings.LrtPath2Port}";
-                    LrtStatus.StatusMessage = "DUAL-PATH BONDING ACTIVE";
-                    Log("[EGRESS_LRT]", $"LRT Out active over {LrtStatus.Endpoint}");
-                }
-                catch (Exception ex)
-                {
-                    LrtStatus.IsActive = false;
-                    LrtStatus.StatusMessage = $"ERROR: {ex.Message}";
-                }
-            }
-            else
-            {
-                LrtStatus.IsActive = false;
-                LrtStatus.StatusMessage = "DISABLED";
-            }
-
-            // ─── 6 & 7. HLS & DASH OUT ──────────────────────────────────
-            HlsStatus.IsEnabled = _settings.HlsOutEnabled;
-            DashStatus.IsEnabled = _settings.DashOutEnabled;
-
-            if (_settings.HlsOutEnabled || _settings.DashOutEnabled)
-            {
-                try
-                {
-                    Directory.CreateDirectory(_hlsDir);
-                    Directory.CreateDirectory(_dashDir);
-                    StartHlsDashHttpServer(_settings.HlsPort);
-
-                    if (_settings.HlsOutEnabled)
+                    catch (Exception ex)
                     {
-                        HlsStatus.IsActive = true;
-                        HlsStatus.Endpoint = $"http://127.0.0.1:{_settings.HlsPort}/live.m3u8";
-                        HlsStatus.StatusMessage = "HLS SEGMENTER ONLINE";
-                        Log("[EGRESS_HLS]", $"HLS Playlist endpoint: {HlsStatus.Endpoint}");
-                    }
-
-                    if (_settings.DashOutEnabled)
-                    {
-                        DashStatus.IsActive = true;
-                        DashStatus.Endpoint = $"http://127.0.0.1:{_settings.DashPort}/live.mpd";
-                        DashStatus.StatusMessage = "DASH MPD ONLINE";
-                        Log("[EGRESS_DASH]", $"DASH Manifest endpoint: {DashStatus.Endpoint}");
+                        SrtOutStatus.IsActive = false;
+                        SrtOutStatus.StatusMessage = $"ERROR: {ex.Message}";
                     }
                 }
-                catch (Exception ex)
+
+                if (_settings.WebRtcOutEnabled)
                 {
-                    Log("[WARN]", $"Lỗi khởi động HLS/DASH server: {ex.Message}");
+                    try { StartWebRtcPreviewHttpServer(_settings.WebRtcPort); WebRtcStatus.IsActive = true; } catch { }
+                }
+                if (_settings.RtmpOutEnabled) RtmpStatus.IsActive = true;
+                if (_settings.RtspOutEnabled)
+                {
+                    try { StartRtspServer(_settings.RtspPort); RtspStatus.IsActive = true; } catch { }
+                }
+                if (_settings.LrtOutEnabled)
+                {
+                    try { _lrtClientA = new UdpClient(); _lrtClientB = new UdpClient(); LrtStatus.IsActive = true; } catch { }
+                }
+                if (_settings.HlsOutEnabled || _settings.DashOutEnabled)
+                {
+                    try { Directory.CreateDirectory(_hlsDir); Directory.CreateDirectory(_dashDir); StartHlsDashHttpServer(_settings.HlsPort); } catch { }
                 }
             }
         }
 
         private void StopEgressEngines()
         {
+            foreach (var s in _dynamicSrtSessions)
+            {
+                try { s.StopAsync().GetAwaiter().GetResult(); } catch { }
+                s.Dispose();
+            }
+            _dynamicSrtSessions.Clear();
+
             if (_srtOutSession != null)
             {
                 try { _srtOutSession.StopAsync().GetAwaiter().GetResult(); } catch { }
@@ -430,8 +490,19 @@ namespace SRT_GATEWAY
                     {
                         IngestTotalBytes += (ulong)bytesRead;
 
-                        // 1. Forward to SRT Out
-                        if (_settings.SrtOutEnabled && _srtOutSession != null && _srtOutSession.IsRunning)
+                        // 1. Forward to SRT Out (All dynamic sessions)
+                        foreach (var srtSess in _dynamicSrtSessions)
+                        {
+                            if (srtSess.IsRunning)
+                            {
+                                srtSess.SendData(packetBuffer, bytesRead);
+                            }
+                        }
+                        if (_dynamicSrtSessions.Count > 0)
+                        {
+                            SrtOutStatus.TotalBytesSent += (ulong)bytesRead;
+                        }
+                        else if (_settings.SrtOutEnabled && _srtOutSession != null && _srtOutSession.IsRunning)
                         {
                             _srtOutSession.SendData(packetBuffer, bytesRead);
                             SrtOutStatus.TotalBytesSent += (ulong)bytesRead;
@@ -492,6 +563,11 @@ namespace SRT_GATEWAY
                         if (LrtStatus.IsEnabled) LrtStatus.BitrateKbps = IngestBitrateKbps * 2;
                         if (HlsStatus.IsEnabled) HlsStatus.BitrateKbps = IngestBitrateKbps;
                         if (DashStatus.IsEnabled) DashStatus.BitrateKbps = IngestBitrateKbps;
+
+                        foreach (var st in DynamicStreamStatuses.Values)
+                        {
+                            if (st.IsEnabled && st.IsActive) st.BitrateKbps = IngestBitrateKbps;
+                        }
 
                         StatsUpdated?.Invoke();
                     }

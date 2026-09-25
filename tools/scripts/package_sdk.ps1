@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "1.0.0",
+    [string]$Version = "2.0.0",
     [string]$OutputFolder = "dist",
     [string]$BuildDir = "",
     [string]$InnoSetupPath = "",

@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:om="clr-namespace:OpenMedia.Platform.Controls.Wpf;assembly=OpenMedia.Platform"
-        Title="OMEPlatform_AVDelay - Broadcast Monitor" Height="800" Width="1000"
+        Title="OMEPlatform_AVDelay v2.0 - Broadcast Monitor" Height="800" Width="1000"
         Background="#1E1E1E" Foreground="White"
         Loaded="Window_Loaded" Unloaded="Window_Unloaded" Closing="Window_Closing">
     <Window.Resources>

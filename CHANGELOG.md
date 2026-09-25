@@ -2,7 +2,7 @@
 
 All notable changes to the OpenMedia SDK will be documented in this file.
 
-## [2.1.0] - 2026-09-18
+## [2.0.0] - 2026-09-24
 
 ### Added
 - **SMPTE ST 2022-7 Hitless Merging**: Differential Delay Ring Buffer (10ms - 500ms delay skew compensation) and packet-by-packet RTP deduplication with zero frame drop.

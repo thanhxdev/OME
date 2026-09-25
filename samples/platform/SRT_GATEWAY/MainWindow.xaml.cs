@@ -61,6 +61,17 @@ namespace SRT_GATEWAY
 
             _isInitialized = true;
 
+            if (ScrollerMultiview != null)
+            {
+                ScrollerMultiview.SizeChanged += (s, e) =>
+                {
+                    if (_isInitialized && Math.Abs(e.NewSize.Height - e.PreviousSize.Height) > 15)
+                    {
+                        ApplyMultiviewLayout();
+                    }
+                };
+            }
+
             // Tự động khởi chạy Monitor server nếu được cấu hình bật
             if (_settings.IsMonitorServerEnabled)
             {
@@ -244,6 +255,10 @@ namespace SRT_GATEWAY
                 MultiviewGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             }
 
+            double availableH = ScrollerMultiview?.ActualHeight ?? 0;
+            if (availableH <= 100) availableH = 750;
+            double rowH = Math.Max(500, availableH / Math.Max(1, rows));
+
             for (int r = 0; r < rows; r++)
             {
                 MultiviewGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -257,6 +272,8 @@ namespace SRT_GATEWAY
 
                 Grid.SetRow(chControl, r);
                 Grid.SetColumn(chControl, c);
+
+                chControl.Height = rowH;
 
                 MultiviewGrid.Children.Add(chControl);
             }

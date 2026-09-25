@@ -118,8 +118,8 @@ std::vector<std::string> Engine::EnumerateDevices() const {
 
 EngineVersion Engine::GetVersion() {
     return {
-        1, 0, 0,
-        "v1.0.0",
+        2, 0, 0,
+        "v2.0.0",
         OME_BUILD_TYPE_STR
     };
 }

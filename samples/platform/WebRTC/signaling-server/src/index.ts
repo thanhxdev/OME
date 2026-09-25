@@ -24,7 +24,7 @@ async function bootstrap() {
   app.get('/', (_req, res) => {
     res.json({
       name: 'Broadcast WebRTC Signaling Server',
-      version: '1.0.0',
+      version: '2.0.0',
       websocket: `ws://localhost:${CONFIG.PORT}/ws`,
       apiDocs: '/api/sessions',
       health: '/api/health',

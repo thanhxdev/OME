@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "1.1.0",
+    [string]$Version = "2.0.0",
     [string]$OutputFolder = "dist",
     [string]$BuildDir = "",
     [string]$InnoSetupPath = "",
@@ -28,7 +28,7 @@ try {
 
     # STEP 1: Build OpenMedia SDK Runtime Installer
     if (-not $SkipSDK) {
-        Write-Host "`n>>> [1/3] Packaging OpenMedia SDK Runtime..." -ForegroundColor Magenta
+        Write-Host "`n>>> [1/7] Packaging OpenMedia SDK Runtime..." -ForegroundColor Magenta
         $sdkScript = Join-Path $PSScriptRoot "package_sdk.ps1"
         $sdkParams = @{
             Version      = $Version
@@ -58,12 +58,12 @@ try {
             }
         }
     } else {
-        Write-Host "`n>>> [1/3] Skipping OpenMedia SDK Runtime (-SkipSDK specified)..." -ForegroundColor Gray
+        Write-Host "`n>>> [1/7] Skipping OpenMedia SDK Runtime (-SkipSDK specified)..." -ForegroundColor Gray
     }
 
     # STEP 2: Build SRT_ENCODE Application Installer
     if (-not $SkipApps) {
-        Write-Host "`n>>> [2/3] Packaging SRT_ENCODE Application..." -ForegroundColor Magenta
+        Write-Host "`n>>> [2/7] Packaging SRT_ENCODE Application..." -ForegroundColor Magenta
         $appScript = Join-Path $PSScriptRoot "package_app.ps1"
         $encodeParams = @{
             AppName      = "SRT_ENCODE"
@@ -92,7 +92,7 @@ try {
         }
 
         # STEP 3: Build SRT_DECODE Application Installer
-        Write-Host "`n>>> [3/5] Packaging SRT_DECODE Application..." -ForegroundColor Magenta
+        Write-Host "`n>>> [3/7] Packaging SRT_DECODE Application..." -ForegroundColor Magenta
         $decodeParams = @{
             AppName      = "SRT_DECODE"
             Version      = $Version
@@ -119,8 +119,36 @@ try {
             }
         }
 
-        # STEP 4: Build WEBRTC_ENCODE Application Installer
-        Write-Host "`n>>> [4/5] Packaging WEBRTC_ENCODE Application..." -ForegroundColor Magenta
+        # STEP 4: Build SRT_GATEWAY Application Installer
+        Write-Host "`n>>> [4/7] Packaging SRT_GATEWAY Application..." -ForegroundColor Magenta
+        $gatewayParams = @{
+            AppName      = "SRT_GATEWAY"
+            Version      = $Version
+            OutputFolder = $OutputFolder
+        }
+        if (-not [string]::IsNullOrWhiteSpace($InnoSetupPath)) {
+            $gatewayParams["InnoSetupPath"] = $InnoSetupPath
+        }
+
+        & $appScript @gatewayParams
+        if ($LASTEXITCODE -ne 0) {
+            throw "package_app.ps1 (SRT_GATEWAY) failed with exit code $LASTEXITCODE"
+        }
+
+        $gatewayExe = Join-Path $DistDir "SRT_GATEWAY_Setup.exe"
+        if (Test-Path $gatewayExe) {
+            $item = Get-Item $gatewayExe
+            $results += [PSCustomObject]@{
+                Component = "SRT_GATEWAY App"
+                File      = $item.Name
+                SizeMB    = [math]::Round($item.Length / 1MB, 2)
+                SHA256    = (Get-FileHash -Path $gatewayExe -Algorithm SHA256).Hash.Substring(0, 16) + "..."
+                Status    = "[OK]"
+            }
+        }
+
+        # STEP 5: Build WEBRTC_ENCODE Application Installer
+        Write-Host "`n>>> [5/7] Packaging WEBRTC_ENCODE Application..." -ForegroundColor Magenta
         $webrtcEncodeParams = @{
             AppName      = "WEBRTC_ENCODE"
             Version      = $Version
@@ -147,8 +175,8 @@ try {
             }
         }
 
-        # STEP 5: Build WEBRTC_DECODE Application Installer
-        Write-Host "`n>>> [5/6] Packaging WEBRTC_DECODE Application..." -ForegroundColor Magenta
+        # STEP 6: Build WEBRTC_DECODE Application Installer
+        Write-Host "`n>>> [6/7] Packaging WEBRTC_DECODE Application..." -ForegroundColor Magenta
         $webrtcDecodeParams = @{
             AppName      = "WEBRTC_DECODE"
             Version      = $Version
@@ -175,8 +203,8 @@ try {
             }
         }
 
-        # STEP 6: Build OME_PLAYOUT Application Installer
-        Write-Host "`n>>> [6/6] Packaging OME_PLAYOUT Application..." -ForegroundColor Magenta
+        # STEP 7: Build OME_PLAYOUT Application Installer
+        Write-Host "`n>>> [7/7] Packaging OME_PLAYOUT Application..." -ForegroundColor Magenta
         $omePlayoutParams = @{
             AppName      = "OME_PLAYOUT"
             Version      = $Version

@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:OME_PLAYOUT"
         mc:Ignorable="d"
-        Title="OME MASTER CONTROL PLAYOUT • CHANNEL-IN-A-BOX (Broadcast Station Edition)"
+        Title="OME MASTER CONTROL PLAYOUT • CHANNEL-IN-A-BOX v2.0 (Broadcast Station Edition)"
         Height="980" Width="1720"
         MinHeight="768" MinWidth="1360"
         WindowStartupLocation="CenterScreen"

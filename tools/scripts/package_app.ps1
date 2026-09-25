@@ -1,9 +1,9 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("SRT_ENCODE", "SRT_DECODE", "WEBRTC_ENCODE", "WEBRTC_DECODE", "OME_PLAYOUT")]
+    [ValidateSet("SRT_ENCODE", "SRT_DECODE", "WEBRTC_ENCODE", "WEBRTC_DECODE", "OME_PLAYOUT", "SRT_GATEWAY")]
     [string]$AppName,
 
-    [string]$Version = "1.1.0",
+    [string]$Version = "2.0.0",
     [string]$OutputFolder = "dist",
     [string]$InnoSetupPath = "",
     [switch]$SkipPublish,
@@ -43,6 +43,10 @@ try {
         "OME_PLAYOUT" = @{
             "Csproj"  = "samples\platform\OME_PLAYOUT\OME_PLAYOUT.csproj"
             "AppGuid" = "{{D4E5F6A1-B2C3-4D5E-8F9A-1B2C3D4E5F6A}}"
+        }
+        "SRT_GATEWAY" = @{
+            "Csproj"  = "samples\platform\SRT_GATEWAY\SRT_GATEWAY.csproj"
+            "AppGuid" = "{{A1B2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5D}}"
         }
     }
 

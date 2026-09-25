@@ -20,7 +20,7 @@ struct NMOSEngine::Impl {
            << "  \"id\": \"" << config.nodeId << "\",\n"
            << "  \"version\": \"1710000000:000000000\",\n"
            << "  \"label\": \"" << config.label << "\",\n"
-           << "  \"description\": \"OpenMedia 2.1.0 ST 2110 Broadcast Engine Node\",\n"
+           << "  \"description\": \"OpenMedia 2.0.0 ST 2110 Broadcast Engine Node\",\n"
            << "  \"href\": \"http://127.0.0.1:8080/\",\n"
            << "  \"hostname\": \"openmedia-node-01\",\n"
            << "  \"api\": {\n"

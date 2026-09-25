@@ -122,7 +122,7 @@ namespace OpenMedia.Platform.Internal
         /// <summary>
         /// Builds a handshake payload.
         /// </summary>
-        internal static byte[] Handshake(string clientVersion = "1.0.0-Platform")
+        internal static byte[] Handshake(string clientVersion = "2.0.0-Platform")
         {
             var b = new MessageBuilder();
             b.WriteString(clientVersion);

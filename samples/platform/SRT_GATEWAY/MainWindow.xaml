@@ -6,7 +6,7 @@
         xmlns:om="clr-namespace:OpenMedia.Platform.Controls.Wpf;assembly=OpenMedia.Platform"
         xmlns:local="clr-namespace:SRT_GATEWAY"
         mc:Ignorable="d"
-        Title="OpenMedia SRT Gateway &amp; Telemetry Monitor"
+        Title="OpenMedia SRT Gateway &amp; Telemetry Monitor v2.0"
         Height="840" Width="1440"
         MinHeight="600" MinWidth="1050"
         WindowStartupLocation="CenterScreen"
@@ -95,15 +95,6 @@
             <Setter Property="Height" Value="28"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
-
-        <Style TargetType="ComboBox">
-            <Setter Property="Background" Value="#202028"/>
-            <Setter Property="Foreground" Value="#FFFFFF"/>
-            <Setter Property="BorderBrush" Value="#383844"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Height" Value="28"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-        </Style>
     </Window.Resources>
 
     <Grid>
@@ -136,7 +127,12 @@
                         <TextBlock Text="OME" FontWeight="Bold" FontSize="14" Foreground="#FFFFFF"/>
                     </Border>
                     <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
-                        <TextBlock Text="OPENMEDIA SRT GATEWAY &amp; TELEMETRY MONITOR" FontWeight="Bold" FontSize="14" Foreground="#FFFFFF"/>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="OPENMEDIA SRT GATEWAY &amp; TELEMETRY MONITOR" FontWeight="Bold" FontSize="14" Foreground="#FFFFFF"/>
+                            <Border Background="#2A2A2E" CornerRadius="3" Padding="5,2" Margin="8,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="v2.0" FontSize="10" FontWeight="SemiBold" Foreground="#4EC9B0"/>
+                            </Border>
+                        </StackPanel>
                         <TextBlock Text="Universal Multi-Protocol Media Gateway &amp; NOC Stream Health Server" FontSize="10.5" Foreground="#888899"/>
                     </StackPanel>
 

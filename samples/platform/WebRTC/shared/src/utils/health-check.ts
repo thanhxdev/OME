@@ -13,7 +13,7 @@ export class HealthCheckManager {
   private version: string;
   private components: Map<string, Partial<ComponentHealth>>;
 
-  constructor(version: string = '1.0.0') {
+  constructor(version: string = '2.0.0') {
     this.startTime = Date.now();
     this.version = version;
     this.components = new Map();

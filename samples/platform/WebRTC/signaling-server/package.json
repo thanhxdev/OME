@@ -1,6 +1,6 @@
 {
   "name": "@webrtc-broadcast/signaling-server",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Central Signaling and Session Management Server for Broadcast WebRTC",
   "main": "dist/index.js",
   "scripts": {

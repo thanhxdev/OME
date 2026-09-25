@@ -1,6 +1,6 @@
 {
   "name": "@webrtc-broadcast/studio-decoder",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Broadcast Studio WebRTC/RTP Receiver with SDI DeckLink and NDI Output",
   "main": "dist/index.js",
   "bin": {

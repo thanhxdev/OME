@@ -1,7 +1,7 @@
-# Cẩm Nang Tra Cứu Thư Viện OpenMedia SDK (v2.1.0)
+# Cẩm Nang Tra Cứu Thư Viện OpenMedia SDK (v2.0.0)
 # OpenMedia SDK Library Reference Guide
 
-Tài liệu này là bản đặc tả tra cứu toàn diện (Comprehensive Technical Reference) về toàn bộ các thư viện, phân hệ (modules), lớp đối tượng (classes), và các giao diện lập trình (APIs) hiện có trong hệ sinh thái **OpenMedia SDK Version 2.1.0**.
+Tài liệu này là bản đặc tả tra cứu toàn diện (Comprehensive Technical Reference) về toàn bộ các thư viện, phân hệ (modules), lớp đối tượng (classes), và các giao diện lập trình (APIs) hiện có trong hệ sinh thái **OpenMedia SDK Version 2.0.0**.
 
 Tài liệu được phân loại theo từng nhóm chức năng tác vụ chuyên biệt, liệt kê chi tiết từng đơn vị thành phần, nhiệm vụ kỹ thuật, tệp tiêu đề (headers/namespaces), và kèm theo code mẫu thực tế cho cả **C++23** và **.NET 10 (C#)**.
 
@@ -382,4 +382,4 @@ public sealed partial class MainWindow : Microsoft.UI.Xaml.Window
 
 ---
 
-*Tài liệu được biên soạn và cập nhật chính thức cho phiên bản OpenMedia SDK v2.1.0 Commercial Release.*
+*Tài liệu được biên soạn và cập nhật chính thức cho phiên bản OpenMedia SDK v2.0.0 Commercial Release.*

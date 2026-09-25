@@ -6,7 +6,7 @@
         xmlns:om="clr-namespace:OpenMedia.Platform.Controls.Wpf;assembly=OpenMedia.Platform"
         xmlns:local="clr-namespace:WEBRTC_ENCODE"
         mc:Ignorable="d"
-        Title="ENCODER"
+        Title="ENCODER v2.0"
         Height="760" Width="1220"
         MinHeight="550" MinWidth="900"
         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -335,6 +335,9 @@
                         <TextBlock Text="WEBRTC" FontWeight="Black" FontSize="11" Foreground="#FFFFFF"/>
                     </Border>
                     <TextBlock Text="ENCODER" FontWeight="Bold" FontSize="14" Foreground="#FFFFFF" VerticalAlignment="Center"/>
+                    <Border Background="#2A2A2E" CornerRadius="3" Padding="5,2" Margin="8,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="v2.0" FontSize="10" FontWeight="SemiBold" Foreground="#4EC9B0"/>
+                    </Border>
                 </StackPanel>
 
                 <!-- Center Status Badges -->

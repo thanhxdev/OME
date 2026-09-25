@@ -19,7 +19,7 @@ bool LUTFilter::Initialize() {
     m_info.displayName = "3D LUT Filter";
     m_info.description = "Apply a 3D LUT (Look-Up Table) to video using FFmpeg lut3d filter";
     m_info.author = "OpenMedia SDK";
-    m_info.version = "1.0.0";
+    m_info.version = "2.0.0";
     m_info.url = "https://openmedia.org/plugins/lut";
     m_info.apiVersion = OME_PLUGIN_API_VERSION;
     m_info.capabilities = openmedia::plugin::PluginCapability::VideoFilter;

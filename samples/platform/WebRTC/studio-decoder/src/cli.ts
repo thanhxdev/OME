@@ -11,7 +11,7 @@ const program = new Command();
 program
   .name('studio-decoder')
   .description('Broadcast Studio WebRTC/RTP Receiver with SDI DeckLink and NDI Output')
-  .version('1.0.0')
+  .version('2.0.0')
   .option('--camera-id <id>', 'Target camera feed to decode (e.g. cam-01)', 'cam-01')
   .option('--output <type>', 'Output sink type: sdi | ndi | display | null', 'display')
   .option('--ndi-name <name>', 'NDI Stream Name', 'CAM 01 - Main Wide')

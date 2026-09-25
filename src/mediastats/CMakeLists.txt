@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(MediaStats VERSION 1.0.0 LANGUAGES CXX)
+project(MediaStats VERSION 2.0.0 LANGUAGES CXX)
 
 # Use C++23 as requested
 set(CMAKE_CXX_STANDARD 23)

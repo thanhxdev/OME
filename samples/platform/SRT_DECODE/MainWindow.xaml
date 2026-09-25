@@ -6,7 +6,7 @@
         xmlns:om="clr-namespace:OpenMedia.Platform.Controls.Wpf;assembly=OpenMedia.Platform"
         xmlns:local="clr-namespace:SRT_DECODE"
         mc:Ignorable="d"
-        Title="OME Broadcast Multi-SRT Decoder &amp; Studio Sync"
+        Title="OME Broadcast Multi-SRT Decoder &amp; Studio Sync v2.0"
         Height="900" Width="1440"
         MinHeight="700" MinWidth="1100"
         WindowStartupLocation="CenterScreen"
@@ -330,7 +330,12 @@
                         <TextBlock Text="SRT" FontWeight="Bold" FontSize="11" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="OME BROADCAST MULTI-SRT DECODER" FontWeight="Bold" FontSize="15" Foreground="#FFFFFF"/>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="OME BROADCAST MULTI-SRT DECODER" FontWeight="Bold" FontSize="15" Foreground="#FFFFFF"/>
+                            <Border Background="#2A2A2E" CornerRadius="3" Padding="5,2" Margin="8,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="v2.0" FontSize="10" FontWeight="SemiBold" Foreground="#4EC9B0"/>
+                            </Border>
+                        </StackPanel>
                         <TextBlock Text="Studio Sync • Low-Latency Playout Engine" FontSize="10.5" Foreground="#8E8E93"/>
                     </StackPanel>
                 </StackPanel>

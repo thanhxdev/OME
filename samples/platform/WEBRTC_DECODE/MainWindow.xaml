@@ -6,7 +6,7 @@
         xmlns:om="clr-namespace:OpenMedia.Platform.Controls.Wpf;assembly=OpenMedia.Platform"
         xmlns:local="clr-namespace:WEBRTC_DECODE"
         mc:Ignorable="d"
-        Title="DECODER"
+        Title="DECODER v2.0"
         Height="900" Width="1440"
         MinHeight="700" MinWidth="1100"
         WindowStartupLocation="CenterScreen"
@@ -335,6 +335,9 @@
                         <TextBlock Text="RTC" FontWeight="Bold" FontSize="10.5" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <TextBlock Text="DECODER" FontWeight="Bold" FontSize="16" Foreground="#FFFFFF" VerticalAlignment="Center"/>
+                    <Border Background="#2A2A2E" CornerRadius="3" Padding="5,2" Margin="8,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="v2.0" FontSize="10" FontWeight="SemiBold" Foreground="#4EC9B0"/>
+                    </Border>
                 </StackPanel>
 
                 <!-- Center Clock & Multi-Cam Sync Lock State -->

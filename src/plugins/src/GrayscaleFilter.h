@@ -12,7 +12,7 @@ public:
 
     // IPlugin implementation
     const char* GetName() const override { return "GrayscaleFilter"; }
-    const char* GetVersion() const override { return "1.0.0"; }
+    const char* GetVersion() const override { return "2.0.0"; }
     const char* GetAuthor() const override { return "OpenMedia SDK"; }
     const char* GetDescription() const override { return "Converts video frames to grayscale"; }
     

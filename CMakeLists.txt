@@ -13,7 +13,7 @@ else()
 endif()
 
 project(OpenMedia
-    VERSION 2.1.0
+    VERSION 2.0.0
     DESCRIPTION "High-Performance Media Engine SDK"
     LANGUAGES CXX C
 )

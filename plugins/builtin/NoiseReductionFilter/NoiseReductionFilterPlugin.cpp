@@ -8,7 +8,7 @@ NoiseReductionFilterPlugin::NoiseReductionFilterPlugin() {
     m_info.displayName = "Noise Reduction Filter Plugin";
     m_info.description = "Applies temporal and spatial denoise to video frames.";
     m_info.author = "OpenMedia Team";
-    m_info.version = "1.0.0";
+    m_info.version = "2.0.0";
     m_info.url = "https://openmedia.org";
     m_info.apiVersion = OME_PLUGIN_API_VERSION;
     m_info.capabilities = plugin::PluginCapability::VideoFilter;

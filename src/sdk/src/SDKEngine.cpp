@@ -249,7 +249,7 @@ void SDKEngine::OnConnectionChanged(std::function<void(ServerConnectionState)> c
 }
 
 std::string SDKEngine::GetSDKVersion() {
-    return "1.0.0";
+    return "2.0.0";
 }
 
 } // namespace openmedia::sdk

@@ -1,6 +1,6 @@
 {
   "name": "@webrtc-broadcast/stadium-encoder",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Professional SDI/HDMI Video Capture and WebRTC/RTP Encoder for Stadiums",
   "main": "dist/index.js",
   "bin": {

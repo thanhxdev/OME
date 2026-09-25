@@ -8,7 +8,7 @@ LowerThirdOverlayPlugin::LowerThirdOverlayPlugin() {
     m_info.displayName = "Lower Third Overlay Plugin";
     m_info.description = "Renders a lower third graphic over the video frame.";
     m_info.author = "OpenMedia Team";
-    m_info.version = "1.0.0";
+    m_info.version = "2.0.0";
     m_info.url = "https://openmedia.org";
     m_info.apiVersion = OME_PLUGIN_API_VERSION;
     m_info.capabilities = plugin::PluginCapability::Overlay;

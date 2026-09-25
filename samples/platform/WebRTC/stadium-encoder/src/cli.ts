@@ -12,7 +12,7 @@ const program = new Command();
 program
   .name('stadium-encoder')
   .description('Professional SDI/HDMI Video Capture and WebRTC/RTP Broadcast Encoder')
-  .version('1.0.0')
+  .version('2.0.0')
   .option('-c, --config <path>', 'JSON configuration file path')
   .option('--camera-id <id>', 'Unique camera identifier (e.g. cam-01)', 'cam-01')
   .option('--camera-name <name>', 'Descriptive camera name (e.g. "Main Wide")', 'Main Wide')
